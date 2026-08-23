@@ -5,6 +5,8 @@ import { readFileSync } from "node:fs";
 const source = readFileSync(new URL("../src/DaguanyuanImport.js", import.meta.url), "utf8");
 const addonSource = readFileSync(new URL("../src/WebAddon.js", import.meta.url), "utf8");
 const panelSource = readFileSync(new URL("../src/WebPanelController.js", import.meta.url), "utf8");
+const bridgeSource = readFileSync(new URL("../src/WebBridgeCommands.js", import.meta.url), "utf8");
+const mainSource = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
 
 test("原生导入器以撤销组创建分类子节点并以题目 ID 去重", () => {
   assert.match(source, /UndoManager\.sharedInstance\(\)\.undoGrouping/);
@@ -74,4 +76,19 @@ test("问AI按钮位于打开选中题目右侧并打开所选题目的 AI 助�
 test("题卡正文保存隐藏原题链接", () => {
   assert.match(source, /DAGUANYUAN_URL/);
   assert.match(source, /question\.url/);
+});
+
+test("错题复测页面通过受控指令定位脑图并隐藏面板", () => {
+  assert.match(mainSource, /JSB\.require\("DaguanyuanRetest"\)/);
+  assert.match(panelSource, /webViewShouldStartLoadWithRequestNavigationType/);
+  assert.match(panelSource, /questionIdFromBridgeURL/);
+  assert.match(panelSource, /resolveRetestQuestion/);
+  assert.match(panelSource, /scheduleRetestQuestionFocus/);
+  assert.match(panelSource, /NSTimer\.scheduledTimerWithTimeInterval\(0\.2/);
+  assert.match(panelSource, /focusQuestionCard\(controller\.addon, note, noteId\)/);
+  assert.match(panelSource, /enhancementScript\(\)/);
+  assert.match(bridgeSource, /resolveRetestQuestion/);
+  const delegate = panelSource.slice(panelSource.indexOf("webViewShouldStartLoadWithRequestNavigationType"));
+  assert.ok(delegate.indexOf("performClosePanel(self)") < delegate.indexOf("scheduleRetestQuestionFocus(self, result.note, result.noteId)"));
+  assert.match(delegate, /scheduleRetestQuestionFocus\(self, result\.note, result\.noteId\)/);
 });

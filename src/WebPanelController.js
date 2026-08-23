@@ -149,6 +149,40 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.webView.loadRequest(NSURLRequest.requestWithURL(url));
   }
 
+  function nativeURLMember(object, key) {
+    if (!object) return "";
+    let value = object[key];
+    if (typeof value === "function") value = value.call(object);
+    return String(value || "");
+  }
+
+  function injectRetestEnhancement(controller) {
+    const script = __DAGUANYUAN_RETEST_GLOBAL__.enhancementScript();
+    controller.webView.evaluateJavaScript(script, function (result, error) {
+      if (error) console.log(`[Daguanyuan Bridge] 注入错题定位按钮失败：${error.localizedDescription || error}`);
+    });
+  }
+
+  function resolveRetestQuestion(controller, requestURL) {
+    const absolute = nativeURLMember(requestURL, "absoluteString");
+    const questionId = __DAGUANYUAN_RETEST_GLOBAL__.questionIdFromBridgeURL(absolute);
+    if (!questionId) throw new Error("错题复测定位指令无效");
+    return __DAGUANYUAN_WEB_BRIDGE_COMMANDS_GLOBAL__.commands.resolveRetestQuestion(
+      { addon: controller.addon },
+      { questionId },
+    );
+  }
+
+  function scheduleRetestQuestionFocus(controller, note, noteId) {
+    NSTimer.scheduledTimerWithTimeInterval(0.2, false, function () {
+      try {
+        __DAGUANYUAN_RETEST_GLOBAL__.focusQuestionCard(controller.addon, note, noteId);
+      } catch (error) {
+        showMessage(controller, error && error.message ? error.message : error);
+      }
+    });
+  }
+
   function handleImportResult(controller, rawResult, error) {
     if (error) {
       showMessage(controller, `读取题目失败：${error.localizedDescription || error}`);
@@ -246,11 +280,26 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
     webViewDidFinishLoad: function () {
       self.titleLabel.text = "Daguanyuan Bridge";
+      injectRetestEnhancement(self);
     },
 
     webViewDidFailLoadWithError: function (webView, error) {
       self.titleLabel.text = "页面加载失败";
       console.log(`[Daguanyuan Bridge] 页面加载失败：${error && error.localizedDescription || error}`);
+    },
+
+    webViewShouldStartLoadWithRequestNavigationType: function (webView, request, navigationType) {
+      const requestURL = request && (typeof request.URL === "function" ? request.URL() : request.URL);
+      const scheme = nativeURLMember(requestURL, "scheme").toLowerCase();
+      if (scheme !== __DAGUANYUAN_RETEST_GLOBAL__.bridgeScheme) return true;
+      try {
+        const result = resolveRetestQuestion(self, requestURL);
+        performClosePanel(self);
+        scheduleRetestQuestionFocus(self, result.note, result.noteId);
+      } catch (error) {
+        showMessage(self, error && error.message ? error.message : error);
+      }
+      return false;
     },
   });
 
