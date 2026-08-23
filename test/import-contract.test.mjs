@@ -63,6 +63,10 @@ test("面板提供打开选中题目按钮并读取脑图选择", () => {
   assert.match(panelSource, /打开选中题目/);
   assert.match(panelSource, /openSelectedQuestion:/);
   assert.match(panelSource, /__DAGUANYUAN_SELECTION_GLOBAL__\.firstSelectedQuestionURL/);
+  assert.match(panelSource, /__DAGUANYUAN_SELECTION_GLOBAL__\.questionIdFromURL\(url\)/);
+  assert.match(panelSource, /loadURL\(self, url, questionId\)/);
+  assert.match(panelSource, /injectSelectedQuestionLocator\(self\)/);
+  assert.match(panelSource, /questionLocatorScript\(questionId\)/);
 });
 
 test("问AI按钮位于打开选中题目右侧并打开所选题目的 AI 助手", () => {

@@ -143,9 +143,10 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     layout(controller);
   }
 
-  function loadURL(controller, urlString) {
+  function loadURL(controller, urlString, questionId) {
     const url = NSURL.URLWithString(urlString);
     if (!url) throw new Error("题库地址无效");
+    controller.pendingQuestionId = String(questionId || "");
     controller.webView.loadRequest(NSURLRequest.requestWithURL(url));
   }
 
@@ -160,6 +161,17 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     const script = __DAGUANYUAN_RETEST_GLOBAL__.enhancementScript();
     controller.webView.evaluateJavaScript(script, function (result, error) {
       if (error) console.log(`[Daguanyuan Bridge] 注入错题定位按钮失败：${error.localizedDescription || error}`);
+    });
+  }
+
+  function injectSelectedQuestionLocator(controller) {
+    const questionId = String(controller.pendingQuestionId || "");
+    if (!questionId) return;
+    controller.pendingQuestionId = "";
+    const script = __DAGUANYUAN_SELECTION_GLOBAL__.questionLocatorScript(questionId);
+    if (!script) return;
+    controller.webView.evaluateJavaScript(script, function (result, error) {
+      if (error) console.log(`[Daguanyuan Bridge] 自动定位题目失败：${error.localizedDescription || error}`);
     });
   }
 
@@ -221,7 +233,8 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     openSelectedQuestion: function (sender) {
       try {
         const url = __DAGUANYUAN_SELECTION_GLOBAL__.firstSelectedQuestionURL(self.addonWindow || self.addon.window);
-        loadURL(self, url);
+        const questionId = __DAGUANYUAN_SELECTION_GLOBAL__.questionIdFromURL(url);
+        loadURL(self, url, questionId);
       } catch (error) {
         showMessage(self, error && error.message ? error.message : error);
       }
@@ -281,6 +294,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     webViewDidFinishLoad: function () {
       self.titleLabel.text = "Daguanyuan Bridge";
       injectRetestEnhancement(self);
+      injectSelectedQuestionLocator(self);
     },
 
     webViewDidFailLoadWithError: function (webView, error) {

@@ -71,6 +71,45 @@ var __DAGUANYUAN_SELECTION_GLOBAL__ = (function () {
     return match ? match[0] : "";
   }
 
+  function questionIdFromURL(value) {
+    const url = String(value || "");
+    const detail = url.match(/^https:\/\/cxyonly\.fans\/math\/questions\/(\d+)(?:[?#][^\s]*)?$/);
+    if (detail) return detail[1];
+    if (!/^https:\/\/cxyonly\.fans\/math\/practice\/\d+\?[^#\s]+$/.test(url)) return "";
+    const practice = url.match(/[?&]questionId=(\d+)(?:&|$)/);
+    return practice ? practice[1] : "";
+  }
+
+  function questionLocatorScript(value) {
+    const questionId = String(value || "");
+    if (!/^\d+$/.test(questionId)) return "";
+    return `(function () {
+      if (String(location.hostname || "") !== "cxyonly.fans") return false;
+      if (!/^\\/math\\/practice\\/\\d+/.test(String(location.pathname || ""))) return false;
+      var questionId = ${JSON.stringify(questionId)};
+      var observerKey = "__DAGUANYUAN_SELECTED_QUESTION_OBSERVER__";
+      function locate() {
+        var target = document.querySelector('[data-question-id="' + questionId + '"]');
+        if (!target) return false;
+        target.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
+        if (window[observerKey]) {
+          window[observerKey].disconnect();
+          window[observerKey] = undefined;
+        }
+        return true;
+      }
+      if (window[observerKey]) window[observerKey].disconnect();
+      if (locate()) return true;
+      if (typeof MutationObserver !== "function") return false;
+      var observer = new MutationObserver(function () {
+        locate();
+      });
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+      window[observerKey] = observer;
+      return false;
+    })();`;
+  }
+
   function questionAIURLFromURL(value) {
     const url = String(value || "");
     if (/^https:\/\/cxyonly\.fans\/math\/questions\/\d+(?:\?[^\s]*)?$/.test(url)) return url;
@@ -101,5 +140,12 @@ var __DAGUANYUAN_SELECTION_GLOBAL__ = (function () {
     return aiURL;
   }
 
-  return { firstSelectedQuestionURL, firstSelectedQuestionAIURL, questionURLFromText, questionAIURLFromURL };
+  return {
+    firstSelectedQuestionURL,
+    firstSelectedQuestionAIURL,
+    questionIdFromURL,
+    questionLocatorScript,
+    questionURLFromText,
+    questionAIURLFromURL,
+  };
 })();
