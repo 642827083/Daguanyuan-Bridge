@@ -29,3 +29,18 @@ test("忽略非题库链接并拒绝没有原题链接的题卡", () => {
   assert.equal(selection.questionURLFromText("[外部链接](https://example.com/question/1)"), "");
   assert.equal(selection.questionURLFromText("只有题干，没有来源"), "");
 });
+
+test("把大观园练习链接转换为对应的 AI 题目助手链接", () => {
+  const selection = runtime();
+  assert.equal(
+    selection.questionAIURLFromURL("https://cxyonly.fans/math/practice/329?page=1&questionId=3592&resumeCategoryId=708"),
+    "https://cxyonly.fans/math/questions/3592?returnTo=%2Fmath%2Fpractice%2F329%3Fpage%3D1%26questionId%3D3592%26resumeCategoryId%3D708",
+  );
+});
+
+test("AI 题目链接保持不变并拒绝无效链接", () => {
+  const selection = runtime();
+  assert.equal(selection.questionAIURLFromURL("https://cxyonly.fans/math/questions/3592"), "https://cxyonly.fans/math/questions/3592");
+  assert.equal(selection.questionAIURLFromURL("https://example.com/math/practice/329?questionId=3592"), "");
+  assert.equal(selection.questionAIURLFromURL("https://cxyonly.fans/math/practice/329?page=1"), "");
+});

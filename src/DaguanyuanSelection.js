@@ -71,6 +71,16 @@ var __DAGUANYUAN_SELECTION_GLOBAL__ = (function () {
     return match ? match[0] : "";
   }
 
+  function questionAIURLFromURL(value) {
+    const url = String(value || "");
+    if (/^https:\/\/cxyonly\.fans\/math\/questions\/\d+(?:\?[^\s]*)?$/.test(url)) return url;
+    const practice = url.match(/^https:\/\/cxyonly\.fans(\/math\/practice\/\d+\?[^#\s]+)$/);
+    if (!practice) return "";
+    const question = practice[1].match(/[?&]questionId=(\d+)(?:&|$)/);
+    if (!question) return "";
+    return `https://cxyonly.fans/math/questions/${question[1]}?returnTo=${encodeURIComponent(practice[1])}`;
+  }
+
   function firstSelectedQuestionURL(window) {
     const application = Application.sharedInstance();
     const focusWindow = nativeMember(application, "focusWindow");
@@ -84,5 +94,12 @@ var __DAGUANYUAN_SELECTION_GLOBAL__ = (function () {
     return url;
   }
 
-  return { firstSelectedQuestionURL, questionURLFromText };
+  function firstSelectedQuestionAIURL(window) {
+    const url = firstSelectedQuestionURL(window);
+    const aiURL = questionAIURLFromURL(url);
+    if (!aiURL) throw new Error("选中的题卡缺少可用的大观园题目编号");
+    return aiURL;
+  }
+
+  return { firstSelectedQuestionURL, firstSelectedQuestionAIURL, questionURLFromText, questionAIURLFromURL };
 })();

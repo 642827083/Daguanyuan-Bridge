@@ -4,7 +4,7 @@
 
 Daguanyuan Bridge 是一款连接 MarginNote 4 与在线题库的第三方插件。插件在 MarginNote 面板中打开题库网页，用户完成登录并进入练习分类后，可以把当前分类的题目整理为脑图目录和 Markdown 题卡。
 
-> 当前版本：1.0.1  
+> 当前版本：1.0.2
 > 作者：乔木Joe  
 > 最低支持：MarginNote 4.4.5
 
@@ -19,6 +19,7 @@ Daguanyuan Bridge 是一款连接 MarginNote 4 与在线题库的第三方插件
 - 将题干、公式、选项、解析和原题链接整理为 Markdown
 - 题目包含图片时保留 Markdown 图片链接
 - 按题目 ID 去重，重复导入不会创建重复卡片
+- 选中大观园题卡后，可打开原练习位置或对应的 AI 题目助手
 
 [details="题库分类和脑图目录（点击展开）"]
 
@@ -101,6 +102,8 @@ Daguanyuan Bridge
 - 点击工具栏中的 Daguanyuan Bridge 图标打开面板。
 - 再次点击同一个插件图标关闭面板。
 - 也可以点击面板标题栏左侧的 `×` 关闭面板。
+- 选中一张大观园题卡后，点击“打开选中题目”返回原练习位置。
+- 点击“问AI”打开该题对应的大观园 AI 题目助手。
 - 标题栏可以拖动面板位置。
 - 右下角拖拽区可以调整面板大小。
 - 面板位置和尺寸会保存到本机，下次打开时恢复。
@@ -111,7 +114,7 @@ Daguanyuan Bridge
 
 ## 使用方法
 
-1. 安装 `Daguanyuan Bridge-v1.0.1.mnaddon`。
+1. 安装 `Daguanyuan Bridge-v1.0.2.mnaddon`。
 2. 在 MarginNote 学习界面点击 Daguanyuan Bridge 图标打开面板。
 3. 在面板中选择“大观园”或“408 真题”。
 4. 按网站提示扫码登录。
@@ -150,6 +153,17 @@ Daguanyuan Bridge
 
 [/details]
 
+[details="Ver 1.0.2 更新（点击展开）"]
+
+## 选中题目直达 AI 助手
+
+- 在“打开选中题目”右侧新增“问AI”按钮。
+- 选中大观园题卡后，可直接打开该题对应的“AI 题目助手”页面。
+- 保留“打开选中题目”的原有行为，继续返回题目所在练习页面。
+- 兼容旧题卡中保存的大观园 AI 题目链接。
+
+[/details]
+
 [details="Ver 1.0.1 更新（点击展开）"]
 
 ## 题卡分类、复测跳转与显示优化
@@ -181,7 +195,7 @@ Daguanyuan Bridge
 
 ```text
 插件名称：Daguanyuan Bridge
-版本：1.0.1
+版本：1.0.2
 作者：乔木Joe
 最低 MarginNote 版本：4.4.5
 ```
@@ -191,7 +205,7 @@ Daguanyuan Bridge
 请下载并安装附件：
 
 ```text
-Daguanyuan Bridge-v1.0.1.mnaddon
+Daguanyuan Bridge-v1.0.2.mnaddon
 ```
 
 如果导入失败，请提供当前题库网址、页面显示的分类路径、题目是否已经完整渲染，以及 MarginNote 中显示的完整错误信息。请不要分享账号 Cookie 或扫码登录信息。

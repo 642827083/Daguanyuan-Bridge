@@ -59,8 +59,9 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.homeButton.frame = { x: 44, y: 4, width: 76, height: 30 };
     controller.os408Button.frame = { x: 124, y: 4, width: 76, height: 30 };
     controller.openQuestionButton.frame = { x: 204, y: 4, width: 120, height: 30 };
+    controller.aiButton.frame = { x: 328, y: 4, width: 56, height: 30 };
     controller.importButton.frame = { x: bounds.width - 128, y: 4, width: 120, height: 30 };
-    controller.titleLabel.frame = { x: 330, y: 0, width: Math.max(0, bounds.width - 466), height: TITLE_HEIGHT };
+    controller.titleLabel.frame = { x: 390, y: 0, width: Math.max(0, bounds.width - 526), height: TITLE_HEIGHT };
     controller.webView.frame = { x: 0, y: TITLE_HEIGHT, width: bounds.width, height: Math.max(0, bounds.height - TITLE_HEIGHT) };
     controller.resizeHandle.frame = { x: Math.max(0, bounds.width - 30), y: Math.max(0, bounds.height - 30), width: 30, height: 30 };
     controller.resizeGlyph.frame = { x: 0, y: 0, width: 30, height: 30 };
@@ -102,6 +103,9 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
     controller.openQuestionButton = button("打开选中题目", controller, "openSelectedQuestion:");
     controller.titleBar.addSubview(controller.openQuestionButton);
+
+    controller.aiButton = button("问AI", controller, "openSelectedQuestionAI:");
+    controller.titleBar.addSubview(controller.aiButton);
 
     controller.importButton = button("导入当前分类", controller, "importCurrentPractice:");
     controller.titleBar.addSubview(controller.importButton);
@@ -183,6 +187,15 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     openSelectedQuestion: function (sender) {
       try {
         const url = __DAGUANYUAN_SELECTION_GLOBAL__.firstSelectedQuestionURL(self.addonWindow || self.addon.window);
+        loadURL(self, url);
+      } catch (error) {
+        showMessage(self, error && error.message ? error.message : error);
+      }
+    },
+
+    openSelectedQuestionAI: function (sender) {
+      try {
+        const url = __DAGUANYUAN_SELECTION_GLOBAL__.firstSelectedQuestionAIURL(self.addonWindow || self.addon.window);
         loadURL(self, url);
       } catch (error) {
         showMessage(self, error && error.message ? error.message : error);

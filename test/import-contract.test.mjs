@@ -63,6 +63,14 @@ test("面板提供打开选中题目按钮并读取脑图选择", () => {
   assert.match(panelSource, /__DAGUANYUAN_SELECTION_GLOBAL__\.firstSelectedQuestionURL/);
 });
 
+test("问AI按钮位于打开选中题目右侧并打开所选题目的 AI 助手", () => {
+  assert.match(panelSource, /button\("问AI", controller, "openSelectedQuestionAI:"\)/);
+  assert.match(panelSource, /controller\.openQuestionButton\.frame\s*=\s*\{ x: 204,[^}]+\}/);
+  assert.match(panelSource, /controller\.aiButton\.frame\s*=\s*\{ x: 328,[^}]+\}/);
+  assert.match(panelSource, /openSelectedQuestionAI:\s*function\s*\(sender\)/);
+  assert.match(panelSource, /__DAGUANYUAN_SELECTION_GLOBAL__\.firstSelectedQuestionAIURL/);
+});
+
 test("题卡正文保存隐藏原题链接", () => {
   assert.match(source, /DAGUANYUAN_URL/);
   assert.match(source, /question\.url/);
