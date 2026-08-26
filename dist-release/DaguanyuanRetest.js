@@ -141,9 +141,11 @@ var __DAGUANYUAN_RETEST_GLOBAL__ = (function () {
       const title = String(nativeMember(note, "noteTitle") || "");
       const prefix = `题目 ${questionId}`;
       const titleMatches = title === prefix || title.indexOf(`${prefix}｜`) === 0;
-      const url = questionURLFromText(noteText(note));
-      if (titleMatches && questionIdFromURL(url) === questionId) return note;
+      const allText = noteText(note);
+      const markerMatches = allText.indexOf(`DAGUANYUAN_QUESTION_ID:${questionId}`) >= 0;
+      const url = questionURLFromText(allText);
       const children = nativeItems(nativeMember(note, "childNotes"));
+      if (!children.length && (markerMatches || titleMatches) && questionIdFromURL(url) === questionId) return note;
       for (let index = children.length - 1; index >= 0; index -= 1) stack.push(children[index]);
     }
     return undefined;

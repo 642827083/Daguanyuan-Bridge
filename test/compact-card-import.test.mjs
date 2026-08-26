@@ -109,7 +109,7 @@ function titlesFromRoot(root) {
   return titles;
 }
 
-test("导入使用紧凑标题且不显示内部去重标记", () => {
+test("导入题卡仅显示题目来源并隐藏题目编号", () => {
   const runtime = createNativeRuntime();
   const importer = loadImporter(runtime);
   const result = importer.importCurrentPractice({ window: {} }, payload);
@@ -118,14 +118,31 @@ test("导入使用紧凑标题且不显示内部去重标记", () => {
   const question = category.childNotes[0];
 
   assert.equal(result.createdCount, 1);
-  assert.equal(question.noteTitle, "题目 3592｜2002数二");
+  assert.equal(question.noteTitle, "2002数二");
   assert.match(question.comments[0].text, /设函数 \$f\(x\)\$ 连续/);
   assert.match(question.comments[0].text, /\$\$\\int_0\^x f\(t\)dt\$\$\n<br>/);
+  assert.match(question.comments[0].text,
+    /<!-- DAGUANYUAN_QUESTION_ID:3592 -->/);
   assert.match(question.comments[0].text,
     /<!-- DAGUANYUAN_URL:https:\/\/cxyonly\.fans\/math\/questions\/3592 -->/);
   assert.doesNotMatch(question.comments[0].text, /\[查看原题\]/);
   assert.doesNotMatch(root.allNoteText(), /DAGUANYUAN_/);
   assert.deepEqual(runtime.refreshes, ["topic-1"]);
+});
+
+test("题库未提供来源时题卡标题保持为空", () => {
+  const runtime = createNativeRuntime();
+  const importer = loadImporter(runtime);
+  importer.importCurrentPractice({ window: {} }, {
+    practiceId: "321",
+    categoryId: "709",
+    categoryPath: ["函数", "其他"],
+    questions: [{ questionId: "3593", markdown: "题干", url: "https://cxyonly.fans/math/questions/3593" }],
+  });
+
+  const question = runtime.notebook.notes[0].childNotes[0].childNotes[0].childNotes[0].childNotes[0].childNotes[0];
+  assert.equal(question.noteTitle, "");
+  assert.match(question.comments[0].text, /DAGUANYUAN_QUESTION_ID:3593/);
 });
 
 test("重新导入会迁移旧格式卡片而非重复创建", () => {
@@ -145,8 +162,8 @@ test("重新导入会迁移旧格式卡片而非重复创建", () => {
   assert.equal(result.createdCount, 0);
   assert.equal(result.updatedCount, 1);
   assert.equal(category.childNotes.length, 1);
-  assert.equal(question.noteTitle, "题目 3592｜2002数二");
-  assert.doesNotMatch(question.allNoteText(), /DAGUANYUAN_(ROOT|CATEGORY_ID|QUESTION_ID):/);
+  assert.equal(question.noteTitle, "2002数二");
+  assert.match(question.allNoteText(), /DAGUANYUAN_QUESTION_ID:3592/);
   assert.doesNotMatch(root.allNoteText(), /DAGUANYUAN_/);
 });
 
@@ -172,6 +189,7 @@ test("重新导入替换旧版公式正文为 Markdown 题卡", () => {
   const category = root.childNotes[0].childNotes[0].childNotes[0].childNotes[0].childNotes[0];
   const question = category.childNotes[0];
   question.comments[0].text = "函数 f(x) 公式：\\n\\frac{x}{y}";
+  question.noteTitle = "题目 3592｜2002数二";
 
   const result = importer.importCurrentPractice({ window: {} }, payload);
 
@@ -194,7 +212,7 @@ test("329 练习继续使用高等数学和极限前缀分类", () => {
     "函数",
     "函数性质考察",
     "有界",
-    "题目 3592｜2002数二",
+    "2002数二",
   ]);
 });
 
@@ -210,7 +228,7 @@ test("大观园导入创建网站完整目录的前两级和三级分类", () =>
     "函数",
     "函数性质考察",
     "有界",
-    "题目 3592｜2002数二",
+    "2002数二",
   ]);
 });
 
@@ -219,7 +237,7 @@ test("重新导入把旧数字分类节点迁移到网站完整分类", () => {
   const root = runtime.context.Note.createWithTitleNotebookDocument("Daguanyuan Bridge");
   const legacyCategory = runtime.context.Note.createWithTitleNotebookDocument("分类 708");
   root.addChild(legacyCategory);
-  const question = runtime.context.Note.createWithTitleNotebookDocument("题目 3592｜2002数二");
+  const question = runtime.context.Note.createWithTitleNotebookDocument("2002数二");
   legacyCategory.addChild(question);
 
   const importer = loadImporter(runtime);
@@ -233,7 +251,7 @@ test("重新导入把旧数字分类节点迁移到网站完整分类", () => {
     "函数",
     "函数性质考察",
     "有界",
-    "题目 3592｜2002数二",
+    "2002数二",
   ]);
 });
 
@@ -287,10 +305,10 @@ test("408 导入按题库来源和知识点创建 Markdown 题卡", () => {
     "Daguanyuan Bridge",
     "数据结构",
     "算法",
-    "题目 1｜2009 第1题",
+    "2009 第1题",
   ]);
   assert.equal(runtime.notebook.notes[0].childNotes[0].childNotes[0].childNotes[0].comments[0].text,
-    "打印数据缓冲区的逻辑结构应该是（）。\n\n- A. 栈\n- B. 队列");
+    "打印数据缓冲区的逻辑结构应该是（）。\n\n- A. 栈\n- B. 队列\n\n<!-- DAGUANYUAN_QUESTION_ID:1 -->");
 });
 
 test("导入数据保留 408 尚未读取正文的题目数量", () => {

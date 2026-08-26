@@ -77,7 +77,8 @@ test("问AI按钮位于打开选中题目右侧并打开所选题目的 AI 助�
   assert.match(panelSource, /__DAGUANYUAN_SELECTION_GLOBAL__\.firstSelectedQuestionAIURL/);
 });
 
-test("题卡正文保存隐藏原题链接", () => {
+test("题卡正文保存隐藏题目编号和原题链接", () => {
+  assert.match(source, /DAGUANYUAN_QUESTION_ID/);
   assert.match(source, /DAGUANYUAN_URL/);
   assert.match(source, /question\.url/);
 });

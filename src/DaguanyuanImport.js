@@ -145,8 +145,7 @@ var __DAGUANYUAN_PRACTICE_IMPORT_GLOBAL__ = (function () {
   }
 
   function questionTitle(question) {
-    const source = question.source ? `｜${question.source}` : "";
-    return `题目 ${question.questionId}${source}`;
+    return String(question && question.source || "").trim();
   }
 
   function practiceQuestionURL(pageURL, questionId) {
@@ -176,8 +175,12 @@ var __DAGUANYUAN_PRACTICE_IMPORT_GLOBAL__ = (function () {
       body = lines.join("\n\n");
     }
     body = body.replace(/(\$\$[\s\S]*?\$\$)(?!\s*<br>)/g, "$1\n<br>");
+    const questionMarker = `<!-- ${QUESTION_MARKER_PREFIX}${question.questionId} -->`;
+    if (body.indexOf(questionMarker) < 0) {
+      body = `${body ? `${body}\n\n` : ""}${questionMarker}`;
+    }
     if (question.url && body.indexOf(question.url) < 0) {
-      body = `${body ? `${body}\n\n` : ""}<!-- ${URL_MARKER_PREFIX}${question.url} -->`;
+      body = `${body}\n<!-- ${URL_MARKER_PREFIX}${question.url} -->`;
     }
     return body;
   }

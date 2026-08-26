@@ -92,8 +92,8 @@ test("先解析当前笔记本中的题卡，再按 noteId 执行聚焦", () => 
   const focusOrder = [];
   const question = {
     noteId: "note-3571",
-    noteTitle: "题目 3571｜2002数二",
-    comments: [{ text: "<!-- DAGUANYUAN_URL:https://cxyonly.fans/math/practice/329?page=1&questionId=3571 -->" }],
+    noteTitle: "2002数二",
+    comments: [{ text: "<!-- DAGUANYUAN_QUESTION_ID:3571 -->\n<!-- DAGUANYUAN_URL:https://cxyonly.fans/math/practice/329?page=1&questionId=3571 -->" }],
     childNotes: [],
   };
   const root = {

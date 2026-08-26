@@ -4,7 +4,7 @@
 
 Daguanyuan Bridge 是一款连接 MarginNote 4 与在线题库的第三方插件。插件在 MarginNote 面板中打开题库网页，用户完成登录并进入练习分类后，可以把当前分类的题目整理为脑图目录和 Markdown 题卡。
 
-> 当前版本：1.0.4
+> 当前版本：1.0.5
 > 作者：乔木Joe  
 > 最低支持：MarginNote 4.4.5
 
@@ -116,7 +116,7 @@ Daguanyuan Bridge
 
 ## 使用方法
 
-1. 安装 `Daguanyuan Bridge-v1.0.4.mnaddon`。
+1. 安装 `Daguanyuan Bridge-v1.0.5.mnaddon`。
 2. 在 MarginNote 学习界面点击 Daguanyuan Bridge 图标打开面板。
 3. 在面板中选择“大观园”或“408 真题”。
 4. 按网站提示扫码登录。
@@ -152,6 +152,17 @@ Daguanyuan Bridge
 ### 插件会修改网站账户状态吗？
 
 不会。本版本不修改网站账户中的“不会”“不熟练”“掌握”等状态。在错题复测页面中，插件只读取当前页面题目编号以定位已导入的脑图卡片，不同步或上传复测结果。
+
+[/details]
+
+[details="Ver 1.0.5 更新（点击展开）"]
+
+## 题卡标题显示优化
+
+- 新导入题卡的标题仅显示题目来源，不再显示网站题目序号。
+- 没有题目来源时，题卡标题保持为空，让题干内容直接成为主要阅读内容。
+- 题目编号与原题链接继续以隐藏 Markdown 标记保存，打开原题、问 AI、错题复测定位和重复导入不受影响。
+- 已有旧题卡在重新导入同一题目时，会自动更新为新的标题格式。
 
 [/details]
 
@@ -220,7 +231,7 @@ Daguanyuan Bridge
 
 ```text
 插件名称：Daguanyuan Bridge
-版本：1.0.4
+版本：1.0.5
 作者：乔木Joe
 最低 MarginNote 版本：4.4.5
 ```
@@ -230,7 +241,7 @@ Daguanyuan Bridge
 请下载并安装附件：
 
 ```text
-Daguanyuan Bridge-v1.0.4.mnaddon
+Daguanyuan Bridge-v1.0.5.mnaddon
 ```
 
 如果导入失败，请提供当前题库网址、页面显示的分类路径、题目是否已经完整渲染，以及 MarginNote 中显示的完整错误信息。请不要分享账号 Cookie 或扫码登录信息。
