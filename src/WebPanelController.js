@@ -4,6 +4,8 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   const FRAME_KEY = "cn.marginnote.daguanyuan-bridge.panel-frame";
   const PANEL_KEY = "cn.marginnote.daguanyuan-bridge.panel-visible";
   const TITLE_HEIGHT = 38;
+  const STATUS_HEIGHT = 52;
+  const HEADER_HEIGHT = TITLE_HEIGHT + STATUS_HEIGHT;
   const DEFAULT_WIDTH = 960;
   const DEFAULT_HEIGHT = 680;
   const MIN_WIDTH = 560;
@@ -17,6 +19,10 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
   function showMessage(controller, message) {
     Application.sharedInstance().showHUD(String(message), controller.addon.window, 2);
+  }
+
+  function setStatus(controller, message) {
+    if (controller && controller.statusLabel) controller.statusLabel.text = String(message || "");
   }
 
   function safeFrame(frame, bounds) {
@@ -41,6 +47,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   function performClosePanel(controller) {
     if (!controller || !controller.view) return;
     controller.panelVisible = false;
+    controller.pageStatusRefreshToken = Number(controller.pageStatusRefreshToken || 0) + 1;
     controller.view.hidden = true;
     controller.view.removeFromSuperview();
     NSUserDefaults.standardUserDefaults().setObjectForKey(false, PANEL_KEY);
@@ -61,8 +68,10 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.openQuestionButton.frame = { x: 204, y: 4, width: 120, height: 30 };
     controller.aiButton.frame = { x: 328, y: 4, width: 56, height: 30 };
     controller.importButton.frame = { x: bounds.width - 128, y: 4, width: 120, height: 30 };
-    controller.titleLabel.frame = { x: 390, y: 0, width: Math.max(0, bounds.width - 526), height: TITLE_HEIGHT };
-    controller.webView.frame = { x: 0, y: TITLE_HEIGHT, width: bounds.width, height: Math.max(0, bounds.height - TITLE_HEIGHT) };
+    controller.titleLabel.frame = { x: 372, y: 0, width: Math.max(0, bounds.width - 508), height: TITLE_HEIGHT };
+    controller.statusBar.frame = { x: 0, y: TITLE_HEIGHT, width: bounds.width, height: STATUS_HEIGHT };
+    controller.statusLabel.frame = { x: 10, y: 2, width: Math.max(120, bounds.width - 300), height: STATUS_HEIGHT - 4 };
+    controller.webView.frame = { x: 0, y: HEADER_HEIGHT, width: bounds.width, height: Math.max(0, bounds.height - HEADER_HEIGHT) };
     controller.resizeHandle.frame = { x: Math.max(0, bounds.width - 30), y: Math.max(0, bounds.height - 30), width: 30, height: 30 };
     controller.resizeGlyph.frame = { x: 0, y: 0, width: 30, height: 30 };
   }
@@ -117,10 +126,21 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.titleLabel.textColor = UIColor.darkGrayColor();
     controller.titleBar.addSubview(controller.titleLabel);
 
+    controller.statusBar = new UIView({ x: 0, y: TITLE_HEIGHT, width: DEFAULT_WIDTH, height: STATUS_HEIGHT });
+    controller.statusBar.backgroundColor = UIColor.colorWithWhiteAlpha(0.985, 1);
+    controller.containerView.addSubview(controller.statusBar);
+
+    controller.statusLabel = new UILabel({ x: 10, y: 2, width: DEFAULT_WIDTH - 300, height: STATUS_HEIGHT - 4 });
+    controller.statusLabel.text = "正在读取当前页面…";
+    controller.statusLabel.numberOfLines = 2;
+    controller.statusLabel.font = UIFont.systemFontOfSize(12);
+    controller.statusLabel.textColor = UIColor.darkGrayColor();
+    controller.statusBar.addSubview(controller.statusLabel);
+
     const pan = new UIPanGestureRecognizer(controller, "movePanel:");
     controller.titleBar.addGestureRecognizer(pan);
 
-    controller.webView = new UIWebView({ x: 0, y: TITLE_HEIGHT, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT - TITLE_HEIGHT });
+    controller.webView = new UIWebView({ x: 0, y: HEADER_HEIGHT, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT - HEADER_HEIGHT });
     controller.webView.backgroundColor = UIColor.whiteColor();
     controller.webView.scalesPageToFit = true;
     controller.webView.delegate = controller;
@@ -143,10 +163,23 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     layout(controller);
   }
 
-  function loadURL(controller, urlString, questionId) {
+  function loadURL(controller, urlString, questionId, provider) {
     const url = NSURL.URLWithString(urlString);
     if (!url) throw new Error("题库地址无效");
     controller.pendingQuestionId = String(questionId || "");
+    controller.pendingQuestionProvider = String(provider || "daguanyuan");
+    controller.pendingCategoryPath = [];
+    controller.webView.loadRequest(NSURLRequest.requestWithURL(url));
+  }
+
+  function loadCategory(controller, category) {
+    const practiceId = String(category && category.practiceId || "").trim();
+    if (!/^\d+$/.test(practiceId)) throw new Error("未能识别选中卡片所属的大观园章节");
+    const url = NSURL.URLWithString(`https://cxyonly.fans/math/practice/${practiceId}`);
+    if (!url) throw new Error("大观园章节地址无效");
+    controller.pendingQuestionId = "";
+    controller.pendingQuestionProvider = "";
+    controller.pendingCategoryPath = Array.isArray(category.categoryPath) ? category.categoryPath.slice() : [];
     controller.webView.loadRequest(NSURLRequest.requestWithURL(url));
   }
 
@@ -164,11 +197,47 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     });
   }
 
+  function videoPopupCompatibilityScript() {
+    return `(function () {
+      if (window.__DAGUANYUAN_VIDEO_POPUP_COMPATIBLE__) return true;
+      window.__DAGUANYUAN_VIDEO_POPUP_COMPATIBLE__ = true;
+      function openHere(url) {
+        var value = String(url || "").trim();
+        if (!/^https?:\/\//i.test(value)) return false;
+        window.location.href = value;
+        return true;
+      }
+      var originalOpen = window.open;
+      window.open = function (url) {
+        if (openHere(url)) return window;
+        return originalOpen ? originalOpen.apply(window, arguments) : null;
+      };
+      document.addEventListener("click", function (event) {
+        var node = event.target;
+        while (node && String(node.tagName || "").toUpperCase() !== "A") node = node.parentNode;
+        if (!node || String(node.getAttribute("target") || "").toLowerCase() !== "_blank") return;
+        if (!openHere(node.href || node.getAttribute("href"))) return;
+        event.preventDefault();
+      }, true);
+      return true;
+    })();`;
+  }
+
+  function injectVideoPopupCompatibility(controller) {
+    controller.webView.evaluateJavaScript(videoPopupCompatibilityScript(), function (result, error) {
+      if (error) console.log(`[Daguanyuan Bridge] 注入视频跳转兼容失败：${error.localizedDescription || error}`);
+    });
+  }
+
   function injectSelectedQuestionLocator(controller) {
     const questionId = String(controller.pendingQuestionId || "");
     if (!questionId) return;
+    const provider = String(controller.pendingQuestionProvider || "daguanyuan");
     controller.pendingQuestionId = "";
-    const script = __DAGUANYUAN_SELECTION_GLOBAL__.questionLocatorScript(questionId);
+    controller.pendingQuestionProvider = "";
+    const script = provider === "408os"
+      ? __DAGUANYUAN_SELECTION_GLOBAL__.os408QuestionLocatorScript(questionId)
+      : __DAGUANYUAN_SELECTION_GLOBAL__.questionLocatorScript(questionId);
     if (!script) return;
     controller.webView.evaluateJavaScript(script, function (result, error) {
       if (error) console.log(`[Daguanyuan Bridge] 自动定位题目失败：${error.localizedDescription || error}`);
@@ -185,36 +254,254 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     );
   }
 
-  function scheduleRetestQuestionFocus(controller, note, noteId) {
+  function scheduleRetestQuestionFocus(controller, note, noteId, notebookIds) {
+    // 延迟执行，使隐藏面板和跨学习集切换先完成。
     NSTimer.scheduledTimerWithTimeInterval(0.2, false, function () {
       try {
-        __DAGUANYUAN_RETEST_GLOBAL__.focusQuestionCard(controller.addon, note, noteId);
+        __DAGUANYUAN_RETEST_GLOBAL__.startQuestionNavigation(controller.addon, {
+          note,
+          noteId,
+          notebookId: controller.pendingRetestNotebookId || "",
+          notebookIds: Array.isArray(notebookIds) ? notebookIds : [],
+        });
       } catch (error) {
         showMessage(controller, error && error.message ? error.message : error);
       }
     });
   }
 
-  function handleImportResult(controller, rawResult, error) {
-    if (error) {
-      showMessage(controller, `读取题目失败：${error.localizedDescription || error}`);
+  function injectCategoryNavigation(controller) {
+    const path = Array.isArray(controller.pendingCategoryPath) ? controller.pendingCategoryPath.slice() : [];
+    if (!path.length) return;
+    controller.pendingCategoryPath = [];
+    const script = __DAGUANYUAN_PAGE_COLLECTOR_GLOBAL__.categoryNavigationScript(path);
+    controller.webView.evaluateJavaScript(script, function (result, error) {
+      if (error) console.log(`[Daguanyuan Bridge] 自动打开题型分类失败：${error.localizedDescription || error}`);
+    });
+  }
+
+  function errorMessage(error) {
+    if (!error) return "未知错误";
+    let value = error.localizedDescription;
+    if (typeof value === "function") value = value.call(error);
+    return String(value || error.message || error);
+  }
+
+  function parsedJSON(value) {
+    return typeof value === "string" ? JSON.parse(value) : value;
+  }
+
+  function setCollectionBusy(controller, busy, message) {
+    controller.collectionBusy = Boolean(busy);
+    const importable = Boolean(controller.currentPageStatus && controller.currentPageStatus.importable);
+    controller.importButton.enabled = !busy && importable;
+    if (message) setStatus(controller, message);
+    if (busy) Application.sharedInstance().waitHUDOnView("正在准备题目…", controller.view);
+    else {
+      Application.sharedInstance().stopWaitHUDOnView(controller.view);
+      controller.webView.evaluateJavaScript(__DAGUANYUAN_PAGE_COLLECTOR_GLOBAL__.restoreCategoryMenuScript(), function () {});
+    }
+  }
+
+  function shouldRetryPayload(payload) {
+    const state = payload && payload.renderState || {};
+    return Number(payload && payload.unavailableQuestionCount || 0) > 0 ||
+      Number(state.pendingImageCount || 0) > 0 ||
+      Number(state.pendingFormulaCount || 0) > 0;
+  }
+
+  function importSummary(payload, result) {
+    const state = payload.renderState || {};
+    const path = (result.categoryPath || payload.categoryPath || []).join(" > ");
+    const pageCount = `${state.completeQuestionCount || payload.questions.length}/${state.expectedQuestionCount || payload.questions.length}`;
+    const unread = payload.unavailableQuestionCount ? `，未读取 ${payload.unavailableQuestionCount}` : "";
+    const broken = state.brokenImageCount ? `，网页坏图 ${state.brokenImageCount}` : "";
+    return `${path || "当前分类"}｜网页题目 ${pageCount}\n新建 ${result.createdCount}，更新 ${result.updatedCount}，跳过 ${result.skippedCount}${unread}${broken}`;
+  }
+
+  function finishImport(controller, payload) {
+    try {
+      const result = __DAGUANYUAN_PRACTICE_IMPORT_GLOBAL__.importCurrentPractice(controller.addon, payload);
+      const summary = importSummary(payload, result);
+      controller.lastImportResult = { payload, result };
+      setStatus(controller, summary);
+      showMessage(controller, `导入完成：新建 ${result.createdCount}，更新 ${result.updatedCount}，跳过 ${result.skippedCount}`);
+    } catch (error) {
+      setStatus(controller, `导入失败：${errorMessage(error)}`);
+      showMessage(controller, errorMessage(error));
+    }
+    setCollectionBusy(controller, false);
+  }
+
+  function finishCollectedPayload(controller, rawResult) {
+    try {
+      const normalized = __DAGUANYUAN_PRACTICE_IMPORT_GLOBAL__.validatePayload(parsedJSON(rawResult));
+      finishImport(controller, normalized);
+    } catch (error) {
+      setStatus(controller, `读取题目失败：${errorMessage(error)}`);
+      showMessage(controller, errorMessage(error));
+      setCollectionBusy(controller, false);
+    }
+  }
+
+  function collectPreparedPage(controller, retryCount) {
+    controller.webView.evaluateJavaScript(__DAGUANYUAN_PAGE_COLLECTOR_GLOBAL__.collectionScript(), function (rawResult, error) {
+      if (error) {
+        setStatus(controller, `读取题目失败：${errorMessage(error)}`);
+        showMessage(controller, errorMessage(error));
+        setCollectionBusy(controller, false);
+        return;
+      }
+      try {
+        const previewPayload = parsedJSON(rawResult);
+        if (retryCount < 1 && shouldRetryPayload(previewPayload)) {
+          setStatus(controller, "部分题目、公式或图片仍在渲染，正在自动重试…");
+          NSTimer.scheduledTimerWithTimeInterval(0.9, false, function () {
+            collectPreparedPage(controller, retryCount + 1);
+          });
+          return;
+        }
+      } catch (parseError) {
+        setStatus(controller, `读取题目失败：${errorMessage(parseError)}`);
+        showMessage(controller, errorMessage(parseError));
+        setCollectionBusy(controller, false);
+        return;
+      }
+      finishCollectedPayload(controller, rawResult);
+    });
+  }
+
+  function pollPreload(controller, pollCount) {
+    controller.webView.evaluateJavaScript(__DAGUANYUAN_PAGE_COLLECTOR_GLOBAL__.preloadStatusScript(), function (rawState, error) {
+      if (error) {
+        setStatus(controller, `预加载失败：${errorMessage(error)}`);
+        setCollectionBusy(controller, false);
+        return;
+      }
+      let state = {};
+      try { state = parsedJSON(rawState) || {}; } catch (parseError) { state = {}; }
+      if (state.running && pollCount < 24) {
+        setStatus(controller, `正在加载完整题目… 已触发 ${state.loadMoreClickCount || 0} 次“加载更多”`);
+        NSTimer.scheduledTimerWithTimeInterval(0.45, false, function () {
+          pollPreload(controller, pollCount + 1);
+        });
+        return;
+      }
+      collectPreparedPage(controller, 0);
+    });
+  }
+
+  function prepareCategoryMenu(controller, completion) {
+    const attempt = Number(arguments[2] || 0);
+    controller.webView.evaluateJavaScript(__DAGUANYUAN_PAGE_COLLECTOR_GLOBAL__.prepareCategoryMenuScript(), function (result, error) {
+      if (error) {
+        completion(error);
+        return;
+      }
+      let state = {};
+      try { state = parsedJSON(result) || {}; } catch (parseError) {
+        completion(parseError);
+        return;
+      }
+      if (state.ready || attempt >= 4) {
+        completion(state.ready ? null : new Error("未读取到当前分类路径"));
+        return;
+      }
+      // 大观园使用 React 异步绘制分类列，轮询等待分类列生成后再读取路径。
+      NSTimer.scheduledTimerWithTimeInterval(0.2, false, function () {
+        prepareCategoryMenu(controller, completion, attempt + 1);
+      });
+    });
+  }
+
+  function beginCollection(controller) {
+    if (controller.collectionBusy) {
+      showMessage(controller, "题目正在处理中，请稍候");
       return;
     }
-    try {
-      const payload = typeof rawResult === "string" ? JSON.parse(rawResult) : rawResult;
-      const normalized = __DAGUANYUAN_PRACTICE_IMPORT_GLOBAL__.validatePayload(payload);
-      const result = __DAGUANYUAN_PRACTICE_IMPORT_GLOBAL__.importCurrentPractice(controller.addon, normalized);
-      const updated = result.updatedCount ? `，更新 ${result.updatedCount} 题` : "";
-      const unavailable = normalized.unavailableQuestionCount ? `，未读取正文 ${normalized.unavailableQuestionCount} 题` : "";
-      showMessage(controller, `已导入 ${result.createdCount} 题${updated}，跳过 ${result.skippedCount} 题${unavailable}`);
-    } catch (importError) {
-      showMessage(controller, importError && importError.message ? importError.message : importError);
+    controller.collectionBusy = true;
+    controller.importButton.enabled = false;
+    setStatus(controller, "正在识别当前分类…");
+    readPageStatus(controller, function (error, status) {
+      if (error) {
+        controller.collectionBusy = false;
+        controller.importButton.enabled = Boolean(controller.currentPageStatus && controller.currentPageStatus.importable);
+        setStatus(controller, `无法读取当前页面状态：${errorMessage(error)}`);
+        showMessage(controller, errorMessage(error));
+        return;
+      }
+      if (!status.importable) {
+        controller.collectionBusy = false;
+        controller.importButton.enabled = false;
+        showMessage(controller, "当前页面不是可导入的具体分类");
+        return;
+      }
+      setCollectionBusy(controller, true, "正在识别分类并等待题目、公式、图片完成渲染…");
+      prepareCategoryMenu(controller, function (menuError) {
+        if (menuError) {
+          setStatus(controller, `读取分类失败：${errorMessage(menuError)}`);
+          showMessage(controller, errorMessage(menuError));
+          setCollectionBusy(controller, false);
+          return;
+        }
+        controller.webView.evaluateJavaScript(__DAGUANYUAN_PAGE_COLLECTOR_GLOBAL__.preloadScript(), function (result, preloadError) {
+          if (preloadError) {
+            setStatus(controller, `预加载失败：${errorMessage(preloadError)}`);
+            showMessage(controller, errorMessage(preloadError));
+            setCollectionBusy(controller, false);
+            return;
+          }
+          pollPreload(controller, 0);
+        });
+      });
+    });
+  }
+
+  function pageStatusText(status) {
+    const providerName = status.provider === "daguanyuan" ? "大观园" : status.provider === "408os" ? "408 真题" : "当前页面";
+    const category = status.categoryLabel ? `｜${status.categoryLabel}` : "";
+    return status.importable ? `${providerName}${category}｜可以导入当前分类` : `${providerName}｜当前页面不是可导入的具体分类`;
+  }
+
+  function readPageStatus(controller, completion) {
+    controller.webView.evaluateJavaScript(__DAGUANYUAN_PAGE_COLLECTOR_GLOBAL__.pageStatusScript(), function (rawResult, error) {
+      if (error) {
+        setStatus(controller, "无法读取当前页面状态");
+        if (completion) completion(error);
+        return;
+      }
+      try {
+        const status = parsedJSON(rawResult) || {};
+        controller.currentPageStatus = status;
+        setStatus(controller, pageStatusText(status));
+        controller.importButton.enabled = !controller.collectionBusy && Boolean(status.importable);
+        if (completion) completion(null, status);
+      } catch (parseError) {
+        setStatus(controller, "无法识别当前页面状态");
+        if (completion) completion(parseError);
+      }
+    });
+  }
+
+  function updatePageStatus(controller, completion) {
+    readPageStatus(controller, completion);
+  }
+
+  function schedulePageStatusRefresh(controller) {
+    controller.pageStatusRefreshToken = Number(controller.pageStatusRefreshToken || 0) + 1;
+    const token = controller.pageStatusRefreshToken;
+    function refresh() {
+      if (!controller.panelVisible || controller.pageStatusRefreshToken !== token) return;
+      updatePageStatus(controller);
+      NSTimer.scheduledTimerWithTimeInterval(0.8, false, refresh);
     }
+    NSTimer.scheduledTimerWithTimeInterval(0.8, false, refresh);
   }
 
   const panelClass = JSB.defineClass("DaguanyuanBridgePanelController : UIViewController <UIWebViewDelegate>", {
     viewDidLoad: function () {
       setup(self);
+      self.importButton.enabled = false;
       loadURL(self, DAGUANYUAN_HOME_URL);
     },
 
@@ -232,11 +519,15 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
     openSelectedQuestion: function (sender) {
       try {
-        const url = __DAGUANYUAN_SELECTION_GLOBAL__.firstSelectedQuestionURL(self.addonWindow || self.addon.window);
-        const questionId = __DAGUANYUAN_SELECTION_GLOBAL__.questionIdFromURL(url);
-        loadURL(self, url, questionId);
+        const selected = __DAGUANYUAN_SELECTION_GLOBAL__.firstSelectedQuestion(self.addonWindow || self.addon.window);
+        loadURL(self, selected.url, selected.questionId, selected.provider);
       } catch (error) {
-        showMessage(self, error && error.message ? error.message : error);
+        try {
+          const category = __DAGUANYUAN_SELECTION_GLOBAL__.firstSelectedDaguanyuanCategory(self.addonWindow || self.addon.window);
+          loadCategory(self, category);
+        } catch (categoryError) {
+          showMessage(self, categoryError && categoryError.message ? categoryError.message : error && error.message ? error.message : error);
+        }
       }
     },
 
@@ -249,11 +540,8 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       }
     },
 
-    importCurrentPractice: function () {
-      const script = __DAGUANYUAN_PAGE_COLLECTOR_GLOBAL__.collectionScript();
-      self.webView.evaluateJavaScript(script, function (result, error) {
-        handleImportResult(self, result, error);
-      });
+    importCurrentPractice: function (sender) {
+      beginCollection(self);
     },
 
     closePanel: function (sender) {
@@ -289,16 +577,23 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
     webViewDidStartLoad: function () {
       self.titleLabel.text = "正在加载题库…";
+      self.currentPageStatus = undefined;
+      self.importButton.enabled = false;
+      setStatus(self, "页面正在加载…");
     },
 
     webViewDidFinishLoad: function () {
       self.titleLabel.text = "Daguanyuan Bridge";
       injectRetestEnhancement(self);
+      injectVideoPopupCompatibility(self);
       injectSelectedQuestionLocator(self);
+      injectCategoryNavigation(self);
+      updatePageStatus(self);
     },
 
     webViewDidFailLoadWithError: function (webView, error) {
       self.titleLabel.text = "页面加载失败";
+      setStatus(self, `页面加载失败：${errorMessage(error)}`);
       console.log(`[Daguanyuan Bridge] 页面加载失败：${error && error.localizedDescription || error}`);
     },
 
@@ -308,8 +603,10 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       if (scheme !== __DAGUANYUAN_RETEST_GLOBAL__.bridgeScheme) return true;
       try {
         const result = resolveRetestQuestion(self, requestURL);
+        self.pendingRetestNotebookId = result.notebookId || "";
+        self.pendingRetestNotebookIds = Array.isArray(result.notebookIds) ? result.notebookIds : [];
         performClosePanel(self);
-        scheduleRetestQuestionFocus(self, result.note, result.noteId);
+        scheduleRetestQuestionFocus(self, result.note, result.noteId, self.pendingRetestNotebookIds);
       } catch (error) {
         showMessage(self, error && error.message ? error.message : error);
       }
@@ -337,6 +634,8 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.view.hidden = false;
     controller.panelVisible = true;
     NSUserDefaults.standardUserDefaults().setObjectForKey(true, PANEL_KEY);
+    updatePageStatus(controller);
+    schedulePageStatusRefresh(controller);
   }
 
   function hidePanel(controller) {

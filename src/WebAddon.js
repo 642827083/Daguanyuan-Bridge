@@ -12,11 +12,14 @@ function createDaguanyuanBridgeAddon() {
       self.panelController = null;
     },
 
-    notebookWillOpen: function () {
+    notebookWillOpen: function (openedNotebookId) {
       self.panelController.addon = self;
       self.panelController.addonWindow = self.window;
       if (__DAGUANYUAN_WEB_PANEL_GLOBAL__.shouldRestorePanel()) {
         __DAGUANYUAN_WEB_PANEL_GLOBAL__.showPanel(self.panelController);
+      }
+      if (__DAGUANYUAN_RETEST_GLOBAL__ && typeof __DAGUANYUAN_RETEST_GLOBAL__.resumePendingNavigation === "function") {
+        __DAGUANYUAN_RETEST_GLOBAL__.resumePendingNavigation(self, openedNotebookId);
       }
     },
 
