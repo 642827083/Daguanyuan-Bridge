@@ -45,6 +45,7 @@ test("分类导航脚本按祖先题型逐级点击，并跳过源文件中多�
     item("极限计算", 0),
     item("函数极限", 1),
     item("0", 2),
+    item("0", 3),
   ];
   const toggle = {
     getAttribute(name) { return name === "aria-expanded" ? String(menuOpen) : ""; },
@@ -68,7 +69,51 @@ test("分类导航脚本按祖先题型逐级点击，并跳过源文件中多�
   };
   vm.createContext(webContext);
   vm.runInContext(collector.categoryNavigationScript(["不存在的旧分类", "极限计算", "函数极限", "0/0"]), webContext);
-  assert.deepEqual(clicked, ["极限计算", "函数极限", "0"]);
+  assert.deepEqual(clicked, ["极限计算", "函数极限", "0", "0"]);
+});
+
+test("分类导航将无穷比无穷展开为网页的两个连续层级", () => {
+  const source = readFileSync(new URL("../src/DaguanyuanPageCollector.js", import.meta.url), "utf8");
+  const context = {};
+  vm.createContext(context);
+  vm.runInContext(source, context);
+  const collector = context.__DAGUANYUAN_PAGE_COLLECTOR_GLOBAL__;
+  let menuOpen = false;
+  const clicked = [];
+  function item(text, depth) {
+    return {
+      innerText: text,
+      textContent: text,
+      getAttribute(name) { return name === "data-category-filter-depth" ? String(depth) : ""; },
+      querySelector(selector) {
+        return selector === "[title]" ? { textContent: text, getAttribute(name) { return name === "title" ? text : ""; } } : null;
+      },
+      click() { clicked.push(text); },
+    };
+  }
+  const items = [item("极限计算", 0), item("函数极限", 1), item("∞", 2), item("∞", 3)];
+  const toggle = {
+    getAttribute(name) { return name === "aria-expanded" ? String(menuOpen) : ""; },
+    click() { menuOpen = true; },
+  };
+  const webContext = {
+    window: { location: { hostname: "cxyonly.fans" } },
+    document: {
+      querySelector(selector) {
+        return selector === 'button[aria-label="切换章节"]' || selector === 'button[aria-haspopup="tree"]' ? toggle : null;
+      },
+      querySelectorAll(selector) { return selector === '[role="treeitem"]' ? items : []; },
+    },
+    setTimeout(callback) { callback(); },
+    Number,
+    String,
+    Array,
+    Boolean,
+    JSON,
+  };
+  vm.createContext(webContext);
+  vm.runInContext(collector.categoryNavigationScript(["极限计算", "函数极限", "∞/∞"]), webContext);
+  assert.deepEqual(clicked, ["极限计算", "函数极限", "∞", "∞"]);
 });
 
 test("页面采集脚本不依赖 URL 构造器", () => {

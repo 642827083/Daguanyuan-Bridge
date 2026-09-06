@@ -428,7 +428,16 @@ var __DAGUANYUAN_PAGE_COLLECTOR_GLOBAL__ = (function () {
     }).filter(Boolean) : [];
     return `(function () {
       if (String(window.location && window.location.hostname || "").indexOf("cxyonly.fans") < 0) return false;
-      var wantedPath = ${JSON.stringify(labels)};
+      var rawWantedPath = ${JSON.stringify(labels)};
+      // 网页菜单会把复合分类拆成连续的两个层级，导航时同步展开目标路径。
+      var wantedPath = [];
+      rawWantedPath.forEach(function (label) {
+        if (label === "0/0" || label === "∞/∞") {
+          wantedPath.push(label.charAt(0), label.charAt(0));
+        } else {
+          wantedPath.push(label);
+        }
+      });
       var stateKey = "__DAGUANYUAN_CATEGORY_NAVIGATION_STATE__";
       function clean(value) {
         return String(value || "")
@@ -450,8 +459,6 @@ var __DAGUANYUAN_PAGE_COLLECTOR_GLOBAL__ = (function () {
         var target = clean(wanted);
         if (!actual || !target || actual === target) return actual === target;
         var aliases = {
-          "0/0": ["0"],
-          "∞/∞": ["∞"],
           "0x∞": ["0✖∞", "0✖ ∞", "0×∞"],
           "∞-∞": ["∞➖∞", "∞−∞"],
         };

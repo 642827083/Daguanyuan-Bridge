@@ -218,16 +218,6 @@ var __DAGUANYUAN_RETEST_GLOBAL__ = (function () {
       cachedAnyNoteId = __DAGUANYUAN_STORAGE_GLOBAL__.noteIdForQuestion("daguanyuan", questionId, "");
       if (cachedAnyNoteId && notebook) note = findNoteById(notebook, cachedAnyNoteId);
     }
-    // 错题复测可能从另一个学习集发起，当前学习集找不到时再扫描数据库公开的学习集列表。
-    if (!note) {
-      const candidates = knownNotebooks(database);
-      for (let index = 0; index < candidates.length; index += 1) {
-        const candidate = candidates[index];
-        if (!candidate || notebookIdentifier(candidate) === String(notebookId || "")) continue;
-        const candidateNote = cachedAnyNoteId ? findNoteById(candidate, cachedAnyNoteId) : findQuestionNote(candidate, questionId);
-        if (candidateNote) { notebook = candidate; note = candidateNote; break; }
-      }
-    }
     if (!notebook || !note) throw new Error(`当前笔记本中未找到题目 ${questionId}，请先导入该题目所在学习集`);
     const noteId = nativeMember(note, "noteId");
     if (!noteId) throw new Error(`题目 ${questionId} 的脑图卡片缺少笔记 ID`);
