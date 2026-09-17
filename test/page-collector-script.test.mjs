@@ -49,7 +49,7 @@ test("分类导航脚本按祖先题型逐级点击，并跳过源文件中多�
   ];
   const toggle = {
     getAttribute(name) { return name === "aria-expanded" ? String(menuOpen) : ""; },
-    click() { menuOpen = true; },
+    click() { menuOpen = !menuOpen; },
   };
   const document = {
     querySelector(selector) {
@@ -70,6 +70,7 @@ test("分类导航脚本按祖先题型逐级点击，并跳过源文件中多�
   vm.createContext(webContext);
   vm.runInContext(collector.categoryNavigationScript(["不存在的旧分类", "极限计算", "函数极限", "0/0"]), webContext);
   assert.deepEqual(clicked, ["极限计算", "函数极限", "0", "0"]);
+  assert.equal(menuOpen, false);
 });
 
 test("分类导航将无穷比无穷展开为网页的两个连续层级", () => {
@@ -94,7 +95,7 @@ test("分类导航将无穷比无穷展开为网页的两个连续层级", () =>
   const items = [item("极限计算", 0), item("函数极限", 1), item("∞", 2), item("∞", 3)];
   const toggle = {
     getAttribute(name) { return name === "aria-expanded" ? String(menuOpen) : ""; },
-    click() { menuOpen = true; },
+    click() { menuOpen = !menuOpen; },
   };
   const webContext = {
     window: { location: { hostname: "cxyonly.fans" } },
@@ -114,6 +115,44 @@ test("分类导航将无穷比无穷展开为网页的两个连续层级", () =>
   vm.createContext(webContext);
   vm.runInContext(collector.categoryNavigationScript(["极限计算", "函数极限", "∞/∞"]), webContext);
   assert.deepEqual(clicked, ["极限计算", "函数极限", "∞", "∞"]);
+  assert.equal(menuOpen, false);
+});
+
+test("分类导航等待菜单超时时也自动关闭", () => {
+  const source = readFileSync(new URL("../src/DaguanyuanPageCollector.js", import.meta.url), "utf8");
+  const context = {};
+  vm.createContext(context);
+  vm.runInContext(source, context);
+  const collector = context.__DAGUANYUAN_PAGE_COLLECTOR_GLOBAL__;
+  let menuOpen = false;
+  let toggleCount = 0;
+  const toggle = {
+    getAttribute(name) { return name === "aria-expanded" ? String(menuOpen) : ""; },
+    click() {
+      menuOpen = !menuOpen;
+      toggleCount += 1;
+    },
+  };
+  const webContext = {
+    window: { location: { hostname: "cxyonly.fans" } },
+    document: {
+      querySelector(selector) {
+        return selector === 'button[aria-label="切换章节"]' || selector === 'button[aria-haspopup="tree"]' ? toggle : null;
+      },
+      querySelectorAll() { return []; },
+    },
+    setTimeout(callback) { callback(); },
+    Number,
+    String,
+    Array,
+    Boolean,
+    JSON,
+  };
+  vm.createContext(webContext);
+  vm.runInContext(collector.categoryNavigationScript(["不存在的分类"]), webContext);
+
+  assert.equal(menuOpen, false);
+  assert.equal(toggleCount, 2);
 });
 
 test("页面采集脚本不依赖 URL 构造器", () => {

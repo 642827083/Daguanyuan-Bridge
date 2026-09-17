@@ -119,3 +119,21 @@ test("没有隐藏链接的一元积分学习集题卡可识别为 224 章节", 
   assert.equal(result.practiceId, "224");
   assert.deepEqual(Array.from(result.categoryPath), ["几何应用"]);
 });
+
+test("源学习集题卡记录其在父节点下的顺序供首次定位", () => {
+  const first = { noteId: "question-1", noteTitle: "1990数一", notebookId: "book-1", childNotes: [] };
+  const selected = { noteId: "question-2", noteTitle: "1991数二", notebookId: "book-1", childNotes: [] };
+  const category = { noteTitle: "有界", childNotes: [first, selected] };
+  const root = { noteTitle: "函数极限连续", childNotes: [category] };
+  first.parentNote = category;
+  selected.parentNote = category;
+  category.parentNote = root;
+
+  const selection = selectionRuntime(selected);
+  const result = selection.firstSelectedDaguanyuanCategory({});
+
+  assert.equal(result.noteId, "question-2");
+  assert.equal(result.notebookId, "book-1");
+  assert.equal(result.questionIndex, 1);
+  assert.equal(result.questionNumber, 2);
+});

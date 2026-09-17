@@ -70,6 +70,25 @@ test("面板提供打开选中题目按钮并读取脑图选择", () => {
   assert.match(panelSource, /injectCategoryNavigation\(self\)/);
   assert.match(panelSource, /questionLocatorScript\(questionId\)/);
   assert.match(panelSource, /os408QuestionLocatorScript\(questionId\)/);
+  assert.match(panelSource, /orderedQuestionLocatorScript\(binding\.questionIndex\)/);
+  assert.match(panelSource, /saveQuestionMappings/);
+});
+
+test("首次按顺序定位保存映射后立即加载精确题目地址", () => {
+  const start = panelSource.indexOf("function finishOrderedQuestionBinding");
+  const end = panelSource.indexOf("function scheduleOrderedQuestionBinding", start);
+  const bindingSource = panelSource.slice(start, end);
+  const saveIndex = bindingSource.indexOf("saveQuestionMappings");
+  const loadIndex = bindingSource.indexOf('loadURL(controller, result.url, result.questionId, "daguanyuan")');
+
+  assert.ok(start >= 0 && end > start);
+  assert.ok(saveIndex >= 0);
+  assert.ok(loadIndex > saveIndex, "首次懒绑定后必须立即加载带 questionId 的精确地址");
+});
+
+test("首次按顺序定位区分网页总题数与已读取题数", () => {
+  assert.match(panelSource, /网页显示共.*但只读取到/);
+  assert.doesNotMatch(panelSource, /网页当前只有/);
 });
 
 test("问AI按钮位于打开选中题目右侧并打开所选题目的 AI 助手", () => {
@@ -94,24 +113,14 @@ test("数学分类保留网站中的极限层级且不包含旧迁移逻辑", ()
   assert.doesNotMatch(source, /daguanyuan-408-question:/);
 });
 
-test("导入前自动加载题目并在固定状态区显示结果", () => {
-  assert.match(panelSource, /preloadScript\(\)/);
-  assert.match(panelSource, /preloadStatusScript\(\)/);
-  assert.match(panelSource, /正在加载完整题目/);
-  assert.match(panelSource, /statusLabel/);
-  assert.match(panelSource, /importSummary/);
-});
-
-test("网页内部切换分类后自动刷新状态，导入前强制重新识别当前页面", () => {
-  assert.match(panelSource, /function schedulePageStatusRefresh\(controller\)/);
-  assert.match(panelSource, /NSTimer\.scheduledTimerWithTimeInterval\(0\.8, false, refresh\)/);
-  assert.match(panelSource, /function readPageStatus\(controller, completion\)/);
-  assert.match(panelSource, /正在识别当前分类/);
-  assert.match(panelSource, /function prepareCategoryMenu\(controller, completion\)/);
-  assert.match(panelSource, /NSTimer\.scheduledTimerWithTimeInterval\(0\.2, false/);
-  assert.match(panelSource, /未读取到当前分类路径/);
-  assert.match(panelSource, /readPageStatus\(controller, function \(error, status\)/);
-  assert.match(panelSource, /updatePageStatus\(controller\);\s*schedulePageStatusRefresh\(controller\);/);
+test("面板移除导入当前分类及状态栏运行链", () => {
+  assert.doesNotMatch(panelSource, /导入当前分类/);
+  assert.doesNotMatch(panelSource, /importCurrentPractice|importButton|beginCollection/);
+  assert.doesNotMatch(panelSource, /statusBar|statusLabel|setStatus|STATUS_HEIGHT|HEADER_HEIGHT/);
+  assert.doesNotMatch(panelSource, /schedulePageStatusRefresh|readPageStatus|pageStatusScript/);
+  assert.doesNotMatch(bridgeSource, /importCurrentPractice/);
+  assert.doesNotMatch(mainSource, /JSB\.require\("DaguanyuanImport"\)/);
+  assert.match(panelSource, /webView\.frame\s*=\s*\{ x: 0, y: TITLE_HEIGHT/);
 });
 
 test("面板已移除旧题卡匹配、目录设置和离线图片入口", () => {

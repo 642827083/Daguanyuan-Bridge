@@ -215,17 +215,161 @@ var __DAGUANYUAN_SELECTION_GLOBAL__ = (function () {
     return path;
   }
 
+  function questionIndexInParent(note) {
+    if (!note) return -1;
+    const parent = nativeMember(note, "parentNote") || nativeMember(note, "parent") || nativeMember(note, "parentNode");
+    const siblings = nativeItems(nativeMember(parent, "childNotes"));
+    const selectedId = noteIdentifier(note);
+    for (let index = 0; index < siblings.length; index += 1) {
+      const sibling = siblings[index];
+      if (sibling === note) return index;
+      if (selectedId && noteIdentifier(sibling) === selectedId) return index;
+    }
+    return -1;
+  }
+
   function firstSelectedDaguanyuanCategory(window) {
     const selected = selectedNotePath(window);
     const chapter = chapterForTitles(selected.titles);
     if (!chapter) throw new Error("未能从选中卡片的目录识别大观园数学章节");
+    const questionIndex = questionIndexInParent(selected.note);
     return {
       provider: "daguanyuan",
       practiceId: chapter.practiceId,
       chapterPath: chapter.chapterPath.slice(),
       categoryPath: categoryPathForTitles(selected.note, selected.titles, chapter),
       titles: selected.titles,
+      noteId: noteIdentifier(selected.note),
+      notebookId: String(nativeMember(selected.note, "notebookId") || ""),
+      questionIndex,
+      questionNumber: questionIndex >= 0 ? questionIndex + 1 : 0,
     };
+  }
+
+  function orderedQuestionLocatorScript(value) {
+    const questionIndex = Number(value);
+    if (!Number.isInteger(questionIndex) || questionIndex < 0) return "";
+    return `(function () {
+      if (String(location.hostname || "") !== "cxyonly.fans") return JSON.stringify({ status: "invalid" });
+      if (!/^\\/math\\/practice\\/\\d+/.test(String(location.pathname || ""))) return JSON.stringify({ status: "invalid" });
+      if (window.__DAGUANYUAN_CATEGORY_NAVIGATION_STATE__) return JSON.stringify({ status: "waiting" });
+      var questionIndex = ${JSON.stringify(questionIndex)};
+      var cards = Array.prototype.slice.call(document.querySelectorAll("[data-learning-question-card]"));
+      var stateKey = "__DAGUANYUAN_ORDERED_QUESTION_STATE__";
+      var requestKey = String(location.pathname || "") + "|" + String(location.search || "") + "|" + questionIndex;
+      function questionDocumentForCard(card) {
+        if (!card) return null;
+        var ownId = card.getAttribute && card.getAttribute("data-question-id");
+        return ownId ? card : (card.querySelector ? card.querySelector("[data-question-id]") : null);
+      }
+      function questionIdForCard(card) {
+        var questionDocument = questionDocumentForCard(card);
+        var questionId = String(questionDocument && questionDocument.getAttribute("data-question-id") || "");
+        return /^\\d+$/.test(questionId) ? questionId : "";
+      }
+      function expectedQuestionCount() {
+        var lines = String(document.body && document.body.innerText || "").split(/\\r?\\n/);
+        for (var index = 0; index < lines.length; index += 1) {
+          var match = String(lines[index] || "").trim().match(/^(\\d+)\\s*\\/\\s*(\\d+)$/);
+          if (!match) continue;
+          var current = Number(match[1]);
+          var total = Number(match[2]);
+          if (total > 0 && current >= 0 && current <= total) return total;
+        }
+        return 0;
+      }
+      function resetInitialScroll(card) {
+        var reset = false;
+        var node = card && card.parentElement;
+        while (node && node !== document.body) {
+          if (Number(node.scrollTop || 0) > 1 && Number(node.scrollHeight || 0) > Number(node.clientHeight || 0)) {
+            node.scrollTop = 0;
+            reset = true;
+          }
+          node = node.parentElement;
+        }
+        var root = document.scrollingElement || document.documentElement || document.body;
+        if (root && Number(root.scrollTop || 0) > 1) {
+          root.scrollTop = 0;
+          reset = true;
+        }
+        if (Number(window.scrollY || 0) > 1 && typeof window.scrollTo === "function") {
+          window.scrollTo(0, 0);
+          reset = true;
+        }
+        return reset;
+      }
+      function loadMoreButton() {
+        var buttons = Array.prototype.slice.call(document.querySelectorAll("button"));
+        for (var index = 0; index < buttons.length; index += 1) {
+          var button = buttons[index];
+          var label = String(button.innerText || button.textContent || "").replace(/\\s+/g, "").trim();
+          if (label.indexOf("加载更多题目") >= 0 || label === "加载更多") return button;
+        }
+        return null;
+      }
+      var expectedCount = expectedQuestionCount();
+      var state = window[stateKey];
+      if (!state || state.requestKey !== requestKey) {
+        state = { requestKey: requestKey, questionIds: [], stablePasses: 0 };
+        window[stateKey] = state;
+        if (resetInitialScroll(cards[0])) {
+          return JSON.stringify({ status: "waiting", questionCount: 0, expectedQuestionCount: expectedCount });
+        }
+      }
+      var visibleCards = {};
+      var discoveredCount = 0;
+      cards.forEach(function (card) {
+        var questionId = questionIdForCard(card);
+        if (!questionId) return;
+        visibleCards[questionId] = card;
+        if (state.questionIds.indexOf(questionId) >= 0) return;
+        state.questionIds.push(questionId);
+        discoveredCount += 1;
+      });
+      state.stablePasses = discoveredCount ? 0 : state.stablePasses + 1;
+      var questionId = String(state.questionIds[questionIndex] || "");
+      var target = visibleCards[questionId];
+      if (!questionId) {
+        var loadMore = loadMoreButton();
+        if (loadMore && !loadMore.disabled && (!loadMore.getAttribute || loadMore.getAttribute("aria-disabled") !== "true")) {
+          state.stablePasses = 0;
+          loadMore.click();
+          return JSON.stringify({ status: "waiting", questionCount: state.questionIds.length, expectedQuestionCount: expectedCount });
+        }
+        var lastCard = cards.length ? cards[cards.length - 1] : null;
+        if (lastCard && typeof lastCard.scrollIntoView === "function") {
+          lastCard.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+        }
+        if ((expectedCount && state.questionIds.length >= expectedCount) || state.stablePasses >= 12) {
+          return JSON.stringify({ status: "missing", questionCount: state.questionIds.length, expectedQuestionCount: expectedCount });
+        }
+        return JSON.stringify({ status: "waiting", questionCount: state.questionIds.length, expectedQuestionCount: expectedCount });
+      }
+      var href = String(location.href || "");
+      var hashIndex = href.indexOf("#");
+      var hash = hashIndex >= 0 ? href.slice(hashIndex) : "";
+      var base = hashIndex >= 0 ? href.slice(0, hashIndex) : href;
+      var queryIndex = base.indexOf("?");
+      var path = queryIndex >= 0 ? base.slice(0, queryIndex) : base;
+      var query = queryIndex >= 0 ? base.slice(queryIndex + 1) : "";
+      var parts = query ? query.split("&").filter(function (part) {
+        var rawName = String(part || "").split("=")[0].replace(/\\+/g, " ");
+        try { return decodeURIComponent(rawName) !== "questionId"; } catch (error) { return rawName !== "questionId"; }
+      }) : [];
+      parts.push("questionId=" + encodeURIComponent(questionId));
+      if (target && typeof target.scrollIntoView === "function") {
+        target.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
+      }
+      window[stateKey] = undefined;
+      return JSON.stringify({
+        status: "found",
+        questionId: questionId,
+        questionCount: state.questionIds.length,
+        expectedQuestionCount: expectedCount,
+        url: path + "?" + parts.join("&") + hash
+      });
+    })();`;
   }
 
   function questionLocatorScript(value) {
@@ -316,6 +460,8 @@ var __DAGUANYUAN_SELECTION_GLOBAL__ = (function () {
     firstSelectedDaguanyuanCategory,
     firstSelectedNote,
     noteIdentifier,
+    questionIndexInParent,
+    orderedQuestionLocatorScript,
     os408QuestionLocatorScript,
     questionIdFromURL,
     questionLocatorScript,

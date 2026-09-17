@@ -472,6 +472,12 @@ var __DAGUANYUAN_PAGE_COLLECTOR_GLOBAL__ = (function () {
       function treeItems() {
         return Array.prototype.slice.call(document.querySelectorAll('[role="treeitem"]'));
       }
+      function finish(succeeded) {
+        var toggle = document.querySelector('button[aria-label="切换章节"]') || document.querySelector('button[aria-haspopup="tree"]');
+        if (toggle && toggle.getAttribute("aria-expanded") === "true" && typeof toggle.click === "function") toggle.click();
+        window[stateKey] = null;
+        return succeeded;
+      }
       function schedule(state) {
         window[stateKey] = state;
         setTimeout(step, 180);
@@ -488,7 +494,7 @@ var __DAGUANYUAN_PAGE_COLLECTOR_GLOBAL__ = (function () {
         var items = treeItems();
         if (!items.length) {
           state.waitCount += 1;
-          if (state.waitCount > 30) { window[stateKey] = null; return false; }
+          if (state.waitCount > 30) return finish(false);
           schedule(state);
           return false;
         }
@@ -515,8 +521,7 @@ var __DAGUANYUAN_PAGE_COLLECTOR_GLOBAL__ = (function () {
           schedule(state);
           return false;
         }
-        window[stateKey] = null;
-        return true;
+        return finish(true);
       }
       window[stateKey] = { index: 0, minDepth: 0, waitCount: 0 };
       return step();

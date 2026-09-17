@@ -119,3 +119,139 @@ test("题目异步渲染时等待节点出现后自动滚动", () => {
   assert.equal(scrollCalls.length, 1);
   assert.equal(scrollCalls[0].block, "center");
 });
+
+test("按父节点顺序取得网页题目并生成可复用原题地址", () => {
+  const selection = runtime();
+  const scrollCalls = [];
+  function card(questionId) {
+    return {
+      getAttribute() { return ""; },
+      querySelector(selector) {
+        return selector === "[data-question-id]" ? { getAttribute() { return questionId; } } : null;
+      },
+      scrollIntoView(options) { scrollCalls.push(options); },
+    };
+  }
+  const result = JSON.parse(vm.runInNewContext(selection.orderedQuestionLocatorScript(1), {
+    document: {
+      querySelectorAll(selector) {
+        if (selector === "[data-learning-question-card]") return [card("101"), card("102")];
+        if (selector === "button") return [];
+        return [];
+      },
+    },
+    location: {
+      hostname: "cxyonly.fans",
+      pathname: "/math/practice/329",
+      href: "https://cxyonly.fans/math/practice/329?resumeCategoryId=708&questionId=old",
+    },
+    window: {},
+    JSON,
+    Array,
+    String,
+    RegExp,
+    Number,
+    encodeURIComponent,
+    decodeURIComponent,
+  }));
+
+  assert.equal(result.status, "found");
+  assert.equal(result.questionId, "102");
+  assert.equal(result.url, "https://cxyonly.fans/math/practice/329?resumeCategoryId=708&questionId=102");
+  assert.equal(scrollCalls.length, 1);
+});
+
+test("目标顺序尚未加载时点击加载更多且不提前绑定", () => {
+  const selection = runtime();
+  let clickCount = 0;
+  const loadMore = {
+    innerText: "加载更多题目",
+    disabled: false,
+    getAttribute() { return "false"; },
+    click() { clickCount += 1; },
+  };
+  const result = JSON.parse(vm.runInNewContext(selection.orderedQuestionLocatorScript(20), {
+    document: {
+      querySelectorAll(selector) {
+        if (selector === "[data-learning-question-card]") return [];
+        if (selector === "button") return [loadMore];
+        return [];
+      },
+    },
+    location: { hostname: "cxyonly.fans", pathname: "/math/practice/329", href: "https://cxyonly.fans/math/practice/329" },
+    window: {},
+    JSON,
+    Array,
+    String,
+    RegExp,
+    Number,
+    encodeURIComponent,
+    decodeURIComponent,
+  }));
+
+  assert.equal(result.status, "waiting");
+  assert.equal(clickCount, 1);
+});
+
+test("虚拟列表初始只渲染两题时逐题滚动并定位第七题", () => {
+  const selection = runtime();
+  const questionIds = ["101", "102", "103", "104", "105", "106", "107"];
+  let virtualStart = 0;
+  let scrollCount = 0;
+
+  function card(questionId, visibleIndex) {
+    return {
+      getAttribute() { return ""; },
+      querySelector(selector) {
+        return selector === "[data-question-id]" ? { getAttribute() { return questionId; } } : null;
+      },
+      scrollIntoView(options) {
+        if (options.block === "start" && visibleIndex === 1 && virtualStart < questionIds.length - 2) {
+          virtualStart += 1;
+          scrollCount += 1;
+        }
+      },
+    };
+  }
+
+  const context = {
+    document: {
+      body: { innerText: "0/7" },
+      querySelectorAll(selector) {
+        if (selector === "[data-learning-question-card]") {
+          return questionIds.slice(virtualStart, virtualStart + 2).map(card);
+        }
+        if (selector === "button") return [];
+        return [];
+      },
+    },
+    location: {
+      hostname: "cxyonly.fans",
+      pathname: "/math/practice/329",
+      href: "https://cxyonly.fans/math/practice/329?resumeCategoryId=708",
+    },
+    window: { scrollY: 0, scrollTo() {} },
+    JSON,
+    Array,
+    String,
+    RegExp,
+    Number,
+    encodeURIComponent,
+    decodeURIComponent,
+  };
+  vm.createContext(context);
+
+  let result;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    result = JSON.parse(vm.runInContext(selection.orderedQuestionLocatorScript(6), context));
+    if (result.status === "found") break;
+    assert.equal(result.status, "waiting");
+  }
+
+  assert.equal(result.status, "found");
+  assert.equal(result.questionId, "107");
+  assert.equal(result.questionCount, 7);
+  assert.equal(result.expectedQuestionCount, 7);
+  assert.equal(result.url, "https://cxyonly.fans/math/practice/329?resumeCategoryId=708&questionId=107");
+  assert.equal(scrollCount, 5);
+});
