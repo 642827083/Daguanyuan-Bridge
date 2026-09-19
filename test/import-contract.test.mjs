@@ -1,20 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
-const source = readFileSync(new URL("../src/DaguanyuanImport.js", import.meta.url), "utf8");
 const addonSource = readFileSync(new URL("../src/WebAddon.js", import.meta.url), "utf8");
 const panelSource = readFileSync(new URL("../src/WebPanelController.js", import.meta.url), "utf8");
-const bridgeSource = readFileSync(new URL("../src/WebBridgeCommands.js", import.meta.url), "utf8");
 const mainSource = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
 
-test("原生导入器以撤销组创建分类子节点并以题目 ID 去重", () => {
-  assert.match(source, /UndoManager\.sharedInstance\(\)\.undoGrouping/);
-  assert.match(source, /Note\.createWithTitleNotebookDocument/);
-  assert.match(source, /addChild\(/);
-  assert.match(source, /DAGUANYUAN_QUESTION_ID:/);
-  assert.match(source, /refreshAfterDBChanged/);
-  assert.match(source, /Database\.sharedInstance\(\)\.getNotebookById/);
+test("题卡导入与页面采集模块已从原生层和网页层删除", () => {
+  const removedFiles = [
+    "../src/DaguanyuanImport.js",
+    "../src/DaguanyuanPageCollector.js",
+    "../web/src/domain/practiceParser.mjs",
+    "../web/src/site/practiceCollector.mjs",
+  ];
+  removedFiles.forEach((file) => assert.equal(existsSync(new URL(file, import.meta.url)), false));
+  assert.doesNotMatch(mainSource, /DaguanyuanImport|DaguanyuanPageCollector/);
 });
 
 test("工具栏命令声明包内图标", () => {
@@ -51,66 +51,28 @@ test("面板提供右下角缩放手势并限制和保存尺寸", () => {
   assert.match(panelSource, /persistFrame\(self\)/);
 });
 
-test("面板提供大观园和 408 真题入口", () => {
+test("面板顶栏只提供数学、408 和设置三个入口", () => {
   assert.match(panelSource, /https:\/\/cxyonly\.fans\/math/);
   assert.match(panelSource, /https:\/\/www\.408os\.cn\/overview/);
-  assert.match(panelSource, /button\("大观园"/);
-  assert.match(panelSource, /button\("408 真题"/);
+  assert.match(panelSource, /button\("数学"/);
+  assert.match(panelSource, /button\("408"/);
+  assert.match(panelSource, /button\("设置", controller, "openSettings:"\)/);
+  assert.doesNotMatch(panelSource, /controller\.openQuestionButton|controller\.aiButton|controller\.focusButton/);
+  assert.doesNotMatch(panelSource, /controller\.titleLabel|\.text\s*=\s*"Daguanyuan Bridge"/);
   assert.match(panelSource, /throw new Error\("题库地址无效"\)/);
 });
 
-test("面板提供打开选中题目按钮并读取脑图选择", () => {
-  assert.match(panelSource, /打开选中题目/);
-  assert.match(panelSource, /openSelectedQuestion:/);
-  assert.match(panelSource, /__DAGUANYUAN_SELECTION_GLOBAL__\.firstSelectedQuestion/);
-  assert.match(panelSource, /firstSelectedDaguanyuanCategory/);
-  assert.match(panelSource, /function loadCategory\(controller, category\)/);
-  assert.match(panelSource, /loadURL\(self, selected\.url, selected\.questionId, selected\.provider\)/);
-  assert.match(panelSource, /injectSelectedQuestionLocator\(self\)/);
-  assert.match(panelSource, /injectCategoryNavigation\(self\)/);
-  assert.match(panelSource, /questionLocatorScript\(questionId\)/);
-  assert.match(panelSource, /os408QuestionLocatorScript\(questionId\)/);
-  assert.match(panelSource, /orderedQuestionLocatorScript\(binding\.questionIndex\)/);
-  assert.match(panelSource, /saveQuestionMappings/);
+test("独立设置页和运行入口完整移除打开选中题目功能", () => {
+  assert.match(panelSource, /controller\.settingsPage = new UIView/);
+  assert.match(panelSource, /function setActivePage\(controller, page\)/);
+  assert.match(panelSource, /controller\.settingsPage\.hidden = page !== "settings"/);
+  assert.doesNotMatch(panelSource, /settingsMenu|settingsBackdropButton/);
+  assert.doesNotMatch(panelSource + addonSource, /打开选中题目|打开题目|openSelectedQuestion|firstSelectedQuestion|loadCategory|questionLocatorScript|scopedOrderedQuestionLocatorScript/);
+  assert.doesNotMatch(mainSource, /DaguanyuanSelection|DaguanyuanStorage/);
 });
 
-test("首次按顺序定位保存映射后立即加载精确题目地址", () => {
-  const start = panelSource.indexOf("function finishOrderedQuestionBinding");
-  const end = panelSource.indexOf("function scheduleOrderedQuestionBinding", start);
-  const bindingSource = panelSource.slice(start, end);
-  const saveIndex = bindingSource.indexOf("saveQuestionMappings");
-  const loadIndex = bindingSource.indexOf('loadURL(controller, result.url, result.questionId, "daguanyuan")');
-
-  assert.ok(start >= 0 && end > start);
-  assert.ok(saveIndex >= 0);
-  assert.ok(loadIndex > saveIndex, "首次懒绑定后必须立即加载带 questionId 的精确地址");
-});
-
-test("首次按顺序定位区分网页总题数与已读取题数", () => {
-  assert.match(panelSource, /网页显示共.*但只读取到/);
-  assert.doesNotMatch(panelSource, /网页当前只有/);
-});
-
-test("问AI按钮位于打开选中题目右侧并打开所选题目的 AI 助手", () => {
-  assert.match(panelSource, /button\("问AI", controller, "openSelectedQuestionAI:"\)/);
-  assert.match(panelSource, /controller\.openQuestionButton\.frame\s*=\s*\{ x: 204,[^}]+\}/);
-  assert.match(panelSource, /controller\.aiButton\.frame\s*=\s*\{ x: 328,[^}]+\}/);
-  assert.match(panelSource, /openSelectedQuestionAI:\s*function\s*\(sender\)/);
-  assert.match(panelSource, /__DAGUANYUAN_SELECTION_GLOBAL__\.firstSelectedQuestionAIURL/);
-});
-
-test("题卡正文保存隐藏题目编号和原题链接", () => {
-  assert.match(source, /DAGUANYUAN_QUESTION_ID/);
-  assert.match(source, /DAGUANYUAN_URL/);
-  assert.match(source, /question\.url/);
-});
-
-test("数学分类保留网站中的极限层级且不包含旧迁移逻辑", () => {
-  assert.match(source, /const incomingPath = Array\.isArray\(payload\.categoryPath\)/);
-  assert.doesNotMatch(source, /findLegacyCategory|migrateFlattenedLimitBranch|mergeCategoryChildren|mergeLegacyLimitBranch/);
-  assert.doesNotMatch(source, /DAGUANYUAN_CATEGORY_ID:/);
-  assert.doesNotMatch(source, /题目 \$\{questionId\}/);
-  assert.doesNotMatch(source, /daguanyuan-408-question:/);
+test("面板完整移除问 AI 功能", () => {
+  assert.doesNotMatch(panelSource, /问AI|openSelectedQuestionAI|firstSelectedQuestionAIURL/);
 });
 
 test("面板移除导入当前分类及状态栏运行链", () => {
@@ -118,9 +80,9 @@ test("面板移除导入当前分类及状态栏运行链", () => {
   assert.doesNotMatch(panelSource, /importCurrentPractice|importButton|beginCollection/);
   assert.doesNotMatch(panelSource, /statusBar|statusLabel|setStatus|STATUS_HEIGHT|HEADER_HEIGHT/);
   assert.doesNotMatch(panelSource, /schedulePageStatusRefresh|readPageStatus|pageStatusScript/);
-  assert.doesNotMatch(bridgeSource, /importCurrentPractice/);
-  assert.doesNotMatch(mainSource, /JSB\.require\("DaguanyuanImport"\)/);
-  assert.match(panelSource, /webView\.frame\s*=\s*\{ x: 0, y: TITLE_HEIGHT/);
+  assert.doesNotMatch(mainSource, /WebBridgeCommands/);
+  assert.doesNotMatch(mainSource, /DaguanyuanImport|DaguanyuanPageCollector/);
+  assert.match(panelSource, /controller\.webView\.frame = contentFrame/);
 });
 
 test("面板已移除旧题卡匹配、目录设置和离线图片入口", () => {
@@ -139,46 +101,8 @@ test("插件将视频的新窗口跳转保留在当前面板", () => {
   assert.match(panelSource, /injectVideoPopupCompatibility\(self\)/);
 });
 
-test("408 题卡使用简化 HTML 外框而非网页原始布局", () => {
-  const collectorSource = readFileSync(new URL("../src/DaguanyuanPageCollector.js", import.meta.url), "utf8");
-  assert.match(collectorSource, /function compactHTML/);
-  assert.match(collectorSource, /border-radius:8px/);
-  assert.match(collectorSource, /width: 960/);
-  assert.doesNotMatch(collectorSource, /html2canvas/);
-});
-
-test("大观园数学使用 Markdown 题卡，408 保持简化 HTML 题卡", () => {
-  const collectorSource = readFileSync(new URL("../src/DaguanyuanPageCollector.js", import.meta.url), "utf8");
-  assert.doesNotMatch(mainSource, /KatexAssets/);
-  assert.doesNotMatch(collectorSource, /var html = simplifiedQuestionHTML\(stem, optionNodes/);
-  assert.match(collectorSource, /markdown: questionMarkdown\(stem, optionNodes\)/);
-  assert.match(collectorSource, /function renderedQuestionHTML/);
-});
-
-test("错题复测页面通过受控指令定位脑图并隐藏面板", () => {
-  assert.match(mainSource, /JSB\.require\("DaguanyuanRetest"\)/);
-  assert.match(panelSource, /webViewShouldStartLoadWithRequestNavigationType/);
-  assert.match(panelSource, /questionIdFromBridgeURL/);
-  assert.match(panelSource, /resolveRetestQuestion/);
-  assert.match(panelSource, /scheduleRetestQuestionFocus/);
-  assert.match(panelSource, /NSTimer\.scheduledTimerWithTimeInterval\(0\.2/);
-  assert.match(panelSource, /startQuestionNavigation\(controller\.addon/);
-  assert.match(panelSource, /notebookIds:\s*Array\.isArray\(notebookIds\) \? notebookIds : \[\]/);
-  assert.match(panelSource, /enhancementScript\(\)/);
-  assert.doesNotMatch(readFileSync(new URL("../src/DaguanyuanRetest.js", import.meta.url), "utf8"), /setContentOffsetAnimated|mindmapNodes|scrollQuestionCard/);
-  assert.match(bridgeSource, /resolveRetestQuestion/);
-  const delegate = panelSource.slice(panelSource.indexOf("webViewShouldStartLoadWithRequestNavigationType"));
-  assert.ok(delegate.indexOf("performClosePanel(self)") < delegate.indexOf("scheduleRetestQuestionFocus(self, result.note, result.noteId, self.pendingRetestNotebookIds)"));
-  assert.match(delegate, /scheduleRetestQuestionFocus\(self, result\.note, result\.noteId, self\.pendingRetestNotebookIds\)/);
-});
-
-test("跨学习集定位使用原生 NSURL，并将学习集打开事件传回导航器", () => {
-  const retestSource = readFileSync(new URL("../src/DaguanyuanRetest.js", import.meta.url), "utf8");
-  assert.match(retestSource, /NSURL\.URLWithString\(encodeURI\(target\)\)/);
-  assert.match(retestSource, /application\.openURL\(url\)/);
-  assert.doesNotMatch(retestSource, /application\.openURL\(target,/);
-  assert.match(retestSource, /function resumePendingNavigation\(addon, openedNotebookId\)/);
-  assert.match(retestSource, /opened !== pending\.notebookId/);
-  assert.match(addonSource, /notebookWillOpen:\s*function\s*\(openedNotebookId\)/);
-  assert.match(addonSource, /resumePendingNavigation\(self, openedNotebookId\)/);
+test("插件不再注入错题复测定位脑图逻辑", () => {
+  assert.doesNotMatch(mainSource, /DaguanyuanRetest|WebBridgeCommands/);
+  assert.doesNotMatch(panelSource, /RETEST|Retest|retest|错题复测|复测|focus-question/);
+  assert.doesNotMatch(addonSource, /DAGUANYUAN_RETEST|resumePendingNavigation/);
 });

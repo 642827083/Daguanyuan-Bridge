@@ -19,7 +19,7 @@ function createDaguanyuanBridgeAddon() {
       self.panelController = null;
     },
 
-    notebookWillOpen: function (openedNotebookId) {
+    notebookWillOpen: function () {
       self.panelController.addon = self;
       self.panelController.addonWindow = self.window;
       self.__daguanyuanFocusNextLastFocus = null;
@@ -27,9 +27,6 @@ function createDaguanyuanBridgeAddon() {
       else __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.hide(self);
       if (__DAGUANYUAN_WEB_PANEL_GLOBAL__.shouldRestorePanel()) {
         __DAGUANYUAN_WEB_PANEL_GLOBAL__.showPanel(self.panelController);
-      }
-      if (__DAGUANYUAN_RETEST_GLOBAL__ && typeof __DAGUANYUAN_RETEST_GLOBAL__.resumePendingNavigation === "function") {
-        __DAGUANYUAN_RETEST_GLOBAL__.resumePendingNavigation(self, openedNotebookId);
       }
     },
 
@@ -59,7 +56,7 @@ function createDaguanyuanBridgeAddon() {
       self.focusNavigationEnabled = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.setEnabled(!(self.focusNavigationEnabled !== false));
       if (self.focusNavigationEnabled) __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.show(self);
       else __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.hide(self);
-      __DAGUANYUAN_WEB_PANEL_GLOBAL__.refreshFocusButton(self.panelController);
+      __DAGUANYUAN_WEB_PANEL_GLOBAL__.refreshFocusSetting(self.panelController);
       return self.focusNavigationEnabled;
     },
 
@@ -68,7 +65,11 @@ function createDaguanyuanBridgeAddon() {
         self.__daguanyuanFocusNextSuppressTap = false;
         return;
       }
-      try { __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.focusNext(self); }
+      try {
+        const result = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.focusNext(self);
+        __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.refreshProgress(self, result.next);
+        __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.refreshCategory(self, result.next);
+      }
       catch (error) {
         const message = error && error.message ? error.message : String(error);
         __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.showMessage(self, message);
@@ -81,7 +82,11 @@ function createDaguanyuanBridgeAddon() {
         self.__daguanyuanFocusNextSuppressTap = false;
         return;
       }
-      try { __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.focusPrevious(self); }
+      try {
+        const result = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.focusPrevious(self);
+        __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.refreshProgress(self, result.next);
+        __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.refreshCategory(self, result.next);
+      }
       catch (error) {
         const message = error && error.message ? error.message : String(error);
         __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.showMessage(self, message);
@@ -96,5 +101,10 @@ function createDaguanyuanBridgeAddon() {
     handleFocusPreviousButtonPan: function (recognizer) {
       __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.handlePreviousPan(self, recognizer);
     },
+
+    handleFocusCategoryButtonPan: function (recognizer) {
+      __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.handleCategoryPan(self, recognizer);
+    },
+
   });
 }

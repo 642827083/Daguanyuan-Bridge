@@ -1,5 +1,9 @@
 var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
   const ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.enabled";
+  const PREVIOUS_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.previous-enabled";
+  const PROGRESS_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.progress-enabled";
+  const CROSS_LEVEL_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.cross-level-enabled";
+  const CATEGORY_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.category-enabled";
 
   function member(object, key) {
     if (!object) return undefined;
@@ -150,12 +154,74 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
     return siblings[targetIndex];
   }
 
+  function siblingIndex(note, siblings) {
+    const id = noteId(note);
+    for (let index = 0; index < siblings.length; index += 1) {
+      if (siblings[index] === note || (id && noteId(siblings[index]) === id)) return index;
+    }
+    return -1;
+  }
+
+  function siblingProgress(note) {
+    const parent = member(note, "parentNote");
+    const siblings = items(member(parent, "childNotes"));
+    if (!parent || !siblings.length) return undefined;
+    const index = siblingIndex(note, siblings);
+    if (index < 0) return undefined;
+    return { index: index + 1, total: siblings.length };
+  }
+
+  function parentTitle(note) {
+    const parent = member(note, "parentNote");
+    const title = String(member(parent, "noteTitle") || "").trim();
+    return title || "无题型分类";
+  }
+
+  function depthFirstNext(note) {
+    const children = items(member(note, "childNotes"));
+    if (children.length) return children[0];
+
+    let cursor = note;
+    while (cursor) {
+      const parent = member(cursor, "parentNote");
+      if (!parent) break;
+      const siblings = items(member(parent, "childNotes"));
+      const index = siblingIndex(cursor, siblings);
+      if (index < 0) throw new Error("当前焦点不在脑图父节点的子卡片列表中");
+      if (index + 1 < siblings.length) return siblings[index + 1];
+      cursor = parent;
+    }
+    throw new Error("已经是整棵脑图的最后一张卡片");
+  }
+
+  function deepestLastDescendant(note) {
+    let cursor = note;
+    while (cursor) {
+      const children = items(member(cursor, "childNotes"));
+      if (!children.length) return cursor;
+      cursor = children[children.length - 1];
+    }
+    return note;
+  }
+
+  function depthFirstPrevious(note) {
+    const parent = member(note, "parentNote");
+    if (!parent) throw new Error("已经是整棵脑图的第一张卡片");
+    const siblings = items(member(parent, "childNotes"));
+    const index = siblingIndex(note, siblings);
+    if (index < 0) throw new Error("当前焦点不在脑图父节点的子卡片列表中");
+    if (index > 0) return deepestLastDescendant(siblings[index - 1]);
+    return parent;
+  }
+
   function focusSibling(addon, offset) {
     const current = navigationNote(addon);
     const controller = studyController(addon);
     const notebook = member(controller, "notebookController");
     if (!notebook || typeof notebook.changeFocusToNote !== "function") throw new Error("当前 MarginNote 版本不支持切换脑图焦点");
-    const target = adjacent(current, offset);
+    const target = crossLevelEnabled()
+      ? (offset > 0 ? depthFirstNext(current) : depthFirstPrevious(current))
+      : adjacent(current, offset);
     notebook.changeFocusToNote(target);
     if (addon) addon.__daguanyuanFocusNextLastFocus = target;
     return { current, next: target, nextId: noteId(target) };
@@ -191,6 +257,83 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
     return result;
   }
 
-  return { currentFocus, rememberFocus, focusNext, focusPrevious, showMessage, enabled, setEnabled };
-})();
+  function previousEnabled() {
+    try {
+      const value = NSUserDefaults.standardUserDefaults().objectForKey(PREVIOUS_ENABLED_KEY);
+      if (value === undefined || value === null) return true;
+      if (typeof value.booleanValue === "function") return Boolean(value.booleanValue());
+      return !(value === false || value === 0 || String(value).toLowerCase() === "false");
+    } catch (error) { return true; }
+  }
 
+  function setPreviousEnabled(value) {
+    const result = Boolean(value);
+    try { NSUserDefaults.standardUserDefaults().setObjectForKey(result, PREVIOUS_ENABLED_KEY); } catch (ignored) {}
+    return result;
+  }
+
+  function progressEnabled() {
+    try {
+      const value = NSUserDefaults.standardUserDefaults().objectForKey(PROGRESS_ENABLED_KEY);
+      if (value === undefined || value === null) return false;
+      if (typeof value.booleanValue === "function") return Boolean(value.booleanValue());
+      return !(value === false || value === 0 || String(value).toLowerCase() === "false");
+    } catch (error) { return false; }
+  }
+
+  function setProgressEnabled(value) {
+    const result = Boolean(value);
+    try { NSUserDefaults.standardUserDefaults().setObjectForKey(result, PROGRESS_ENABLED_KEY); } catch (ignored) {}
+    return result;
+  }
+
+  function categoryEnabled() {
+    try {
+      const value = NSUserDefaults.standardUserDefaults().objectForKey(CATEGORY_ENABLED_KEY);
+      if (value === undefined || value === null) return false;
+      if (typeof value.booleanValue === "function") return Boolean(value.booleanValue());
+      return !(value === false || value === 0 || String(value).toLowerCase() === "false");
+    } catch (error) { return false; }
+  }
+
+  function setCategoryEnabled(value) {
+    const result = Boolean(value);
+    try { NSUserDefaults.standardUserDefaults().setObjectForKey(result, CATEGORY_ENABLED_KEY); } catch (ignored) {}
+    return result;
+  }
+
+  function crossLevelEnabled() {
+    try {
+      const value = NSUserDefaults.standardUserDefaults().objectForKey(CROSS_LEVEL_ENABLED_KEY);
+      if (value === undefined || value === null) return false;
+      if (typeof value.booleanValue === "function") return Boolean(value.booleanValue());
+      return !(value === false || value === 0 || String(value).toLowerCase() === "false");
+    } catch (error) { return false; }
+  }
+
+  function setCrossLevelEnabled(value) {
+    const result = Boolean(value);
+    try { NSUserDefaults.standardUserDefaults().setObjectForKey(result, CROSS_LEVEL_ENABLED_KEY); } catch (ignored) {}
+    return result;
+  }
+
+  return {
+    currentFocus,
+    rememberFocus,
+    siblingProgress,
+    parentTitle,
+    focusNext,
+    focusPrevious,
+    showMessage,
+    enabled,
+    setEnabled,
+    previousEnabled,
+    setPreviousEnabled,
+    progressEnabled,
+    setProgressEnabled,
+    categoryEnabled,
+    setCategoryEnabled,
+    crossLevelEnabled,
+    setCrossLevelEnabled,
+  };
+})();

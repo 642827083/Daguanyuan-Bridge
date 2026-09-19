@@ -53,16 +53,40 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
   function layout(controller) {
     const bounds = controller.view.bounds;
+    const contentFrame = { x: 0, y: TITLE_HEIGHT, width: bounds.width, height: Math.max(0, bounds.height - TITLE_HEIGHT) };
+    const tabsWidth = 232;
+    const tabsX = Math.max(44, (bounds.width - tabsWidth) / 2);
+    const sectionWidth = Math.max(0, bounds.width - 40);
     controller.containerView.frame = bounds;
     controller.titleBar.frame = { x: 0, y: 0, width: bounds.width, height: TITLE_HEIGHT };
-    controller.closeButton.frame = { x: 4, y: 2, width: 34, height: 34 };
-    controller.homeButton.frame = { x: 44, y: 4, width: 76, height: 30 };
-    controller.os408Button.frame = { x: 124, y: 4, width: 76, height: 30 };
-    controller.openQuestionButton.frame = { x: 204, y: 4, width: 120, height: 30 };
-    controller.aiButton.frame = { x: 328, y: 4, width: 56, height: 30 };
-    controller.titleLabel.frame = { x: 392, y: 0, width: Math.max(0, bounds.width - 490), height: TITLE_HEIGHT };
-    controller.focusButton.frame = { x: Math.max(392, bounds.width - 90), y: 4, width: 82, height: 30 };
-    controller.webView.frame = { x: 0, y: TITLE_HEIGHT, width: bounds.width, height: Math.max(0, bounds.height - TITLE_HEIGHT) };
+    controller.closeButton.frame = { x: Math.max(0, bounds.width - 40), y: 2, width: 34, height: 34 };
+    controller.homeButton.frame = { x: tabsX, y: 4, width: 68, height: 30 };
+    controller.os408Button.frame = { x: tabsX + 80, y: 4, width: 68, height: 30 };
+    controller.settingsButton.frame = { x: tabsX + 160, y: 4, width: 72, height: 30 };
+    controller.webView.frame = contentFrame;
+    controller.settingsPage.frame = contentFrame;
+    controller.focusSettingsSection.frame = { x: 20, y: 18, width: sectionWidth, height: 406 };
+    controller.focusSectionTitle.frame = { x: 20, y: 12, width: Math.max(0, sectionWidth - 40), height: 28 };
+    controller.focusDivider.frame = { x: 20, y: 48, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.focusEnabledTitle.frame = { x: 20, y: 61, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.focusEnabledDescription.frame = { x: 20, y: 87, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.focusEnabledSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 69, width: 51, height: 31 };
+    controller.focusOptionDivider.frame = { x: 20, y: 118, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.crossLevelTitle.frame = { x: 20, y: 131, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.crossLevelDescription.frame = { x: 20, y: 157, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.crossLevelSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 139, width: 51, height: 31 };
+    controller.crossLevelDivider.frame = { x: 20, y: 188, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.progressTitle.frame = { x: 20, y: 201, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.progressDescription.frame = { x: 20, y: 227, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.progressSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 209, width: 51, height: 31 };
+    controller.progressDivider.frame = { x: 20, y: 258, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.categoryTitle.frame = { x: 20, y: 271, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.categoryDescription.frame = { x: 20, y: 297, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.categorySwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 279, width: 51, height: 31 };
+    controller.categoryDivider.frame = { x: 20, y: 328, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.previousTitle.frame = { x: 20, y: 341, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.previousDescription.frame = { x: 20, y: 367, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.previousSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 349, width: 51, height: 31 };
     controller.resizeHandle.frame = { x: Math.max(0, bounds.width - 30), y: Math.max(0, bounds.height - 30), width: 30, height: 30 };
     controller.resizeGlyph.frame = { x: 0, y: 0, width: 30, height: 30 };
   }
@@ -76,14 +100,72 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     return result;
   }
 
-  function refreshFocusButton(controller) {
-    if (!controller || !controller.focusButton) return;
+  function label(text, font, color) {
+    const result = new UILabel({ x: 0, y: 0, width: 100, height: 24 });
+    result.text = text;
+    result.font = font;
+    result.textColor = color;
+    return result;
+  }
+
+  function refreshTabStyle(controller) {
+    if (!controller || !controller.homeButton) return;
+    const activeColor = UIColor.colorWithWhiteAlpha(0.9, 1);
+    const inactiveColor = UIColor.colorWithWhiteAlpha(1, 0);
+    const accentColor = UIColor.colorWithRedGreenBlueAlpha(0.1, 0.36, 0.72, 1);
+    const normalColor = UIColor.darkGrayColor();
+    const tabs = [
+      { name: "math", button: controller.homeButton },
+      { name: "408", button: controller.os408Button },
+      { name: "settings", button: controller.settingsButton },
+    ];
+    tabs.forEach(function (tab) {
+      const active = controller.activePage === tab.name;
+      tab.button.backgroundColor = active ? activeColor : inactiveColor;
+      tab.button.setTitleColorForState(active ? accentColor : normalColor, 0);
+      tab.button.layer.cornerRadius = 15;
+    });
+  }
+
+  function setActivePage(controller, page) {
+    if (!controller || !controller.webView || !controller.settingsPage) return;
+    controller.activePage = page;
+    controller.webView.hidden = page === "settings";
+    controller.settingsPage.hidden = page !== "settings";
+    if (page === "settings") {
+      refreshFocusSetting(controller);
+      refreshCrossLevelSetting(controller);
+      refreshProgressSetting(controller);
+      refreshCategorySetting(controller);
+      refreshPreviousSetting(controller);
+    }
+    refreshTabStyle(controller);
+  }
+
+  function refreshFocusSetting(controller) {
+    if (!controller || !controller.focusEnabledSwitch) return;
     const enabled = !controller.addon || controller.addon.focusNavigationEnabled !== false;
-    controller.focusButton.setTitleForState(enabled ? "焦点开" : "焦点关", 0);
-    controller.focusButton.setTitleColorForState(
-      enabled ? UIColor.colorWithRedGreenBlueAlpha(0.1, 0.36, 0.72, 1) : UIColor.darkGrayColor(),
-      0
-    );
+    controller.focusEnabledSwitch.on = enabled;
+  }
+
+  function refreshPreviousSetting(controller) {
+    if (!controller || !controller.previousSwitch) return;
+    controller.previousSwitch.on = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.previousEnabled();
+  }
+
+  function refreshProgressSetting(controller) {
+    if (!controller || !controller.progressSwitch) return;
+    controller.progressSwitch.on = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.progressEnabled();
+  }
+
+  function refreshCategorySetting(controller) {
+    if (!controller || !controller.categorySwitch) return;
+    controller.categorySwitch.on = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.categoryEnabled();
+  }
+
+  function refreshCrossLevelSetting(controller) {
+    if (!controller || !controller.crossLevelSwitch) return;
+    controller.crossLevelSwitch.on = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.crossLevelEnabled();
   }
 
   function setup(controller) {
@@ -103,29 +185,17 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
     controller.closeButton = button("×", controller, "closePanel:");
     controller.closeButton.titleLabel.font = UIFont.systemFontOfSize(24);
+    controller.closeButton.setTitleColorForState(UIColor.darkGrayColor(), 0);
     controller.titleBar.addSubview(controller.closeButton);
 
-    controller.homeButton = button("大观园", controller, "openDaguanyuan:");
+    controller.homeButton = button("数学", controller, "openDaguanyuan:");
     controller.titleBar.addSubview(controller.homeButton);
 
-    controller.os408Button = button("408 真题", controller, "open408:");
+    controller.os408Button = button("408", controller, "open408:");
     controller.titleBar.addSubview(controller.os408Button);
 
-    controller.openQuestionButton = button("打开选中题目", controller, "openSelectedQuestion:");
-    controller.titleBar.addSubview(controller.openQuestionButton);
-
-    controller.aiButton = button("问AI", controller, "openSelectedQuestionAI:");
-    controller.titleBar.addSubview(controller.aiButton);
-
-    controller.focusButton = button("焦点开", controller, "toggleFocusNavigation:");
-    controller.titleBar.addSubview(controller.focusButton);
-
-    controller.titleLabel = new UILabel({ x: 0, y: 0, width: 300, height: TITLE_HEIGHT });
-    controller.titleLabel.text = "Daguanyuan Bridge";
-    controller.titleLabel.textAlignment = 1;
-    controller.titleLabel.font = UIFont.boldSystemFontOfSize(14);
-    controller.titleLabel.textColor = UIColor.darkGrayColor();
-    controller.titleBar.addSubview(controller.titleLabel);
+    controller.settingsButton = button("设置", controller, "openSettings:");
+    controller.titleBar.addSubview(controller.settingsButton);
 
     const pan = new UIPanGestureRecognizer(controller, "movePanel:");
     controller.titleBar.addGestureRecognizer(pan);
@@ -135,6 +205,91 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.webView.scalesPageToFit = true;
     controller.webView.delegate = controller;
     controller.containerView.addSubview(controller.webView);
+
+    controller.settingsPage = new UIView({ x: 0, y: TITLE_HEIGHT, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT - TITLE_HEIGHT });
+    controller.settingsPage.backgroundColor = UIColor.colorWithWhiteAlpha(0.96, 1);
+    controller.settingsPage.hidden = true;
+    controller.containerView.addSubview(controller.settingsPage);
+
+    controller.focusSettingsSection = new UIView({ x: 20, y: 18, width: DEFAULT_WIDTH - 40, height: 406 });
+    controller.focusSettingsSection.backgroundColor = UIColor.whiteColor();
+    controller.focusSettingsSection.layer.cornerRadius = 10;
+    controller.focusSettingsSection.layer.borderWidth = 0.5;
+    controller.focusSettingsSection.layer.borderColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.45);
+    controller.settingsPage.addSubview(controller.focusSettingsSection);
+
+    controller.focusSectionTitle = label("焦点切换", UIFont.boldSystemFontOfSize(17), UIColor.darkGrayColor());
+    controller.focusSettingsSection.addSubview(controller.focusSectionTitle);
+
+    controller.focusDivider = new UIView({ x: 20, y: 48, width: DEFAULT_WIDTH - 80, height: 1 });
+    controller.focusDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
+    controller.focusSettingsSection.addSubview(controller.focusDivider);
+
+    controller.focusEnabledTitle = label("启用焦点切换", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
+    controller.focusSettingsSection.addSubview(controller.focusEnabledTitle);
+
+    controller.focusEnabledDescription = label("在同级卡片之间显示浮动导航按钮", UIFont.systemFontOfSize(12), UIColor.grayColor());
+    controller.focusSettingsSection.addSubview(controller.focusEnabledDescription);
+
+    controller.focusEnabledSwitch = new UISwitch({ x: DEFAULT_WIDTH - 108, y: 69, width: 51, height: 31 });
+    controller.focusEnabledSwitch.addTargetActionForControlEvents(controller, "toggleFocusNavigation:", 1 << 12);
+    controller.focusSettingsSection.addSubview(controller.focusEnabledSwitch);
+
+    controller.focusOptionDivider = new UIView({ x: 20, y: 118, width: DEFAULT_WIDTH - 80, height: 1 });
+    controller.focusOptionDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
+    controller.focusSettingsSection.addSubview(controller.focusOptionDivider);
+
+    controller.crossLevelTitle = label("跨层级切换", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
+    controller.focusSettingsSection.addSubview(controller.crossLevelTitle);
+
+    controller.crossLevelDescription = label("按脑图层级连续切换全部卡片", UIFont.systemFontOfSize(12), UIColor.grayColor());
+    controller.focusSettingsSection.addSubview(controller.crossLevelDescription);
+
+    controller.crossLevelSwitch = new UISwitch({ x: DEFAULT_WIDTH - 108, y: 139, width: 51, height: 31 });
+    controller.crossLevelSwitch.addTargetActionForControlEvents(controller, "toggleCrossLevelNavigation:", 1 << 12);
+    controller.focusSettingsSection.addSubview(controller.crossLevelSwitch);
+
+    controller.crossLevelDivider = new UIView({ x: 20, y: 188, width: DEFAULT_WIDTH - 80, height: 1 });
+    controller.crossLevelDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
+    controller.focusSettingsSection.addSubview(controller.crossLevelDivider);
+
+    controller.progressTitle = label("显示做题进度", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
+    controller.focusSettingsSection.addSubview(controller.progressTitle);
+
+    controller.progressDescription = label("在上一张和下一张按钮中显示当前同级位置", UIFont.systemFontOfSize(12), UIColor.grayColor());
+    controller.focusSettingsSection.addSubview(controller.progressDescription);
+
+    controller.progressSwitch = new UISwitch({ x: DEFAULT_WIDTH - 108, y: 209, width: 51, height: 31 });
+    controller.progressSwitch.addTargetActionForControlEvents(controller, "toggleProgressDisplay:", 1 << 12);
+    controller.focusSettingsSection.addSubview(controller.progressSwitch);
+
+    controller.progressDivider = new UIView({ x: 20, y: 258, width: DEFAULT_WIDTH - 80, height: 1 });
+    controller.progressDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
+    controller.focusSettingsSection.addSubview(controller.progressDivider);
+
+    controller.categoryTitle = label("显示题型分类", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
+    controller.focusSettingsSection.addSubview(controller.categoryTitle);
+
+    controller.categoryDescription = label("显示当前焦点卡片的直属父节点标题", UIFont.systemFontOfSize(12), UIColor.grayColor());
+    controller.focusSettingsSection.addSubview(controller.categoryDescription);
+
+    controller.categorySwitch = new UISwitch({ x: DEFAULT_WIDTH - 108, y: 279, width: 51, height: 31 });
+    controller.categorySwitch.addTargetActionForControlEvents(controller, "toggleCategoryDisplay:", 1 << 12);
+    controller.focusSettingsSection.addSubview(controller.categorySwitch);
+
+    controller.categoryDivider = new UIView({ x: 20, y: 328, width: DEFAULT_WIDTH - 80, height: 1 });
+    controller.categoryDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
+    controller.focusSettingsSection.addSubview(controller.categoryDivider);
+
+    controller.previousTitle = label("显示上一张", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
+    controller.focusSettingsSection.addSubview(controller.previousTitle);
+
+    controller.previousDescription = label("关闭后只显示下一张浮动按钮", UIFont.systemFontOfSize(12), UIColor.grayColor());
+    controller.focusSettingsSection.addSubview(controller.previousDescription);
+
+    controller.previousSwitch = new UISwitch({ x: DEFAULT_WIDTH - 108, y: 349, width: 51, height: 31 });
+    controller.previousSwitch.addTargetActionForControlEvents(controller, "togglePreviousButton:", 1 << 12);
+    controller.focusSettingsSection.addSubview(controller.previousSwitch);
 
     controller.resizeHandle = new UIView({ x: DEFAULT_WIDTH - 30, y: DEFAULT_HEIGHT - 30, width: 30, height: 30 });
     controller.resizeHandle.backgroundColor = UIColor.colorWithWhiteAlpha(0.96, 0.94);
@@ -150,53 +305,25 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
     const resizePan = new UIPanGestureRecognizer(controller, "resizePanel:");
     controller.resizeHandle.addGestureRecognizer(resizePan);
-    refreshFocusButton(controller);
+
+    controller.activePage = "math";
+    controller.currentContentPage = "";
+    refreshFocusSetting(controller);
+    refreshCrossLevelSetting(controller);
+    refreshProgressSetting(controller);
+    refreshCategorySetting(controller);
+    refreshPreviousSetting(controller);
+    refreshTabStyle(controller);
     layout(controller);
   }
 
-  function loadURL(controller, urlString, questionId, provider) {
+  function loadURL(controller, urlString, provider) {
     const url = NSURL.URLWithString(urlString);
     if (!url) throw new Error("题库地址无效");
-    controller.pendingQuestionId = String(questionId || "");
-    controller.pendingQuestionProvider = String(provider || "daguanyuan");
-    controller.pendingCategoryPath = [];
-    controller.pendingOrderedQuestion = undefined;
+    const normalizedProvider = String(provider || "daguanyuan");
+    controller.currentContentPage = normalizedProvider === "408os" ? "408" : "math";
+    setActivePage(controller, controller.currentContentPage);
     controller.webView.loadRequest(NSURLRequest.requestWithURL(url));
-  }
-
-  function loadCategory(controller, category) {
-    const practiceId = String(category && category.practiceId || "").trim();
-    if (!/^\d+$/.test(practiceId)) throw new Error("未能识别选中卡片所属的大观园章节");
-    const url = NSURL.URLWithString(`https://cxyonly.fans/math/practice/${practiceId}`);
-    if (!url) throw new Error("大观园章节地址无效");
-    controller.pendingQuestionId = "";
-    controller.pendingQuestionProvider = "";
-    controller.pendingCategoryPath = Array.isArray(category.categoryPath) ? category.categoryPath.slice() : [];
-    controller.pendingOrderedQuestion = Number.isInteger(category.questionIndex) && category.questionIndex >= 0 && category.noteId
-      ? {
-        noteId: String(category.noteId),
-        notebookId: String(category.notebookId || ""),
-        questionIndex: category.questionIndex,
-        questionNumber: category.questionIndex + 1,
-        categoryPath: controller.pendingCategoryPath.slice(),
-        attemptCount: 0,
-      }
-      : undefined;
-    controller.webView.loadRequest(NSURLRequest.requestWithURL(url));
-  }
-
-  function nativeURLMember(object, key) {
-    if (!object) return "";
-    let value = object[key];
-    if (typeof value === "function") value = value.call(object);
-    return String(value || "");
-  }
-
-  function injectRetestEnhancement(controller) {
-    const script = __DAGUANYUAN_RETEST_GLOBAL__.enhancementScript();
-    controller.webView.evaluateJavaScript(script, function (result, error) {
-      if (error) console.log(`[Daguanyuan Bridge] 注入错题定位按钮失败：${error.localizedDescription || error}`);
-    });
   }
 
   function videoPopupCompatibilityScript() {
@@ -231,133 +358,6 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     });
   }
 
-  function injectSelectedQuestionLocator(controller) {
-    const questionId = String(controller.pendingQuestionId || "");
-    if (!questionId) return;
-    const provider = String(controller.pendingQuestionProvider || "daguanyuan");
-    controller.pendingQuestionId = "";
-    controller.pendingQuestionProvider = "";
-    const script = provider === "408os"
-      ? __DAGUANYUAN_SELECTION_GLOBAL__.os408QuestionLocatorScript(questionId)
-      : __DAGUANYUAN_SELECTION_GLOBAL__.questionLocatorScript(questionId);
-    if (!script) return;
-    controller.webView.evaluateJavaScript(script, function (result, error) {
-      if (error) console.log(`[Daguanyuan Bridge] 自动定位题目失败：${error.localizedDescription || error}`);
-    });
-  }
-
-  function resolveRetestQuestion(controller, requestURL) {
-    const absolute = nativeURLMember(requestURL, "absoluteString");
-    const questionId = __DAGUANYUAN_RETEST_GLOBAL__.questionIdFromBridgeURL(absolute);
-    if (!questionId) throw new Error("错题复测定位指令无效");
-    return __DAGUANYUAN_WEB_BRIDGE_COMMANDS_GLOBAL__.commands.resolveRetestQuestion(
-      { addon: controller.addon },
-      { questionId },
-    );
-  }
-
-  function scheduleRetestQuestionFocus(controller, note, noteId, notebookIds) {
-    // 延迟执行，使隐藏面板和跨学习集切换先完成。
-    NSTimer.scheduledTimerWithTimeInterval(0.2, false, function () {
-      try {
-        __DAGUANYUAN_RETEST_GLOBAL__.startQuestionNavigation(controller.addon, {
-          note,
-          noteId,
-          notebookId: controller.pendingRetestNotebookId || "",
-          notebookIds: Array.isArray(notebookIds) ? notebookIds : [],
-        });
-      } catch (error) {
-        showMessage(controller, error && error.message ? error.message : error);
-      }
-    });
-  }
-
-  function injectCategoryNavigation(controller) {
-    const path = Array.isArray(controller.pendingCategoryPath) ? controller.pendingCategoryPath.slice() : [];
-    controller.pendingCategoryPath = [];
-    if (path.length) {
-      const script = __DAGUANYUAN_PAGE_COLLECTOR_GLOBAL__.categoryNavigationScript(path);
-      controller.webView.evaluateJavaScript(script, function (result, error) {
-        if (error) console.log(`[Daguanyuan Bridge] 自动打开题型分类失败：${error.localizedDescription || error}`);
-      });
-    }
-    scheduleOrderedQuestionBinding(controller);
-  }
-
-  function finishOrderedQuestionBinding(controller, binding, result) {
-    const savedCount = __DAGUANYUAN_STORAGE_GLOBAL__.saveQuestionMappings([{
-      noteId: binding.noteId,
-      provider: "daguanyuan",
-      questionId: result.questionId,
-      url: result.url,
-      categoryPath: binding.categoryPath,
-      notebookId: binding.notebookId,
-      updatedAt: new Date().toISOString(),
-    }]);
-    controller.pendingOrderedQuestion = undefined;
-    const message = savedCount
-      ? `已按第 ${binding.questionNumber} 张卡片定位，并记住原题关联`
-      : `已按第 ${binding.questionNumber} 张卡片定位，但未能保存原题关联`;
-    showMessage(controller, message);
-    loadURL(controller, result.url, result.questionId, "daguanyuan");
-  }
-
-  function scheduleOrderedQuestionBinding(controller) {
-    const binding = controller.pendingOrderedQuestion;
-    if (!binding) return;
-    const maxAttempts = Math.max(40, binding.questionNumber + 16);
-    controller.orderedQuestionBindingToken = Number(controller.orderedQuestionBindingToken || 0) + 1;
-    const token = controller.orderedQuestionBindingToken;
-    function poll() {
-      if (!controller.pendingOrderedQuestion || controller.orderedQuestionBindingToken !== token) return;
-      const script = __DAGUANYUAN_SELECTION_GLOBAL__.orderedQuestionLocatorScript(binding.questionIndex);
-      controller.webView.evaluateJavaScript(script, function (rawResult, error) {
-        if (!controller.pendingOrderedQuestion || controller.orderedQuestionBindingToken !== token) return;
-        binding.attemptCount += 1;
-        let result;
-        try {
-          result = error ? undefined : parsedJSON(rawResult);
-        } catch (parseError) {
-          result = undefined;
-        }
-        if (result && result.status === "found" && /^\d+$/.test(String(result.questionId || "")) && result.url) {
-          try {
-            finishOrderedQuestionBinding(controller, binding, result);
-          } catch (saveError) {
-            controller.pendingOrderedQuestion = undefined;
-            showMessage(controller, `已定位题目，但保存原题关联失败：${errorMessage(saveError)}`);
-          }
-          return;
-        }
-        if (binding.attemptCount < maxAttempts && (!result || result.status === "waiting")) {
-          NSTimer.scheduledTimerWithTimeInterval(0.25, false, poll);
-          return;
-        }
-        controller.pendingOrderedQuestion = undefined;
-        const questionCount = Number(result && result.questionCount || 0);
-        const expectedQuestionCount = Number(result && result.expectedQuestionCount || 0);
-        const detail = expectedQuestionCount
-          ? (binding.questionNumber > expectedQuestionCount
-            ? `网页当前共 ${expectedQuestionCount} 道题`
-            : `网页显示共 ${expectedQuestionCount} 道题，但只读取到 ${questionCount} 道`)
-          : (questionCount ? `只读取到 ${questionCount} 道网页题目` : "网页题目尚未加载");
-        showMessage(controller, `${detail}，无法按第 ${binding.questionNumber} 张卡片定位，未保存关联`);
-      });
-    }
-    NSTimer.scheduledTimerWithTimeInterval(0.25, false, poll);
-  }
-
-  function errorMessage(error) {
-    if (!error) return "未知错误";
-    let value = error.localizedDescription;
-    if (typeof value === "function") value = value.call(error);
-    return String(value || error.message || error);
-  }
-
-  function parsedJSON(value) {
-    return typeof value === "string" ? JSON.parse(value) : value;
-  }
-
   const panelClass = JSB.defineClass("DaguanyuanBridgePanelController : UIViewController <UIWebViewDelegate>", {
     viewDidLoad: function () {
       setup(self);
@@ -369,34 +369,17 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     },
 
     openDaguanyuan: function () {
-      loadURL(self, DAGUANYUAN_HOME_URL);
+      if (self.currentContentPage === "math") setActivePage(self, "math");
+      else loadURL(self, DAGUANYUAN_HOME_URL, "daguanyuan");
     },
 
     open408: function () {
-      loadURL(self, OS408_HOME_URL);
+      if (self.currentContentPage === "408") setActivePage(self, "408");
+      else loadURL(self, OS408_HOME_URL, "408os");
     },
 
-    openSelectedQuestion: function (sender) {
-      try {
-        const selected = __DAGUANYUAN_SELECTION_GLOBAL__.firstSelectedQuestion(self.addonWindow || self.addon.window);
-        loadURL(self, selected.url, selected.questionId, selected.provider);
-      } catch (error) {
-        try {
-          const category = __DAGUANYUAN_SELECTION_GLOBAL__.firstSelectedDaguanyuanCategory(self.addonWindow || self.addon.window);
-          loadCategory(self, category);
-        } catch (categoryError) {
-          showMessage(self, categoryError && categoryError.message ? categoryError.message : error && error.message ? error.message : error);
-        }
-      }
-    },
-
-    openSelectedQuestionAI: function (sender) {
-      try {
-        const url = __DAGUANYUAN_SELECTION_GLOBAL__.firstSelectedQuestionAIURL(self.addonWindow || self.addon.window);
-        loadURL(self, url);
-      } catch (error) {
-        showMessage(self, error && error.message ? error.message : error);
-      }
+    openSettings: function (sender) {
+      setActivePage(self, "settings");
     },
 
     toggleFocusNavigation: function (sender) {
@@ -405,10 +388,54 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
         showMessage(self, "焦点导航当前不可用");
         return;
       }
-      addon.focusNavigationEnabled = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.setEnabled(!(addon.focusNavigationEnabled !== false));
+      const requested = sender && typeof sender.on !== "undefined"
+        ? Boolean(sender.on)
+        : !(addon.focusNavigationEnabled !== false);
+      addon.focusNavigationEnabled = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.setEnabled(requested);
       if (addon.focusNavigationEnabled) __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.show(addon);
       else __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.hide(addon);
-      refreshFocusButton(self);
+      refreshFocusSetting(self);
+    },
+
+    togglePreviousButton: function (sender) {
+      const requested = sender && typeof sender.on !== "undefined"
+        ? Boolean(sender.on)
+        : !__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.previousEnabled();
+      __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.setPreviousEnabled(requested);
+      if (self.addon && self.addon.focusNavigationEnabled !== false) {
+        __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.show(self.addon);
+      }
+      refreshPreviousSetting(self);
+    },
+
+    toggleProgressDisplay: function (sender) {
+      const requested = sender && typeof sender.on !== "undefined"
+        ? Boolean(sender.on)
+        : !__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.progressEnabled();
+      __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.setProgressEnabled(requested);
+      if (self.addon && self.addon.focusNavigationEnabled !== false) {
+        __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.show(self.addon);
+      }
+      refreshProgressSetting(self);
+    },
+
+    toggleCategoryDisplay: function (sender) {
+      const requested = sender && typeof sender.on !== "undefined"
+        ? Boolean(sender.on)
+        : !__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.categoryEnabled();
+      __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.setCategoryEnabled(requested);
+      if (self.addon && self.addon.focusNavigationEnabled !== false) {
+        __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.show(self.addon);
+      }
+      refreshCategorySetting(self);
+    },
+
+    toggleCrossLevelNavigation: function (sender) {
+      const requested = sender && typeof sender.on !== "undefined"
+        ? Boolean(sender.on)
+        : !__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.crossLevelEnabled();
+      __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.setCrossLevelEnabled(requested);
+      refreshCrossLevelSetting(self);
     },
 
     closePanel: function (sender) {
@@ -442,38 +469,14 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       if (recognizer.state === 3) persistFrame(self);
     },
 
-    webViewDidStartLoad: function () {
-      self.titleLabel.text = "正在加载题库…";
-    },
-
     webViewDidFinishLoad: function () {
-      self.titleLabel.text = "Daguanyuan Bridge";
-      injectRetestEnhancement(self);
       injectVideoPopupCompatibility(self);
-      injectSelectedQuestionLocator(self);
-      injectCategoryNavigation(self);
     },
 
     webViewDidFailLoadWithError: function (webView, error) {
-      self.titleLabel.text = "页面加载失败";
       console.log(`[Daguanyuan Bridge] 页面加载失败：${error && error.localizedDescription || error}`);
     },
 
-    webViewShouldStartLoadWithRequestNavigationType: function (webView, request, navigationType) {
-      const requestURL = request && (typeof request.URL === "function" ? request.URL() : request.URL);
-      const scheme = nativeURLMember(requestURL, "scheme").toLowerCase();
-      if (scheme !== __DAGUANYUAN_RETEST_GLOBAL__.bridgeScheme) return true;
-      try {
-        const result = resolveRetestQuestion(self, requestURL);
-        self.pendingRetestNotebookId = result.notebookId || "";
-        self.pendingRetestNotebookIds = Array.isArray(result.notebookIds) ? result.notebookIds : [];
-        performClosePanel(self);
-        scheduleRetestQuestionFocus(self, result.note, result.noteId, self.pendingRetestNotebookIds);
-      } catch (error) {
-        showMessage(self, error && error.message ? error.message : error);
-      }
-      return false;
-    },
   });
 
   function createController(addon) {
@@ -496,7 +499,12 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.view.hidden = false;
     controller.panelVisible = true;
     NSUserDefaults.standardUserDefaults().setObjectForKey(true, PANEL_KEY);
-    refreshFocusButton(controller);
+    setActivePage(controller, controller.activePage || controller.currentContentPage || "math");
+    refreshFocusSetting(controller);
+    refreshCrossLevelSetting(controller);
+    refreshProgressSetting(controller);
+    refreshCategorySetting(controller);
+    refreshPreviousSetting(controller);
   }
 
   function hidePanel(controller) {
@@ -507,5 +515,16 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     return NSUserDefaults.standardUserDefaults().objectForKey(PANEL_KEY) === true;
   }
 
-  return { createController, isPanelVisible, showPanel, hidePanel, shouldRestorePanel, refreshFocusButton };
+  return {
+    createController,
+    isPanelVisible,
+    showPanel,
+    hidePanel,
+    shouldRestorePanel,
+    refreshFocusSetting,
+    refreshCrossLevelSetting,
+    refreshProgressSetting,
+    refreshCategorySetting,
+    refreshPreviousSetting,
+  };
 })();

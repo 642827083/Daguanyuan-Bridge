@@ -1,0 +1,339 @@
+var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
+  const ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.enabled";
+  const PREVIOUS_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.previous-enabled";
+  const PROGRESS_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.progress-enabled";
+  const CROSS_LEVEL_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.cross-level-enabled";
+  const CATEGORY_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.category-enabled";
+
+  function member(object, key) {
+    if (!object) return undefined;
+    let value;
+    try { value = object[key]; } catch (ignored) { value = undefined; }
+    if (value === undefined && typeof object.objectForKey === "function") {
+      try { value = object.objectForKey(key); } catch (ignored) {}
+    }
+    if (value === undefined && typeof object.valueForKey === "function") {
+      try { value = object.valueForKey(key); } catch (ignored) {}
+    }
+    if (typeof value === "function") {
+      try { value = value.call(object); } catch (ignored) { return undefined; }
+    }
+    return value;
+  }
+
+  function pathMember(object, path) {
+    if (!object || !path) return undefined;
+    let value;
+    try {
+      if (typeof object.valueForKeyPath === "function") value = object.valueForKeyPath(path);
+    } catch (ignored) {}
+    if (value !== undefined && value !== null) return value;
+    const parts = String(path).split(".");
+    value = object;
+    for (const part of parts) {
+      value = member(value, part);
+      if (value === undefined || value === null) return undefined;
+    }
+    return value;
+  }
+
+  function items(list) {
+    if (!list) return [];
+    let count;
+    try { count = typeof list.count === "function" ? list.count() : list.count !== undefined ? list.count : list.length; } catch (ignored) { return []; }
+    count = Number(count);
+    if (!Number.isFinite(count) || count < 1) return [];
+    const result = [];
+    for (let index = 0; index < count; index += 1) {
+      try { result.push(typeof list.objectAtIndex === "function" ? list.objectAtIndex(index) : list[index]); } catch (ignored) {}
+    }
+    return result.filter(function (value) { return value !== undefined && value !== null; });
+  }
+
+  function studyController(addon) {
+    const application = Application.sharedInstance();
+    if (!application || typeof application.studyController !== "function") return undefined;
+    const focusWindow = member(application, "focusWindow");
+    const candidates = [addon && addon.window, focusWindow, undefined];
+    for (const window of candidates) {
+      try {
+        const controller = window === undefined ? application.studyController() : application.studyController(window);
+        if (controller) return controller;
+      } catch (ignored) {}
+    }
+    return undefined;
+  }
+
+  function noteId(note) {
+    return String(member(note, "noteId") || member(note, "noteid") || member(note, "id") || "");
+  }
+
+  function asNote(value) {
+    if (!value) return undefined;
+    const candidates = [member(value, "note"), member(value, "node"), member(value, "mindMapNode"), member(value, "mindmapNode"), member(value, "view"), value];
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      if (noteId(candidate) || member(candidate, "noteTitle") !== undefined) return candidate;
+      const nested = member(candidate, "note");
+      if (nested && (noteId(nested) || member(nested, "noteTitle") !== undefined)) return nested;
+    }
+    return undefined;
+  }
+
+  function focusCandidates(addon) {
+    const controller = studyController(addon);
+    const notebook = member(controller, "notebookController");
+    const mindmap = member(notebook, "mindmapView");
+    const owners = [notebook, controller, mindmap];
+    const keys = ["focusNote", "visibleFocusNote", "focusedNote", "currentFocusNote", "currentNote", "activeNote", "focusNode", "focusedNode", "focusMindMapNode", "currentMindMapNode", "focusView", "focusedView", "selectedView"];
+    const result = [];
+    for (const owner of owners) {
+      for (const key of keys) {
+        const note = asNote(member(owner, key));
+        if (!note || !noteId(note)) continue;
+        if (!result.some(function (item) { return noteId(item.note) === noteId(note); })) result.push({ note, source: key });
+      }
+    }
+    const paths = [
+      "notebookController.focusNote",
+      "notebookController.visibleFocusNote",
+      "notebookController.focusedNote",
+      "notebookController.currentFocusNote",
+      "notebookController.mindmapView.focusNote",
+      "notebookController.mindmapView.focusNode",
+      "notebookController.mindmapView.focusView",
+    ];
+    for (const path of paths) {
+      const note = asNote(pathMember(controller, path));
+      if (note && noteId(note) && !result.some(function (item) { return noteId(item.note) === noteId(note); })) result.push({ note, source: path });
+    }
+    return result;
+  }
+
+  function currentFocus(addon) {
+    const candidates = focusCandidates(addon);
+    return candidates.length ? candidates[0].note : undefined;
+  }
+
+  function rememberFocus(addon) {
+    const candidates = focusCandidates(addon);
+    let note = candidates.length ? candidates[0].note : undefined;
+    const previousId = noteId(addon && addon.__daguanyuanFocusNextLastFocus);
+    if (previousId && candidates.length && noteId(note) === previousId) {
+      for (let index = 1; index < candidates.length; index += 1) {
+        if (noteId(candidates[index].note) !== previousId) {
+          note = candidates[index].note;
+          break;
+        }
+      }
+    }
+    if (note && addon) addon.__daguanyuanFocusNextLastFocus = note;
+    return note;
+  }
+
+  function navigationNote(addon) {
+    const live = rememberFocus(addon);
+    const remembered = addon && addon.__daguanyuanFocusNextLastFocus;
+    if (live || remembered) return live || remembered;
+    throw new Error("请先双击进入一张脑图卡片焦点");
+  }
+
+  function adjacent(note, offset) {
+    const parent = member(note, "parentNote");
+    const siblings = items(member(parent, "childNotes"));
+    if (!parent || !siblings.length) throw new Error("当前卡片没有同级兄弟卡片");
+    const id = noteId(note);
+    let index = -1;
+    for (let cursor = 0; cursor < siblings.length; cursor += 1) {
+      if (siblings[cursor] === note || (id && noteId(siblings[cursor]) === id)) { index = cursor; break; }
+    }
+    if (index < 0) throw new Error("当前焦点不在脑图同级卡片列表中");
+    const targetIndex = index + offset;
+    if (targetIndex < 0) throw new Error("已经是第一张同级卡片");
+    if (targetIndex >= siblings.length) throw new Error("已经是最后一张同级卡片");
+    return siblings[targetIndex];
+  }
+
+  function siblingIndex(note, siblings) {
+    const id = noteId(note);
+    for (let index = 0; index < siblings.length; index += 1) {
+      if (siblings[index] === note || (id && noteId(siblings[index]) === id)) return index;
+    }
+    return -1;
+  }
+
+  function siblingProgress(note) {
+    const parent = member(note, "parentNote");
+    const siblings = items(member(parent, "childNotes"));
+    if (!parent || !siblings.length) return undefined;
+    const index = siblingIndex(note, siblings);
+    if (index < 0) return undefined;
+    return { index: index + 1, total: siblings.length };
+  }
+
+  function parentTitle(note) {
+    const parent = member(note, "parentNote");
+    const title = String(member(parent, "noteTitle") || "").trim();
+    return title || "无题型分类";
+  }
+
+  function depthFirstNext(note) {
+    const children = items(member(note, "childNotes"));
+    if (children.length) return children[0];
+
+    let cursor = note;
+    while (cursor) {
+      const parent = member(cursor, "parentNote");
+      if (!parent) break;
+      const siblings = items(member(parent, "childNotes"));
+      const index = siblingIndex(cursor, siblings);
+      if (index < 0) throw new Error("当前焦点不在脑图父节点的子卡片列表中");
+      if (index + 1 < siblings.length) return siblings[index + 1];
+      cursor = parent;
+    }
+    throw new Error("已经是整棵脑图的最后一张卡片");
+  }
+
+  function deepestLastDescendant(note) {
+    let cursor = note;
+    while (cursor) {
+      const children = items(member(cursor, "childNotes"));
+      if (!children.length) return cursor;
+      cursor = children[children.length - 1];
+    }
+    return note;
+  }
+
+  function depthFirstPrevious(note) {
+    const parent = member(note, "parentNote");
+    if (!parent) throw new Error("已经是整棵脑图的第一张卡片");
+    const siblings = items(member(parent, "childNotes"));
+    const index = siblingIndex(note, siblings);
+    if (index < 0) throw new Error("当前焦点不在脑图父节点的子卡片列表中");
+    if (index > 0) return deepestLastDescendant(siblings[index - 1]);
+    return parent;
+  }
+
+  function focusSibling(addon, offset) {
+    const current = navigationNote(addon);
+    const controller = studyController(addon);
+    const notebook = member(controller, "notebookController");
+    if (!notebook || typeof notebook.changeFocusToNote !== "function") throw new Error("当前 MarginNote 版本不支持切换脑图焦点");
+    const target = crossLevelEnabled()
+      ? (offset > 0 ? depthFirstNext(current) : depthFirstPrevious(current))
+      : adjacent(current, offset);
+    notebook.changeFocusToNote(target);
+    if (addon) addon.__daguanyuanFocusNextLastFocus = target;
+    return { current, next: target, nextId: noteId(target) };
+  }
+
+  function focusNext(addon) {
+    return focusSibling(addon, 1);
+  }
+
+  function focusPrevious(addon) {
+    return focusSibling(addon, -1);
+  }
+
+  function showMessage(addon, message) {
+    try {
+      const application = Application.sharedInstance();
+      if (application && typeof application.showHUD === "function") application.showHUD(String(message), addon && addon.window, 2);
+    } catch (error) { console.log(`[Daguanyuan Bridge Focus Next] 显示提示失败：${error && error.message || error}`); }
+  }
+
+  function enabled() {
+    try {
+      const value = NSUserDefaults.standardUserDefaults().objectForKey(ENABLED_KEY);
+      if (value === undefined || value === null) return true;
+      if (typeof value.booleanValue === "function") return Boolean(value.booleanValue());
+      return !(value === false || value === 0 || String(value).toLowerCase() === "false");
+    } catch (error) { return true; }
+  }
+
+  function setEnabled(value) {
+    const result = Boolean(value);
+    try { NSUserDefaults.standardUserDefaults().setObjectForKey(result, ENABLED_KEY); } catch (ignored) {}
+    return result;
+  }
+
+  function previousEnabled() {
+    try {
+      const value = NSUserDefaults.standardUserDefaults().objectForKey(PREVIOUS_ENABLED_KEY);
+      if (value === undefined || value === null) return true;
+      if (typeof value.booleanValue === "function") return Boolean(value.booleanValue());
+      return !(value === false || value === 0 || String(value).toLowerCase() === "false");
+    } catch (error) { return true; }
+  }
+
+  function setPreviousEnabled(value) {
+    const result = Boolean(value);
+    try { NSUserDefaults.standardUserDefaults().setObjectForKey(result, PREVIOUS_ENABLED_KEY); } catch (ignored) {}
+    return result;
+  }
+
+  function progressEnabled() {
+    try {
+      const value = NSUserDefaults.standardUserDefaults().objectForKey(PROGRESS_ENABLED_KEY);
+      if (value === undefined || value === null) return false;
+      if (typeof value.booleanValue === "function") return Boolean(value.booleanValue());
+      return !(value === false || value === 0 || String(value).toLowerCase() === "false");
+    } catch (error) { return false; }
+  }
+
+  function setProgressEnabled(value) {
+    const result = Boolean(value);
+    try { NSUserDefaults.standardUserDefaults().setObjectForKey(result, PROGRESS_ENABLED_KEY); } catch (ignored) {}
+    return result;
+  }
+
+  function categoryEnabled() {
+    try {
+      const value = NSUserDefaults.standardUserDefaults().objectForKey(CATEGORY_ENABLED_KEY);
+      if (value === undefined || value === null) return false;
+      if (typeof value.booleanValue === "function") return Boolean(value.booleanValue());
+      return !(value === false || value === 0 || String(value).toLowerCase() === "false");
+    } catch (error) { return false; }
+  }
+
+  function setCategoryEnabled(value) {
+    const result = Boolean(value);
+    try { NSUserDefaults.standardUserDefaults().setObjectForKey(result, CATEGORY_ENABLED_KEY); } catch (ignored) {}
+    return result;
+  }
+
+  function crossLevelEnabled() {
+    try {
+      const value = NSUserDefaults.standardUserDefaults().objectForKey(CROSS_LEVEL_ENABLED_KEY);
+      if (value === undefined || value === null) return false;
+      if (typeof value.booleanValue === "function") return Boolean(value.booleanValue());
+      return !(value === false || value === 0 || String(value).toLowerCase() === "false");
+    } catch (error) { return false; }
+  }
+
+  function setCrossLevelEnabled(value) {
+    const result = Boolean(value);
+    try { NSUserDefaults.standardUserDefaults().setObjectForKey(result, CROSS_LEVEL_ENABLED_KEY); } catch (ignored) {}
+    return result;
+  }
+
+  return {
+    currentFocus,
+    rememberFocus,
+    siblingProgress,
+    parentTitle,
+    focusNext,
+    focusPrevious,
+    showMessage,
+    enabled,
+    setEnabled,
+    previousEnabled,
+    setPreviousEnabled,
+    progressEnabled,
+    setProgressEnabled,
+    categoryEnabled,
+    setCategoryEnabled,
+    crossLevelEnabled,
+    setCrossLevelEnabled,
+  };
+})();
