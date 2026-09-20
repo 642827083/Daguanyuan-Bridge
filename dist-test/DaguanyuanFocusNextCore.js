@@ -5,6 +5,7 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
   const CROSS_LEVEL_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.cross-level-enabled";
   const CATEGORY_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.category-enabled";
   const CATEGORY_JUMP_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.category-jump-enabled";
+  const QUESTION_LOCATOR_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.question-navigation.locator-enabled";
 
   function member(object, key) {
     if (!object) return undefined;
@@ -197,8 +198,7 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
     return categoryPath(navigationNote(addon));
   }
 
-  function currentCategorySource(addon) {
-    const note = navigationNote(addon);
+  function categorySource(addon, note) {
     const parent = member(note, "parentNote");
     const controller = studyController(addon);
     const notebook = member(controller, "notebookController");
@@ -210,6 +210,20 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
       parentNoteId,
       parentTitle: String(member(parent, "noteTitle") || "").trim() || "无题型分类",
       sourcePath: categoryPath(note),
+    };
+  }
+
+  function currentCategorySource(addon) {
+    return categorySource(addon, navigationNote(addon));
+  }
+
+  function currentQuestionContext(addon) {
+    const note = navigationNote(addon);
+    const progress = siblingProgress(note);
+    if (!progress) throw new Error("无法确定当前卡片在所属题型中的序号");
+    return {
+      source: categorySource(addon, note),
+      progress,
     };
   }
 
@@ -353,6 +367,21 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
     return result;
   }
 
+  function questionLocatorEnabled() {
+    try {
+      const value = NSUserDefaults.standardUserDefaults().objectForKey(QUESTION_LOCATOR_ENABLED_KEY);
+      if (value === undefined || value === null) return false;
+      if (typeof value.booleanValue === "function") return Boolean(value.booleanValue());
+      return !(value === false || value === 0 || String(value).toLowerCase() === "false");
+    } catch (error) { return false; }
+  }
+
+  function setQuestionLocatorEnabled(value) {
+    const result = Boolean(value);
+    try { NSUserDefaults.standardUserDefaults().setObjectForKey(result, QUESTION_LOCATOR_ENABLED_KEY); } catch (ignored) {}
+    return result;
+  }
+
   function crossLevelEnabled() {
     try {
       const value = NSUserDefaults.standardUserDefaults().objectForKey(CROSS_LEVEL_ENABLED_KEY);
@@ -376,6 +405,7 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
     categoryPath,
     currentCategoryPath,
     currentCategorySource,
+    currentQuestionContext,
     focusNext,
     focusPrevious,
     showMessage,
@@ -389,6 +419,8 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
     setCategoryEnabled,
     categoryJumpEnabled,
     setCategoryJumpEnabled,
+    questionLocatorEnabled,
+    setQuestionLocatorEnabled,
     crossLevelEnabled,
     setCrossLevelEnabled,
   };

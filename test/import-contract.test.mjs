@@ -62,12 +62,12 @@ test("面板顶栏只提供数学、408 和设置三个入口", () => {
   assert.match(panelSource, /throw new Error\("题库地址无效"\)/);
 });
 
-test("独立设置页和运行入口完整移除打开选中题目功能", () => {
+test("独立设置页和运行入口不恢复旧打开选中题目流程", () => {
   assert.match(panelSource, /controller\.settingsPage = new UIScrollView/);
   assert.match(panelSource, /function setActivePage\(controller, page\)/);
   assert.match(panelSource, /controller\.settingsPage\.hidden = page !== "settings"/);
   assert.doesNotMatch(panelSource, /settingsMenu|settingsBackdropButton/);
-  assert.doesNotMatch(panelSource + addonSource, /打开选中题目|打开题目|openSelectedQuestion|firstSelectedQuestion|loadCategory|questionLocatorScript|scopedOrderedQuestionLocatorScript/);
+  assert.doesNotMatch(panelSource + addonSource, /打开选中题目|openSelectedQuestion|firstSelectedQuestion|loadCategory|scopedOrderedQuestionLocatorScript/);
   assert.doesNotMatch(mainSource, /DaguanyuanSelection|DaguanyuanStorage/);
 });
 

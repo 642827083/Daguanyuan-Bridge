@@ -58,10 +58,11 @@ function traversalNotes() {
   return { root, branchA, branchA1, branchA2, branchB, branchB1, branchB1a, branchB2 };
 }
 
-function focusButtonsRuntime(initialPreviousEnabled, initialProgressEnabled = false, initialCategoryEnabled = false) {
+function focusButtonsRuntime(initialPreviousEnabled, initialProgressEnabled = false, initialCategoryEnabled = false, initialQuestionLocatorEnabled = false) {
   let previousEnabled = initialPreviousEnabled;
   let progressEnabled = initialProgressEnabled;
   let categoryEnabled = initialCategoryEnabled;
+  let questionLocatorEnabled = initialQuestionLocatorEnabled;
   const first = { noteId: "first" };
   const second = { noteId: "second" };
   const third = { noteId: "third" };
@@ -102,6 +103,7 @@ function focusButtonsRuntime(initialPreviousEnabled, initialProgressEnabled = fa
       previousEnabled() { return previousEnabled; },
       progressEnabled() { return progressEnabled; },
       categoryEnabled() { return categoryEnabled; },
+      questionLocatorEnabled() { return questionLocatorEnabled; },
       rememberFocus(addon) {
         if (focusedNote && addon) addon.__daguanyuanFocusNextLastFocus = focusedNote;
         return focusedNote;
@@ -125,6 +127,7 @@ function focusButtonsRuntime(initialPreviousEnabled, initialProgressEnabled = fa
     setPreviousEnabled(value) { previousEnabled = value; },
     setProgressEnabled(value) { progressEnabled = value; },
     setCategoryEnabled(value) { categoryEnabled = value; },
+    setQuestionLocatorEnabled(value) { questionLocatorEnabled = value; },
     setFocusedNote(value) { focusedNote = value; },
     notes: { first, second, third },
   };
@@ -235,22 +238,26 @@ test("集成模块使用 Daguanyuan Bridge 独立命名空间和持久化键", (
   assert.equal(core.previousEnabled(), true);
   assert.equal(core.progressEnabled(), false);
   assert.equal(core.categoryEnabled(), false);
+  assert.equal(core.questionLocatorEnabled(), false);
   assert.equal(core.crossLevelEnabled(), false);
   core.setEnabled(false);
   core.setPreviousEnabled(false);
   core.setProgressEnabled(true);
   core.setCategoryEnabled(true);
+  core.setQuestionLocatorEnabled(true);
   core.setCrossLevelEnabled(true);
   assert.equal(defaults["cn.marginnote.daguanyuan-bridge.focus-next.enabled"], false);
   assert.equal(defaults["cn.marginnote.daguanyuan-bridge.focus-next.previous-enabled"], false);
   assert.equal(defaults["cn.marginnote.daguanyuan-bridge.focus-next.progress-enabled"], true);
   assert.equal(defaults["cn.marginnote.daguanyuan-bridge.focus-next.category-enabled"], true);
+  assert.equal(defaults["cn.marginnote.daguanyuan-bridge.question-navigation.locator-enabled"], true);
   assert.equal(defaults["cn.marginnote.daguanyuan-bridge.focus-next.cross-level-enabled"], true);
   assert.doesNotMatch(coreSource + uiSource, /__FOCUS_NEXT_/);
   assert.doesNotMatch(coreSource + uiSource, /__focus/);
   assert.match(uiSource, /daguanyuan-bridge\.focus-next\.next-button-position/);
   assert.match(uiSource, /daguanyuan-bridge\.focus-next\.previous-button-position/);
   assert.match(uiSource, /daguanyuan-bridge\.focus-next\.category-button-position/);
+  assert.match(uiSource, /daguanyuan-bridge\.question-navigation\.locator-button-position/);
   assert.match(uiSource, /previousEnabled\(\)/);
   assert.match(uiSource, /definition\.visible === false/);
   assert.doesNotMatch(coreSource + uiSource, /open-selected-question/);
@@ -284,6 +291,10 @@ test("当前题型绑定源包含学习集和直属父节点 ID", () => {
   assert.equal(source.parentNoteId, "p");
   assert.equal(source.parentTitle, "父");
   assert.deepEqual(Array.from(source.sourcePath), ["父"]);
+  const context = core.currentQuestionContext({ window: {} });
+  assert.equal(context.source.parentNoteId, "p");
+  assert.equal(context.progress.index, 1);
+  assert.equal(context.progress.total, 3);
 });
 
 test("插件生命周期接入焦点按钮并在断开时清理", () => {
@@ -295,11 +306,11 @@ test("插件生命周期接入焦点按钮并在断开时清理", () => {
   assert.match(addonSource, /toggleFocusNavigation: function/);
 });
 
-test("大观园面板提供焦点、跨层级、做题进度、题型分类和上一张开关", () => {
+test("大观园面板提供焦点、题型和题目导航设置", () => {
   assert.match(panelSource, /controller\.settingsButton = button\("设置", controller, "openSettings:"\)/);
   assert.match(panelSource, /controller\.settingsPage = new UIScrollView/);
   assert.match(panelSource, /controller\.focusSettingsSection = new UIView/);
-  assert.doesNotMatch(panelSource, /controller\.questionSettingsSection = new UIView/);
+  assert.match(panelSource, /controller\.questionNavigationSettingsSection = new UIView/);
   assert.match(panelSource, /controller\.focusEnabledSwitch = new UISwitch/);
   assert.match(panelSource, /controller\.focusEnabledSwitch\.addTargetActionForControlEvents\(controller, "toggleFocusNavigation:"/);
   assert.match(panelSource, /controller\.crossLevelSwitch = new UISwitch/);
@@ -320,6 +331,10 @@ test("大观园面板提供焦点、跨层级、做题进度、题型分类和�
   assert.match(panelSource, /controller\.categorySettingsSection = new UIView/);
   assert.match(panelSource, /controller\.categorySectionTitle = label\("题型导航"/);
   assert.match(panelSource, /controller\.categoryJumpTitle = label\("题型分类快捷跳转"/);
+  assert.match(panelSource, /controller\.questionNavigationSectionTitle = label\("题目导航"/);
+  assert.match(panelSource, /controller\.questionLocatorTitle = label\("显示定位题目"/);
+  assert.match(panelSource, /controller\.questionLocatorSwitch = new UISwitch/);
+  assert.match(panelSource, /toggleQuestionLocator: function/);
   assert.doesNotMatch(panelSource, /focusToggleButton|focus-next-icon\.png|loadFocusToggleIcon/);
   assert.doesNotMatch(panelSource, /controller\.focusSwitch/);
   assert.doesNotMatch(panelSource, /openQuestion|打开选中题目|题目操作/);
@@ -433,6 +448,38 @@ test("题型分类按钮默认关闭，开启后显示直属父节点并保存�
 
   runtime.setCategoryEnabled(false);
   runtime.ui.show(runtime.addon);
+  assert.equal(button.hidden, true);
+  assert.equal(button.superview, null);
+});
+
+test("定位题目按钮独立于焦点导航显示并保存位置", () => {
+  const runtime = focusButtonsRuntime(true, false, false, false);
+  runtime.ui.syncQuestionLocator(runtime.addon);
+  assert.equal(runtime.addon.__daguanyuanQuestionLocatorButton, undefined);
+
+  runtime.setQuestionLocatorEnabled(true);
+  runtime.ui.syncQuestionLocator(runtime.addon);
+  const button = runtime.addon.__daguanyuanQuestionLocatorButton;
+  assert.equal(button.title, "定位题目");
+  assert.equal(button.frame.width, 76);
+  assert.equal(button.action, "locateQuestion:");
+  assert.equal(button.panAction, "handleQuestionLocatorButtonPan:");
+
+  const recognizer = {
+    state: 1,
+    translationInView() { return { x: -10, y: 9 }; },
+    setTranslationInView() {},
+  };
+  runtime.ui.handleQuestionLocatorPan(runtime.addon, recognizer);
+  recognizer.state = 2;
+  runtime.ui.handleQuestionLocatorPan(runtime.addon, recognizer);
+  recognizer.state = 3;
+  runtime.ui.handleQuestionLocatorPan(runtime.addon, recognizer);
+  assert.match(runtime.defaults["cn.marginnote.daguanyuan-bridge.question-navigation.locator-button-position"], /xRatio/);
+  assert.equal(runtime.addon.__daguanyuanQuestionLocatorSuppressTap, true);
+
+  runtime.setQuestionLocatorEnabled(false);
+  runtime.ui.syncQuestionLocator(runtime.addon);
   assert.equal(button.hidden, true);
   assert.equal(button.superview, null);
 });

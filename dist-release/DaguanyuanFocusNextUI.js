@@ -7,6 +7,7 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
   const NEXT_POSITION_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.next-button-position";
   const PREVIOUS_POSITION_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.previous-button-position";
   const CATEGORY_POSITION_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.category-button-position";
+  const QUESTION_LOCATOR_POSITION_KEY = "cn.marginnote.daguanyuan-bridge.question-navigation.locator-button-position";
 
   function finiteNumber(value) {
     const number = Number(value);
@@ -81,6 +82,15 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     return changed;
   }
 
+  function setCompactTitle(button, title) {
+    if (!button) return false;
+    const width = Math.max(68, Math.min(MAX_BUTTON_WIDTH, Math.ceil(measuredTitleWidth(button, title) + 20)));
+    const changed = finiteNumber(button.__daguanyuanContentWidth) !== width;
+    button.__daguanyuanContentWidth = width;
+    button.setTitleForState(String(title || ""), 0);
+    return changed;
+  }
+
   function placeButton(addon, button, positionKey, defaultX, defaultY) {
     const view = viewFor(addon);
     if (!button || !view || !view.bounds) return false;
@@ -112,6 +122,7 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     const previous = addon && addon.__daguanyuanFocusPreviousButton;
     const next = addon && addon.__daguanyuanFocusNextButton;
     const category = addon && addon.__daguanyuanFocusCategoryButton;
+    const questionLocator = addon && addon.__daguanyuanQuestionLocatorButton;
     const view = viewFor(addon);
     if (!view || !view.bounds) return false;
     const previousPlaced = placeButton(addon, previous, PREVIOUS_POSITION_KEY, RIGHT_MARGIN);
@@ -123,7 +134,14 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
       Math.max(0, view.bounds.width - buttonWidth(addon, category) - RIGHT_MARGIN),
       Math.max(0, (view.bounds.height - BUTTON_HEIGHT) / 2 - BUTTON_HEIGHT - 10)
     );
-    return previousPlaced || nextPlaced || categoryPlaced;
+    const questionLocatorPlaced = placeButton(
+      addon,
+      questionLocator,
+      QUESTION_LOCATOR_POSITION_KEY,
+      Math.max(0, view.bounds.width - buttonWidth(addon, questionLocator) - RIGHT_MARGIN),
+      Math.max(0, (view.bounds.height - BUTTON_HEIGHT) / 2 - (BUTTON_HEIGHT + 10) * 2)
+    );
+    return previousPlaced || nextPlaced || categoryPlaced || questionLocatorPlaced;
   }
 
   function savePosition(addon, button, positionKey) {
@@ -183,6 +201,7 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
       if (addon.__daguanyuanFocusNextDragging) {
         savePosition(addon, button, positionKey);
         if (button === addon.__daguanyuanFocusCategoryButton) addon.__daguanyuanFocusCategorySuppressTap = true;
+        else if (button === addon.__daguanyuanQuestionLocatorButton) addon.__daguanyuanQuestionLocatorSuppressTap = true;
         else addon.__daguanyuanFocusNextSuppressTap = true;
       }
       addon.__daguanyuanFocusNextDragging = false;
@@ -280,6 +299,41 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     return true;
   }
 
+  function syncQuestionLocator(addon) {
+    const view = viewFor(addon);
+    if (!addon || !view) return false;
+    let button = addon.__daguanyuanQuestionLocatorButton;
+    if (!__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.questionLocatorEnabled()) {
+      if (button) {
+        button.hidden = true;
+        if (button.superview) button.removeFromSuperview();
+      }
+      return false;
+    }
+    if (!button) {
+      button = new UIButton({ x: 0, y: 0, width: BUTTON_WIDTH, height: BUTTON_HEIGHT });
+      setCompactTitle(button, "定位题目");
+      button.setTitleColorForState(UIColor.whiteColor(), 0);
+      button.titleLabel.font = UIFont.boldSystemFontOfSize(14);
+      button.titleLabel.numberOfLines = 1;
+      button.titleLabel.lineBreakMode = 4;
+      button.backgroundColor = UIColor.colorWithRedGreenBlueAlpha(0.12, 0.42, 0.78, 0.94);
+      button.layer.cornerRadius = 8;
+      button.layer.masksToBounds = true;
+      button.addTargetActionForControlEvents(addon, "locateQuestion:", 1 << 6);
+      button.addGestureRecognizer(new UIPanGestureRecognizer(addon, "handleQuestionLocatorButtonPan:"));
+      addon.__daguanyuanQuestionLocatorButton = button;
+    }
+    if (button.superview !== view) {
+      if (button.superview) button.removeFromSuperview();
+      view.addSubview(button);
+    }
+    button.hidden = false;
+    place(addon);
+    schedulePlace(addon);
+    return true;
+  }
+
   function hide(addon) {
     if (addon) {
       addon.__daguanyuanFocusNextRememberToken = Number(addon.__daguanyuanFocusNextRememberToken || 0) + 1;
@@ -296,9 +350,15 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
   function remove(addon) {
     hide(addon);
     if (addon) {
+      const questionLocator = addon.__daguanyuanQuestionLocatorButton;
+      if (questionLocator) {
+        questionLocator.hidden = true;
+        if (questionLocator.superview) questionLocator.removeFromSuperview();
+      }
       addon.__daguanyuanFocusPreviousButton = null;
       addon.__daguanyuanFocusNextButton = null;
       addon.__daguanyuanFocusCategoryButton = null;
+      addon.__daguanyuanQuestionLocatorButton = null;
     }
   }
 
@@ -314,6 +374,10 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     handlePan(addon, recognizer, addon && addon.__daguanyuanFocusCategoryButton, CATEGORY_POSITION_KEY);
   }
 
+  function handleQuestionLocatorPan(addon, recognizer) {
+    handlePan(addon, recognizer, addon && addon.__daguanyuanQuestionLocatorButton, QUESTION_LOCATOR_POSITION_KEY);
+  }
+
   return {
     show,
     hide,
@@ -324,5 +388,7 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     handleCategoryPan,
     refreshProgress,
     refreshCategory,
+    syncQuestionLocator,
+    handleQuestionLocatorPan,
   };
 })();

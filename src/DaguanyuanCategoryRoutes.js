@@ -1,5 +1,6 @@
 var __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = (function () {
   const SITE_BASE_URL = "https://www.cxyonly.fans";
+  const QUESTIONS_PER_PAGE = 20;
   let activeCatalog = { records: [], updatedAt: "" };
   let records = [];
   let recordsById = {};
@@ -151,6 +152,20 @@ var __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = (function () {
     return `${SITE_BASE_URL}/math/practice/${routeId}${suffix}`;
   }
 
+  function questionRouteFor(result, questionNumber) {
+    const url = urlFor(result);
+    const number = Number(questionNumber);
+    if (!url || !Number.isSafeInteger(number) || number <= 0) return undefined;
+    const page = Math.ceil(number / QUESTIONS_PER_PAGE);
+    return {
+      url,
+      categoryId: Number(result.categoryId),
+      page,
+      indexOnPage: (number - 1) % QUESTIONS_PER_PAGE + 1,
+      questionNumber: number,
+    };
+  }
+
   return {
     normalizeSegment,
     pathKey,
@@ -159,6 +174,7 @@ var __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = (function () {
     allCategories,
     categoryIdFromURL,
     urlFor,
+    questionRouteFor,
     replaceCatalog,
     reloadFromStore,
     get size() { return records.length; },
