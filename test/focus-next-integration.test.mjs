@@ -273,6 +273,19 @@ test("题型分类读取当前卡片的直属父节点标题", () => {
   assert.equal(core.parentTitle({ noteId: "root" }), "无题型分类");
 });
 
+
+
+test("当前题型绑定源包含学习集和直属父节点 ID", () => {
+  const { one } = notes();
+  const notebookController = { notebookId: "notebook-1", focusNote: one };
+  const core = runtime({ notebookController });
+  const source = core.currentCategorySource({ window: {} });
+  assert.equal(source.notebookId, "notebook-1");
+  assert.equal(source.parentNoteId, "p");
+  assert.equal(source.parentTitle, "父");
+  assert.deepEqual(Array.from(source.sourcePath), ["父"]);
+});
+
 test("插件生命周期接入焦点按钮并在断开时清理", () => {
   assert.match(mainSource, /JSB\.require\("DaguanyuanFocusNextCore"\)/);
   assert.match(mainSource, /JSB\.require\("DaguanyuanFocusNextUI"\)/);
@@ -284,7 +297,7 @@ test("插件生命周期接入焦点按钮并在断开时清理", () => {
 
 test("大观园面板提供焦点、跨层级、做题进度、题型分类和上一张开关", () => {
   assert.match(panelSource, /controller\.settingsButton = button\("设置", controller, "openSettings:"\)/);
-  assert.match(panelSource, /controller\.settingsPage = new UIView/);
+  assert.match(panelSource, /controller\.settingsPage = new UIScrollView/);
   assert.match(panelSource, /controller\.focusSettingsSection = new UIView/);
   assert.doesNotMatch(panelSource, /controller\.questionSettingsSection = new UIView/);
   assert.match(panelSource, /controller\.focusEnabledSwitch = new UISwitch/);
@@ -304,8 +317,9 @@ test("大观园面板提供焦点、跨层级、做题进度、题型分类和�
   assert.match(panelSource, /toggleCategoryDisplay: function/);
   assert.match(panelSource, /togglePreviousButton: function/);
   assert.match(panelSource, /refreshFocusSetting/);
-  assert.ok(panelSource.indexOf("controller.progressTitle.frame") < panelSource.indexOf("controller.categoryTitle.frame"));
-  assert.ok(panelSource.indexOf("controller.categoryTitle.frame") < panelSource.indexOf("controller.previousTitle.frame"));
+  assert.match(panelSource, /controller\.categorySettingsSection = new UIView/);
+  assert.match(panelSource, /controller\.categorySectionTitle = label\("题型导航"/);
+  assert.match(panelSource, /controller\.categoryJumpTitle = label\("题型分类快捷跳转"/);
   assert.doesNotMatch(panelSource, /focusToggleButton|focus-next-icon\.png|loadFocusToggleIcon/);
   assert.doesNotMatch(panelSource, /controller\.focusSwitch/);
   assert.doesNotMatch(panelSource, /openQuestion|打开选中题目|题目操作/);
@@ -394,7 +408,7 @@ test("题型分类按钮默认关闭，开启后显示直属父节点并保存�
   const button = runtime.addon.__daguanyuanFocusCategoryButton;
   assert.equal(button.title, "函数性质");
   assert.equal(button.frame.width, 84);
-  assert.equal(button.action, undefined);
+  assert.equal(button.action, "openFocusCategory:");
   assert.equal(button.panAction, "handleFocusCategoryButtonPan:");
 
   runtime.setFocusedNote(undefined);

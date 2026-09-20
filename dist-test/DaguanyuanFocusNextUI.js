@@ -182,7 +182,8 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     if (state === 3 || state === 4) {
       if (addon.__daguanyuanFocusNextDragging) {
         savePosition(addon, button, positionKey);
-        if (button !== addon.__daguanyuanFocusCategoryButton) addon.__daguanyuanFocusNextSuppressTap = true;
+        if (button === addon.__daguanyuanFocusCategoryButton) addon.__daguanyuanFocusCategorySuppressTap = true;
+        else addon.__daguanyuanFocusNextSuppressTap = true;
       }
       addon.__daguanyuanFocusNextDragging = false;
     }
@@ -242,7 +243,7 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     const buttonDefinitions = [
       { property: "__daguanyuanFocusPreviousButton", title: "上一张", action: "focusPrevious:", panAction: "handleFocusPreviousButtonPan:", visible: showPrevious },
       { property: "__daguanyuanFocusNextButton", title: "下一张", action: "focusNext:", panAction: "handleFocusNextButtonPan:" },
-      { property: "__daguanyuanFocusCategoryButton", title: "无题型分类", panAction: "handleFocusCategoryButtonPan:", visible: showCategory },
+      { property: "__daguanyuanFocusCategoryButton", title: "无题型分类", action: "openFocusCategory:", panAction: "handleFocusCategoryButtonPan:", visible: showCategory },
     ];
     for (const definition of buttonDefinitions) {
       let button = addon[definition.property];

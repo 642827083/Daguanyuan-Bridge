@@ -94,6 +94,41 @@ function createDaguanyuanBridgeAddon() {
       }
     },
 
+    openFocusCategory: function (sender) {
+      if (self.__daguanyuanFocusCategorySuppressTap) {
+        self.__daguanyuanFocusCategorySuppressTap = false;
+        return;
+      }
+      if (!__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.categoryJumpEnabled()) return;
+      try {
+        const source = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.currentCategorySource(self);
+        const binding = __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__.bindingForSource(source);
+        const result = binding
+          ? __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resultForCategoryId(binding.targetCategoryId)
+          : __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resolve(source.sourcePath);
+        if (result.status !== "resolved") {
+          const reason = binding
+            ? "已绑定的大观园分类不存在"
+            : result.status === "ambiguous"
+              ? "自动匹配到多个同名分类"
+              : "未找到对应的大观园分类";
+          __DAGUANYUAN_WEB_PANEL_GLOBAL__.prepareCategoryBinding(
+            self.panelController,
+            `${reason}，请进入正确分类后点击“绑定当前分类”`
+          );
+          return;
+        }
+        const url = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.urlFor(result);
+        if (!url) throw new Error("题型分类地址无效");
+        __DAGUANYUAN_WEB_PANEL_GLOBAL__.openDaguanyuanCategory(self.panelController, url);
+      }
+      catch (error) {
+        const message = error && error.message ? error.message : String(error);
+        __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.showMessage(self, message);
+        console.log(`[Daguanyuan Bridge Category] 跳转失败：${message}`);
+      }
+    },
+
     handleFocusNextButtonPan: function (recognizer) {
       __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.handleNextPan(self, recognizer);
     },

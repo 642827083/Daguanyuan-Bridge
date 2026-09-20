@@ -4,6 +4,7 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
   const PROGRESS_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.progress-enabled";
   const CROSS_LEVEL_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.cross-level-enabled";
   const CATEGORY_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.category-enabled";
+  const CATEGORY_JUMP_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.category-jump-enabled";
 
   function member(object, key) {
     if (!object) return undefined;
@@ -177,6 +178,41 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
     return title || "无题型分类";
   }
 
+  function categoryPath(note) {
+    const result = [];
+    const visited = {};
+    let cursor = member(note, "parentNote");
+    while (cursor && result.length < 24) {
+      const id = noteId(cursor);
+      if (id && visited[id]) break;
+      if (id) visited[id] = true;
+      const title = String(member(cursor, "noteTitle") || "").trim();
+      if (title) result.unshift(title);
+      cursor = member(cursor, "parentNote");
+    }
+    return result;
+  }
+
+  function currentCategoryPath(addon) {
+    return categoryPath(navigationNote(addon));
+  }
+
+  function currentCategorySource(addon) {
+    const note = navigationNote(addon);
+    const parent = member(note, "parentNote");
+    const controller = studyController(addon);
+    const notebook = member(controller, "notebookController");
+    const notebookId = String(member(notebook, "notebookId") || "").trim();
+    const parentNoteId = noteId(parent);
+    if (!parent || !notebookId || !parentNoteId) throw new Error("无法识别当前学习集或题型父节点");
+    return {
+      notebookId,
+      parentNoteId,
+      parentTitle: String(member(parent, "noteTitle") || "").trim() || "无题型分类",
+      sourcePath: categoryPath(note),
+    };
+  }
+
   function depthFirstNext(note) {
     const children = items(member(note, "childNotes"));
     if (children.length) return children[0];
@@ -302,6 +338,21 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
     return result;
   }
 
+  function categoryJumpEnabled() {
+    try {
+      const value = NSUserDefaults.standardUserDefaults().objectForKey(CATEGORY_JUMP_ENABLED_KEY);
+      if (value === undefined || value === null) return false;
+      if (typeof value.booleanValue === "function") return Boolean(value.booleanValue());
+      return !(value === false || value === 0 || String(value).toLowerCase() === "false");
+    } catch (error) { return false; }
+  }
+
+  function setCategoryJumpEnabled(value) {
+    const result = Boolean(value);
+    try { NSUserDefaults.standardUserDefaults().setObjectForKey(result, CATEGORY_JUMP_ENABLED_KEY); } catch (ignored) {}
+    return result;
+  }
+
   function crossLevelEnabled() {
     try {
       const value = NSUserDefaults.standardUserDefaults().objectForKey(CROSS_LEVEL_ENABLED_KEY);
@@ -322,6 +373,9 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
     rememberFocus,
     siblingProgress,
     parentTitle,
+    categoryPath,
+    currentCategoryPath,
+    currentCategorySource,
     focusNext,
     focusPrevious,
     showMessage,
@@ -333,6 +387,8 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
     setProgressEnabled,
     categoryEnabled,
     setCategoryEnabled,
+    categoryJumpEnabled,
+    setCategoryJumpEnabled,
     crossLevelEnabled,
     setCrossLevelEnabled,
   };

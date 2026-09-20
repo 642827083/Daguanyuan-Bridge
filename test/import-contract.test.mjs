@@ -63,7 +63,7 @@ test("面板顶栏只提供数学、408 和设置三个入口", () => {
 });
 
 test("独立设置页和运行入口完整移除打开选中题目功能", () => {
-  assert.match(panelSource, /controller\.settingsPage = new UIView/);
+  assert.match(panelSource, /controller\.settingsPage = new UIScrollView/);
   assert.match(panelSource, /function setActivePage\(controller, page\)/);
   assert.match(panelSource, /controller\.settingsPage\.hidden = page !== "settings"/);
   assert.doesNotMatch(panelSource, /settingsMenu|settingsBackdropButton/);
