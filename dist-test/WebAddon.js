@@ -27,7 +27,7 @@ function createDaguanyuanBridgeAddon() {
       self.__daguanyuanFocusNextLastFocus = null;
       if (self.focusNavigationEnabled !== false) __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.show(self);
       else __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.hide(self);
-      __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.syncQuestionLocator(self);
+      if (self.focusNavigationEnabled !== false) __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.syncQuestionLocator(self);
       if (__DAGUANYUAN_WEB_PANEL_GLOBAL__.shouldRestorePanel()) {
         __DAGUANYUAN_WEB_PANEL_GLOBAL__.showPanel(self.panelController);
       }
@@ -59,6 +59,7 @@ function createDaguanyuanBridgeAddon() {
       self.focusNavigationEnabled = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.setEnabled(!(self.focusNavigationEnabled !== false));
       if (self.focusNavigationEnabled) __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.show(self);
       else __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.hide(self);
+      if (self.focusNavigationEnabled) __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.syncQuestionLocator(self);
       __DAGUANYUAN_WEB_PANEL_GLOBAL__.refreshFocusSetting(self.panelController);
       return self.focusNavigationEnabled;
     },
@@ -105,6 +106,11 @@ function createDaguanyuanBridgeAddon() {
       if (!__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.categoryJumpEnabled()) return;
       try {
         const source = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.currentCategorySource(self);
+        const binding408 = __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__.binding408ForSource(source);
+        if (binding408) {
+          __DAGUANYUAN_WEB_PANEL_GLOBAL__.open408Page(self.panelController, binding408.targetURL);
+          return;
+        }
         const binding = __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__.bindingForSource(source);
         const result = binding
           ? __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resultForCategoryId(binding.targetCategoryId)
@@ -140,6 +146,11 @@ function createDaguanyuanBridgeAddon() {
       try {
         const context = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.currentQuestionContext(self);
         const source = context.source;
+        const binding408 = __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__.binding408ForSource(source);
+        if (binding408) {
+          __DAGUANYUAN_WEB_PANEL_GLOBAL__.open408Question(self.panelController, binding408.targetURL, context.progress.index);
+          return;
+        }
         const binding = __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__.bindingForSource(source);
         const result = binding
           ? __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resultForCategoryId(binding.targetCategoryId)

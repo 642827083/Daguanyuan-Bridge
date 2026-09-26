@@ -1,11 +1,11 @@
 var __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__ = (function () {
   const DIRECTORY_NAME = "DaguanyuanBridge";
   const FILE_NAME = "category-mappings.json";
-  const SCHEMA_VERSION = 2;
+  const SCHEMA_VERSION = 3;
   let cachedState;
 
   function defaultState() {
-    return { schemaVersion: SCHEMA_VERSION, categoryBindings: {} };
+    return { schemaVersion: SCHEMA_VERSION, categoryBindings: {}, os408Bindings: {} };
   }
 
   function applicationValue(key) {
@@ -67,6 +67,23 @@ var __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__ = (function () {
     };
   }
 
+  function normalize408Binding(value) {
+    const input = plainObject(value);
+    const notebookId = String(input.notebookId || "").trim();
+    const parentNoteId = String(input.parentNoteId || "").trim();
+    let targetURL;
+    try { targetURL = __DAGUANYUAN_408_ROUTES_GLOBAL__.normalizedURL(input.targetURL); } catch (ignored) { return undefined; }
+    if (!notebookId || !parentNoteId) return undefined;
+    return {
+      notebookId,
+      parentNoteId,
+      parentTitle: String(input.parentTitle || "").trim(),
+      sourcePath: normalizePath(input.sourcePath),
+      targetURL,
+      updatedAt: String(input.updatedAt || ""),
+    };
+  }
+
   function normalizeState(value) {
     const input = plainObject(value);
     const bindings = {};
@@ -77,7 +94,14 @@ var __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__ = (function () {
       const expectedKey = sourceKey(binding);
       if (expectedKey) bindings[expectedKey] = binding;
     });
-    return { schemaVersion: SCHEMA_VERSION, categoryBindings: bindings };
+    const os408Bindings = {};
+    Object.keys(plainObject(input.os408Bindings)).forEach(function (key) {
+      const binding = normalize408Binding(input.os408Bindings[key]);
+      if (!binding) return;
+      const expectedKey = sourceKey(binding);
+      if (expectedKey) os408Bindings[expectedKey] = binding;
+    });
+    return { schemaVersion: SCHEMA_VERSION, categoryBindings: bindings, os408Bindings };
   }
 
   function readState() {
@@ -136,32 +160,68 @@ var __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__ = (function () {
     return state.categoryBindings[key];
   }
 
+  function binding408ForSource(source) {
+    const key = sourceKey(source);
+    if (!key) return undefined;
+    return normalize408Binding(readState().os408Bindings[key]);
+  }
+
+  function save408Binding(source, urlString) {
+    const input = plainObject(source);
+    const key = sourceKey(input);
+    if (!key) throw new Error("无法识别当前学习集或题型父节点");
+    const targetURL = __DAGUANYUAN_408_ROUTES_GLOBAL__.normalizedURL(urlString);
+    const state = readState();
+    state.os408Bindings[key] = {
+      notebookId: String(input.notebookId || "").trim(),
+      parentNoteId: String(input.parentNoteId || "").trim(),
+      parentTitle: String(input.parentTitle || "").trim(),
+      sourcePath: normalizePath(input.sourcePath),
+      targetURL,
+      updatedAt: new Date().toISOString(),
+    };
+    writeState(state);
+    return state.os408Bindings[key];
+  }
+
   function allBindings() {
     const bindings = readState().categoryBindings;
-    return Object.keys(bindings).map(function (key) {
+    const mathBindings = Object.keys(bindings).map(function (key) {
       const binding = normalizeBinding(bindings[key]);
       if (!binding) return undefined;
       binding.key = key;
+      binding.provider = "math";
       return binding;
-    }).filter(Boolean).sort(function (left, right) {
+    }).filter(Boolean);
+    const os408Bindings = readState().os408Bindings;
+    const siteBindings = Object.keys(os408Bindings).map(function (key) {
+      const binding = normalize408Binding(os408Bindings[key]);
+      if (!binding) return undefined;
+      binding.key = key;
+      binding.provider = "408";
+      return binding;
+    }).filter(Boolean);
+    return mathBindings.concat(siteBindings).sort(function (left, right) {
       return String(right.updatedAt || "").localeCompare(String(left.updatedAt || ""));
     });
   }
 
-  function deleteBinding(bindingKey) {
+  function deleteBinding(bindingKey, provider) {
     const key = String(bindingKey || "");
     const state = readState();
-    if (!key || !state.categoryBindings[key]) return false;
-    delete state.categoryBindings[key];
+    const bindings = provider === "408" ? state.os408Bindings : state.categoryBindings;
+    if (!key || !bindings[key]) return false;
+    delete bindings[key];
     writeState(state);
     return true;
   }
 
   function clearBindings() {
     const state = readState();
-    const count = Object.keys(state.categoryBindings).length;
+    const count = Object.keys(state.categoryBindings).length + Object.keys(state.os408Bindings).length;
     if (!count) return 0;
     state.categoryBindings = {};
+    state.os408Bindings = {};
     writeState(state);
     return count;
   }
@@ -170,5 +230,5 @@ var __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__ = (function () {
     cachedState = undefined;
   }
 
-  return { bindingForSource, saveBinding, allBindings, deleteBinding, clearBindings, resetMemoryCache };
+  return { bindingForSource, saveBinding, binding408ForSource, save408Binding, allBindings, deleteBinding, clearBindings, resetMemoryCache };
 })();

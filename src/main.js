@@ -2,6 +2,7 @@ JSB.require("DaguanyuanFocusNextCore");
 JSB.require("DaguanyuanCategoryCatalog");
 JSB.require("DaguanyuanCategoryCatalogStore");
 JSB.require("DaguanyuanCategoryRoutes");
+JSB.require("Daguanyuan408Routes");
 JSB.require("DaguanyuanQuestionResolver");
 JSB.require("DaguanyuanCategoryMappingStore");
 JSB.require("DaguanyuanFocusNextUI");

@@ -80,7 +80,7 @@ var __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__ = (function () {
     controller.categoryBindingsTitle = label("人工绑定（0）", UIFont.boldSystemFontOfSize(17), UIColor.darkGrayColor());
     controller.categoryBindingsCard.addSubview(controller.categoryBindingsTitle);
 
-    controller.categoryBindingsDescription = label("绑定需在数学页选择正确分类后创建", UIFont.systemFontOfSize(12), UIColor.grayColor());
+    controller.categoryBindingsDescription = label("在数学或 408 页进入目标分类后创建绑定", UIFont.systemFontOfSize(12), UIColor.grayColor());
     controller.categoryBindingsCard.addSubview(controller.categoryBindingsDescription);
 
     controller.categoryBindingsHeaderDivider = divider();
@@ -116,10 +116,14 @@ var __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__ = (function () {
     const title = label(binding.parentTitle || "未命名题型", UIFont.boldSystemFontOfSize(15), UIColor.darkGrayColor());
     const source = label((binding.sourcePath || []).join(" / ") || "未记录本地路径", UIFont.systemFontOfSize(11), UIColor.grayColor());
     source.numberOfLines = 2;
-    const target = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resultForCategoryId(binding.targetCategoryId);
-    const targetText = target.status === "resolved"
-      ? `大观园：${target.path.join(" / ")}`
-      : `目标分类已失效（ID：${binding.targetCategoryId}）`;
+    const target = binding.provider === "408"
+      ? { status: "resolved", path: [] }
+      : __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resultForCategoryId(binding.targetCategoryId);
+    const targetText = binding.provider === "408"
+      ? `408：${binding.targetURL}`
+      : target.status === "resolved"
+        ? `大观园：${target.path.join(" / ")}`
+        : `目标分类已失效（ID：${binding.targetCategoryId}）`;
     const targetLabel = label(targetText, UIFont.systemFontOfSize(12), target.status === "resolved" ? ACCENT_COLOR : DANGER_COLOR);
     targetLabel.numberOfLines = 2;
     const openButton = button("打开", controller, "openManagedBinding:");

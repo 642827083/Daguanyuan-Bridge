@@ -452,7 +452,7 @@ test("题型分类按钮默认关闭，开启后显示直属父节点并保存�
   assert.equal(button.superview, null);
 });
 
-test("定位题目按钮独立于焦点导航显示并保存位置", () => {
+test("定位题目按钮由独立开关控制并保存位置", () => {
   const runtime = focusButtonsRuntime(true, false, false, false);
   runtime.ui.syncQuestionLocator(runtime.addon);
   assert.equal(runtime.addon.__daguanyuanQuestionLocatorButton, undefined);
@@ -482,6 +482,25 @@ test("定位题目按钮独立于焦点导航显示并保存位置", () => {
   runtime.ui.syncQuestionLocator(runtime.addon);
   assert.equal(button.hidden, true);
   assert.equal(button.superview, null);
+});
+
+test("关闭焦点切换会同时隐藏定位题目，重新开启后按独立开关恢复", () => {
+  const runtime = focusButtonsRuntime(true, false, true, true);
+  runtime.addon.focusNavigationEnabled = true;
+  runtime.ui.show(runtime.addon);
+  runtime.ui.syncQuestionLocator(runtime.addon);
+  const button = runtime.addon.__daguanyuanQuestionLocatorButton;
+  assert.ok(button.superview);
+  runtime.addon.focusNavigationEnabled = false;
+  runtime.ui.hide(runtime.addon);
+  runtime.ui.syncQuestionLocator(runtime.addon);
+  assert.equal(button.hidden, true);
+  assert.equal(button.superview, null);
+  assert.equal(runtime.addon.__daguanyuanFocusNextButton.superview, null);
+  runtime.addon.focusNavigationEnabled = true;
+  runtime.ui.show(runtime.addon);
+  runtime.ui.syncQuestionLocator(runtime.addon);
+  assert.ok(button.superview);
 });
 
 test("点击前后导航后立即刷新按钮进度", () => {

@@ -65,7 +65,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.settingsButton.frame = { x: tabsX + 160, y: 4, width: 72, height: 30 };
     controller.webView.frame = contentFrame;
     controller.settingsPage.frame = contentFrame;
-    controller.settingsPage.contentSize = { width: contentFrame.width, height: Math.max(contentFrame.height + 1, 788) };
+    controller.settingsPage.contentSize = { width: contentFrame.width, height: Math.max(contentFrame.height + 1, 858) };
     __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__.layout(controller, contentFrame);
     controller.bindCategoryButton.frame = {
       x: Math.min(368, Math.max(20, bounds.width - 132)),
@@ -74,8 +74,8 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       height: 36,
     };
     controller.focusSettingsSection.frame = { x: 20, y: 18, width: sectionWidth, height: 336 };
-    controller.categorySettingsSection.frame = { x: 20, y: 366, width: sectionWidth, height: 266 };
-    controller.questionNavigationSettingsSection.frame = { x: 20, y: 644, width: sectionWidth, height: 126 };
+    controller.categorySettingsSection.frame = { x: 20, y: 366, width: sectionWidth, height: 336 };
+    controller.questionNavigationSettingsSection.frame = { x: 20, y: 714, width: sectionWidth, height: 126 };
     controller.focusSectionTitle.frame = { x: 20, y: 12, width: Math.max(0, sectionWidth - 40), height: 28 };
     controller.focusDivider.frame = { x: 20, y: 48, width: Math.max(0, sectionWidth - 40), height: 1 };
     controller.focusEnabledTitle.frame = { x: 20, y: 61, width: Math.max(0, sectionWidth - 110), height: 24 };
@@ -102,11 +102,15 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.categoryJumpTitle.frame = { x: 20, y: 131, width: Math.max(0, sectionWidth - 110), height: 24 };
     controller.categoryJumpDescription.frame = { x: 20, y: 157, width: Math.max(0, sectionWidth - 110), height: 18 };
     controller.categoryJumpSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 139, width: 51, height: 31 };
-    controller.categoryManageDivider.frame = { x: 20, y: 188, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.categoryManageTitle.frame = { x: 20, y: 201, width: Math.max(0, sectionWidth - 90), height: 24 };
-    controller.categoryManageDescription.frame = { x: 20, y: 227, width: Math.max(0, sectionWidth - 90), height: 18 };
-    controller.categoryManageChevron.frame = { x: Math.max(20, sectionWidth - 52), y: 203, width: 30, height: 36 };
-    controller.categoryManageButton.frame = { x: 0, y: 189, width: sectionWidth, height: 76 };
+    controller.bindCategoryDivider.frame = { x: 20, y: 188, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.bindCategoryTitle.frame = { x: 20, y: 201, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.bindCategoryDescription.frame = { x: 20, y: 227, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.bindCategorySwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 209, width: 51, height: 31 };
+    controller.categoryManageDivider.frame = { x: 20, y: 258, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.categoryManageTitle.frame = { x: 20, y: 271, width: Math.max(0, sectionWidth - 90), height: 24 };
+    controller.categoryManageDescription.frame = { x: 20, y: 297, width: Math.max(0, sectionWidth - 90), height: 18 };
+    controller.categoryManageChevron.frame = { x: Math.max(20, sectionWidth - 52), y: 273, width: 30, height: 36 };
+    controller.categoryManageButton.frame = { x: 0, y: 259, width: sectionWidth, height: 76 };
     controller.questionNavigationSectionTitle.frame = { x: 20, y: 12, width: Math.max(0, sectionWidth - 40), height: 28 };
     controller.questionNavigationDivider.frame = { x: 20, y: 48, width: Math.max(0, sectionWidth - 40), height: 1 };
     controller.questionLocatorTitle.frame = { x: 20, y: 61, width: Math.max(0, sectionWidth - 110), height: 24 };
@@ -160,13 +164,14 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.webView.hidden = nativePage;
     controller.settingsPage.hidden = page !== "settings";
     controller.categoryManagerPage.hidden = page !== "category-manager";
-    controller.bindCategoryButton.hidden = page !== "math";
+    controller.bindCategoryButton.hidden = (page !== "math" && page !== "408") || !bindCategoryVisible();
     if (page === "settings") {
       refreshFocusSetting(controller);
       refreshCrossLevelSetting(controller);
       refreshProgressSetting(controller);
       refreshCategorySetting(controller);
       refreshCategoryJumpSetting(controller);
+      refreshBindCategorySetting(controller);
       refreshQuestionLocatorSetting(controller);
       refreshPreviousSetting(controller);
     } else if (page === "category-manager") {
@@ -199,6 +204,19 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   function refreshCategoryJumpSetting(controller) {
     if (!controller || !controller.categoryJumpSwitch) return;
     controller.categoryJumpSwitch.on = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.categoryJumpEnabled();
+  }
+
+  function bindCategoryVisible() {
+    try {
+      const value = NSUserDefaults.standardUserDefaults().objectForKey("cn.marginnote.daguanyuan-bridge.category-navigation.bind-button-visible");
+      if (value === undefined || value === null) return true;
+      if (typeof value.booleanValue === "function") return Boolean(value.booleanValue());
+      return !(value === false || value === 0 || String(value).toLowerCase() === "false");
+    } catch (ignored) { return true; }
+  }
+
+  function refreshBindCategorySetting(controller) {
+    if (controller && controller.bindCategorySwitch) controller.bindCategorySwitch.on = bindCategoryVisible();
   }
 
   function refreshQuestionLocatorSetting(controller) {
@@ -321,7 +339,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.progressDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
     controller.focusSettingsSection.addSubview(controller.progressDivider);
 
-    controller.categorySettingsSection = new UIView({ x: 20, y: 366, width: DEFAULT_WIDTH - 40, height: 266 });
+    controller.categorySettingsSection = new UIView({ x: 20, y: 366, width: DEFAULT_WIDTH - 40, height: 336 });
     controller.categorySettingsSection.backgroundColor = UIColor.whiteColor();
     controller.categorySettingsSection.layer.cornerRadius = 10;
     controller.categorySettingsSection.layer.borderWidth = 0.5;
@@ -359,7 +377,21 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.categoryJumpSwitch.addTargetActionForControlEvents(controller, "toggleCategoryJump:", 1 << 12);
     controller.categorySettingsSection.addSubview(controller.categoryJumpSwitch);
 
-    controller.categoryManageDivider = new UIView({ x: 20, y: 188, width: DEFAULT_WIDTH - 80, height: 1 });
+    controller.bindCategoryDivider = new UIView({ x: 20, y: 188, width: DEFAULT_WIDTH - 80, height: 1 });
+    controller.bindCategoryDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
+    controller.categorySettingsSection.addSubview(controller.bindCategoryDivider);
+
+    controller.bindCategoryTitle = label("显示绑定当前分类", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
+    controller.categorySettingsSection.addSubview(controller.bindCategoryTitle);
+
+    controller.bindCategoryDescription = label("在数学与 408 页面显示绑定按钮", UIFont.systemFontOfSize(12), UIColor.grayColor());
+    controller.categorySettingsSection.addSubview(controller.bindCategoryDescription);
+
+    controller.bindCategorySwitch = new UISwitch({ x: DEFAULT_WIDTH - 108, y: 209, width: 51, height: 31 });
+    controller.bindCategorySwitch.addTargetActionForControlEvents(controller, "toggleBindCategoryDisplay:", 1 << 12);
+    controller.categorySettingsSection.addSubview(controller.bindCategorySwitch);
+
+    controller.categoryManageDivider = new UIView({ x: 20, y: 258, width: DEFAULT_WIDTH - 80, height: 1 });
     controller.categoryManageDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
     controller.categorySettingsSection.addSubview(controller.categoryManageDivider);
 
@@ -377,7 +409,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.categoryManageButton.backgroundColor = UIColor.colorWithWhiteAlpha(1, 0);
     controller.categorySettingsSection.addSubview(controller.categoryManageButton);
 
-    controller.questionNavigationSettingsSection = new UIView({ x: 20, y: 644, width: DEFAULT_WIDTH - 40, height: 126 });
+    controller.questionNavigationSettingsSection = new UIView({ x: 20, y: 714, width: DEFAULT_WIDTH - 40, height: 126 });
     controller.questionNavigationSettingsSection.backgroundColor = UIColor.whiteColor();
     controller.questionNavigationSettingsSection.layer.cornerRadius = 10;
     controller.questionNavigationSettingsSection.layer.borderWidth = 0.5;
@@ -439,6 +471,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     refreshProgressSetting(controller);
     refreshCategorySetting(controller);
     refreshCategoryJumpSetting(controller);
+    refreshBindCategorySetting(controller);
     refreshQuestionLocatorSetting(controller);
     refreshPreviousSetting(controller);
     refreshTabStyle(controller);
@@ -460,6 +493,12 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     loadURL(controller, urlString, "daguanyuan");
   }
 
+  function open408Page(controller, urlString) {
+    if (!controller) throw new Error("408 面板当前不可用");
+    showPanel(controller);
+    loadURL(controller, __DAGUANYUAN_408_ROUTES_GLOBAL__.normalizedURL(urlString), "408os");
+  }
+
   function questionLocatorScript(route) {
     const questionId = Number(route && route.questionId);
     const questionNumber = Number(route && route.questionNumber);
@@ -476,7 +515,8 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       }
       function locate() {
         attempts += 1;
-        var target = document.querySelector('[data-learning-question-id="' + questionId + '"]');
+        var target = document.querySelector('[data-learning-question-id="' + questionId + '"]')
+          || document.querySelector('article.question-document[data-question-id="' + questionId + '"]');
         if (target) {
           finish("success");
           try {
@@ -486,7 +526,8 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
           }
           return;
         }
-        var loadedCount = document.querySelectorAll('[data-learning-question-id]').length;
+        var loadedCount = document.querySelectorAll('[data-learning-question-id]').length
+          || document.querySelectorAll('article.question-document[data-question-id]').length;
         var buttons = document.querySelectorAll("button");
         var loadMore;
         for (var index = 0; index < buttons.length; index += 1) {
@@ -498,6 +539,23 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
         if (loadMore && !loadMore.disabled && loadedCount !== lastClickedCount) {
           lastClickedCount = loadedCount;
           loadMore.click();
+        }
+        var scroller = document.querySelector('[class*="practiceScroll"]');
+        if (!scroller) {
+          var candidates = document.querySelectorAll("div,main,section");
+          for (var candidateIndex = 0; candidateIndex < candidates.length; candidateIndex += 1) {
+            if (candidates[candidateIndex].scrollHeight > candidates[candidateIndex].clientHeight + 10) {
+              scroller = candidates[candidateIndex];
+              break;
+            }
+          }
+        }
+        if (scroller) {
+          var nextTop = Math.min(scroller.scrollHeight - scroller.clientHeight, scroller.scrollTop + Math.max(240, scroller.clientHeight * 0.7));
+          if (nextTop > scroller.scrollTop) {
+            scroller.scrollTop = nextTop;
+            try { scroller.dispatchEvent(new Event("scroll", { bubbles: true })); } catch (ignored) {}
+          }
         }
         if (attempts < 200) {
           window.setTimeout(locate, 150);
@@ -541,6 +599,14 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     showPanel(controller);
     loadURL(controller, route.url, "daguanyuan");
     showMessage(controller, `正在加载并定位第 ${route.questionNumber} 题`);
+  }
+
+  function open408Question(controller, boundURL, questionNumber) {
+    if (!controller) throw new Error("408 面板当前不可用");
+    const url = __DAGUANYUAN_408_ROUTES_GLOBAL__.questionURL(boundURL, questionNumber);
+    showPanel(controller);
+    loadURL(controller, url, "408os");
+    showMessage(controller, `正在打开第 ${questionNumber} 题`);
   }
 
   function videoPopupCompatibilityScript() {
@@ -609,6 +675,11 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       }
       self.webView.evaluateJavaScript("String(window.location.href || '')", function (result) {
         try {
+          if (self.currentContentPage === "408") {
+            const binding = __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__.save408Binding(source, result);
+            showMessage(self, `已绑定：${source.parentTitle} → ${binding.targetURL}`);
+            return;
+          }
           const categoryId = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.categoryIdFromURL(result);
           if (!categoryId) throw new Error("请先进入一个具体的大观园题型分类");
           const target = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resultForCategoryId(categoryId);
@@ -652,6 +723,10 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       try {
         const binding = self.categoryManagerBindings[Number(sender && sender.tag)];
         if (!binding) throw new Error("未找到这条题型绑定");
+        if (binding.provider === "408") {
+          loadURL(self, binding.targetURL, "408os");
+          return;
+        }
         const target = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resultForCategoryId(binding.targetCategoryId);
         if (target.status !== "resolved") throw new Error("这条绑定的目标分类已经失效");
         const url = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.urlFor(target);
@@ -666,7 +741,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       try {
         const binding = self.categoryManagerBindings[Number(sender && sender.tag)];
         if (!binding) throw new Error("未找到这条题型绑定");
-        const deleted = __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__.deleteBinding(binding.key);
+        const deleted = __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__.deleteBinding(binding.key, binding.provider);
         __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__.refresh(self);
         showMessage(self, deleted ? `已删除：${binding.parentTitle || "未命名题型"}` : "这条绑定已经不存在");
       } catch (error) {
@@ -696,6 +771,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       addon.focusNavigationEnabled = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.setEnabled(requested);
       if (addon.focusNavigationEnabled) __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.show(addon);
       else __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.hide(addon);
+      if (addon.focusNavigationEnabled) __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.syncQuestionLocator(addon);
       refreshFocusSetting(self);
     },
 
@@ -738,6 +814,13 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
         : !__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.categoryJumpEnabled();
       __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.setCategoryJumpEnabled(requested);
       refreshCategoryJumpSetting(self);
+    },
+
+    toggleBindCategoryDisplay: function (sender) {
+      const requested = sender && typeof sender.on !== "undefined" ? Boolean(sender.on) : !bindCategoryVisible();
+      NSUserDefaults.standardUserDefaults().setObjectForKey(requested, "cn.marginnote.daguanyuan-bridge.category-navigation.bind-button-visible");
+      refreshBindCategorySetting(self);
+      setActivePage(self, self.activePage);
     },
 
     toggleQuestionLocator: function (sender) {
@@ -791,11 +874,18 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     webViewDidFinishLoad: function (webView) {
       if (webView === self.webView) {
         injectVideoPopupCompatibility(self);
-        injectQuestionLocator(self);
+        self.webView.evaluateJavaScript("String(window.location.href || '')", function (result, error) {
+          const address = String(result || "");
+          const isLogin = /\/login(?:[/?#]|$)/i.test(address);
+          if (!isLogin) injectQuestionLocator(self);
+        });
       }
     },
 
     webViewDidFailLoadWithError: function (webView, error) {
+      const errorCodeValue = error && error.code;
+      const errorCode = Number(typeof errorCodeValue === "function" ? errorCodeValue.call(error) : errorCodeValue);
+      if (errorCode === -999) return;
       console.log(`[Daguanyuan Bridge] 页面加载失败：${error && error.localizedDescription || error}`);
     },
 
@@ -845,7 +935,9 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     showPanel,
     hidePanel,
     openDaguanyuanCategory,
+    open408Page,
     openDaguanyuanQuestion,
+    open408Question,
     questionLocatorScript,
     prepareCategoryBinding,
     shouldRestorePanel,

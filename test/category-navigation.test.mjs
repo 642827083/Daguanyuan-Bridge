@@ -234,6 +234,7 @@ test("点击定位题目时先解析真实题目 ID 再打开分类页面", () =
       showMessage() {},
     },
     __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__: {
+      binding408ForSource() { return undefined; },
       bindingForSource() { return { targetCategoryId: 704 }; },
     },
     __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__: {
@@ -268,4 +269,30 @@ test("点击定位题目时先解析真实题目 ID 再打开分类页面", () =
   addon.locateQuestion();
   assert.equal(openedRoute.questionId, 3525);
   assert.equal(openedRoute.url, "https://www.cxyonly.fans/math/practice/321?resumeCategoryId=704");
+});
+
+test("408 绑定优先按父节点下的卡片序号定位，不调用数学题目解析", () => {
+  let opened;
+  const context = {
+    JSB: { defineClass(name, methods) { return methods; } },
+    __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__: {
+      currentQuestionContext() {
+        return { source: { notebookId: "notebook", parentNoteId: "year-2026" }, progress: { index: 5, total: 47 } };
+      },
+      showMessage() {},
+    },
+    __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__: {
+      binding408ForSource() { return { targetURL: "https://www.408os.cn/exercise?year=2026" }; },
+      bindingForSource() { throw new Error("不应查找数学绑定"); },
+    },
+    __DAGUANYUAN_WEB_PANEL_GLOBAL__: {
+      open408Question(controller, url, number) { opened = { url, number }; },
+    },
+    self: { panelController: {} },
+    Number, String, Array, Object, JSON, Math, RegExp, Error, console,
+  };
+  vm.createContext(context);
+  vm.runInContext(addonSource, context);
+  context.createDaguanyuanBridgeAddon().locateQuestion();
+  assert.deepEqual(opened, { url: "https://www.408os.cn/exercise?year=2026", number: 5 });
 });

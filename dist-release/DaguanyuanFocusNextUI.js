@@ -303,7 +303,7 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     const view = viewFor(addon);
     if (!addon || !view) return false;
     let button = addon.__daguanyuanQuestionLocatorButton;
-    if (!__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.questionLocatorEnabled()) {
+    if (addon.focusNavigationEnabled === false || !__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.questionLocatorEnabled()) {
       if (button) {
         button.hidden = true;
         if (button.superview) button.removeFromSuperview();
@@ -339,7 +339,7 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
       addon.__daguanyuanFocusNextRememberToken = Number(addon.__daguanyuanFocusNextRememberToken || 0) + 1;
       addon.__daguanyuanFocusNextPlaceToken = Number(addon.__daguanyuanFocusNextPlaceToken || 0) + 1;
     }
-    const buttons = [addon && addon.__daguanyuanFocusPreviousButton, addon && addon.__daguanyuanFocusNextButton, addon && addon.__daguanyuanFocusCategoryButton];
+    const buttons = [addon && addon.__daguanyuanFocusPreviousButton, addon && addon.__daguanyuanFocusNextButton, addon && addon.__daguanyuanFocusCategoryButton, addon && addon.__daguanyuanQuestionLocatorButton];
     for (const button of buttons) {
       if (!button) continue;
       button.hidden = true;
