@@ -11,6 +11,7 @@ const storeSource = readFileSync(new URL("../src/DaguanyuanCategoryMappingStore.
 const managerSource = readFileSync(new URL("../src/DaguanyuanCategoryManagerUI.js", import.meta.url), "utf8");
 const addonSource = readFileSync(new URL("../src/WebAddon.js", import.meta.url), "utf8");
 const panelSource = readFileSync(new URL("../src/WebPanelController.js", import.meta.url), "utf8");
+const videoSource = readFileSync(new URL("../src/DaguanyuanVideoBrowser.js", import.meta.url), "utf8");
 const mainSource = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
 
 function runtime() {
@@ -128,6 +129,7 @@ test("408 定位按绑定年份和父节点下的序号打开对应题目", () =
 
 test("408 页绑定按钮读取当前网页地址并关联当前父节点", () => {
   const { context } = runtime();
+  vm.runInContext(videoSource, context);
   let panelMethods;
   let message = "";
   context.JSB = { defineClass(name, methods) { panelMethods = methods; return { new() { return {}; } }; } };
@@ -141,36 +143,42 @@ test("408 页绑定按钮读取当前网页地址并关联当前父节点", () =
     currentContentPage: "408",
     webView: { evaluateJavaScript(script, callback) { callback("https://www.408os.cn/exercise?year=2026&questionId=800"); } },
   };
-  panelMethods.bindCurrentCategory();
+  const allowed = panelMethods.webViewShouldStartLoadWithRequestNavigationType(context.self.webView, {
+    URL: { absoluteString: "daguanyuanbridge://bind-category" },
+  });
+  assert.equal(allowed, false);
   const binding = context.__DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__.binding408ForSource({ notebookId: "notebook-1", parentNoteId: "paper-2026" });
   assert.equal(binding.targetURL, "https://www.408os.cn/exercise?year=2026");
   assert.match(message, /已绑定：2026/);
 });
 
-test("题型导航开关同时控制数学和 408 页的绑定按钮", () => {
+test("题型导航开关控制网页内绑定按钮", () => {
   let panelMethods;
   const defaults = {};
+  const injected = [];
   const context = {
     JSB: { defineClass(name, methods) { panelMethods = methods; return { new() { return {}; } }; } },
     NSUserDefaults: { standardUserDefaults() { return {
       objectForKey(key) { return defaults[key]; },
       setObjectForKey(value, key) { defaults[key] = value; },
     }; } },
+    __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__: { bindCategoryScript(enabled) { return enabled ? "bind-on" : "bind-off"; } },
     Number, String, Array, Object, JSON, Math, RegExp, Error, console,
   };
   vm.createContext(context);
   vm.runInContext(panelSource, context);
   const controller = {
-    activePage: "408", webView: {}, settingsPage: {}, categoryManagerPage: {},
-    bindCategoryButton: {}, bindCategorySwitch: {},
+    activePage: "408",
+    webView: { evaluateJavaScript(script, callback) { injected.push(script); callback(true, null); } },
+    settingsPage: {}, categoryManagerPage: {}, bindCategorySwitch: {},
   };
   context.self = controller;
   panelMethods.toggleBindCategoryDisplay({ on: false });
-  assert.equal(controller.bindCategoryButton.hidden, true);
+  assert.equal(injected.at(-1), "bind-off");
   assert.equal(controller.bindCategorySwitch.on, false);
   controller.activePage = "math";
   panelMethods.toggleBindCategoryDisplay({ on: true });
-  assert.equal(controller.bindCategoryButton.hidden, false);
+  assert.equal(injected.at(-1), "bind-on");
   assert.equal(controller.bindCategorySwitch.on, true);
 });
 
@@ -182,17 +190,16 @@ test("从大观园实时地址优先读取选中分类 ID", () => {
   assert.equal(routes.categoryIdFromURL("https://www.cxyonly.fans/math"), 0);
 });
 
-test("大观园页使用原生绑定按钮，题型绑定不依赖独立网页", () => {
-  assert.match(panelSource, /bindCategoryButton/);
-  assert.match(panelSource, /button\("绑定当前分类", controller, "bindCurrentCategory:"\)/);
-  assert.match(panelSource, /x: Math\.min\(368, Math\.max\(20, bounds\.width - 132\)\)/);
+test("分类绑定由网页内按钮触发，保留原有绑定逻辑", () => {
+  assert.doesNotMatch(panelSource, /controller\.bindCategoryButton/);
+  assert.match(mainSource, /JSB\.require\("DaguanyuanWebsiteBridge"\)/);
+  assert.match(panelSource, /bind-category/);
   assert.match(panelSource, /bindCurrentCategory: function/);
   assert.match(panelSource, /evaluateJavaScript\("String\(window\.location\.href \|\| ''\)"/);
   assert.match(panelSource, /clearCategoryBindings: function/);
   assert.doesNotMatch(panelSource, /mappingWebView/);
-  assert.doesNotMatch(mainSource, /DaguanyuanCategoryMappingPage|WebBridgeCommands/);
+  assert.doesNotMatch(mainSource, /DaguanyuanCategoryMappingPage/);
   assert.equal(existsSync(new URL("../src/DaguanyuanCategoryMappingPage.js", import.meta.url)), false);
-  assert.equal(existsSync(new URL("../src/WebBridgeCommands.js", import.meta.url)), false);
 });
 
 test("跳转优先读取当前父节点绑定，失败时保留数学页供用户手动选择", () => {

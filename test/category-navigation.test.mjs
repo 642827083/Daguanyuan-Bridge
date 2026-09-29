@@ -72,39 +72,136 @@ test("题目定位根据同级序号生成分页地址和页内位置", () => {
   assert.equal(routes.questionRouteFor(result, 0), undefined);
 });
 
-test("无限列表加载下一批题目后滚动到第 38 题", () => {
-  const script = panelTools().questionLocatorScript({ questionId: 3525, questionNumber: 38 });
+function runQuestionLocator(route, initialCount, totalCount = initialCount) {
+  const script = panelTools().questionLocatorScript(route);
   const scheduled = [];
   const attributes = {};
+  const listeners = {};
+  const scrolled = [];
+  let count = initialCount;
   let loadMoreClicks = 0;
-  let scrolled = false;
-  const target = {
-    scrollIntoView(options) {
-      scrolled = options && options.block === "start";
-    },
+  const rows = Array.from({ length: totalCount }, (_, index) => ({
+    scrollIntoView() { scrolled.push(index + 1); },
+  }));
+  const scroller = {
+    scrollTop: 0, scrollHeight: 1200, clientHeight: 400,
+    dispatchEvent() { count = Math.min(totalCount, count + 20); },
   };
   const loadMore = {
     disabled: false,
     textContent: "加载更多题目",
-    click() { loadMoreClicks += 1; },
+    click() { loadMoreClicks += 1; count = Math.min(totalCount, count + 20); },
   };
   const context = {
     document: {
-      documentElement: { setAttribute(name, value) { attributes[name] = value; } },
+      documentElement: {
+        setAttribute(name, value) { attributes[name] = value; },
+        addEventListener(name, listener) { listeners[name] = listener; },
+      },
       querySelector(selector) {
-        if (selector === '[data-learning-question-id="3525"]' && loadMoreClicks >= 1) return target;
+        if (selector === '[class*="practiceScroll"]') return route.lazy ? scroller : null;
+        if (selector === ".learning-shell__scope-toggle[data-scope]") {
+          return { getAttribute() { return route.actualScope || route.scope; } };
+        }
         return null;
       },
-      querySelectorAll(selector) { return selector === "button" ? [loadMore] : []; },
+      querySelectorAll(selector) {
+        if (selector === "[data-learning-question-id]") return rows.slice(0, count);
+        if (selector === "button") return !route.lazy && count < totalCount ? [loadMore] : [];
+        return [];
+      },
     },
-    window: { setTimeout(callback) { scheduled.push(callback); } },
-    Number, String, Array, Object, Math, RegExp,
+    window: { setTimeout(callback) { scheduled.push(callback); }, localStorage: { getItem() { return route.scope; } } },
+    Event: function () {}, Number, String, Array, Object, Math, RegExp,
   };
   vm.runInNewContext(script, context);
-  while (scheduled.length && !scrolled) scheduled.shift()();
-  assert.equal(loadMoreClicks, 1);
-  assert.equal(scrolled, true);
-  assert.equal(attributes["data-daguanyuan-bridge-question-locator"], "success:38");
+  return {
+    attributes, listeners, scrolled, scheduled, scroller,
+    get loadMoreClicks() { return loadMoreClicks; },
+    flush() { for (let attempt = 0; scheduled.length && attempt < 100; attempt += 1) scheduled.shift()(); },
+  };
+}
+
+test("严选分类的第 2 张题卡直接定位严选列表第 2 题", () => {
+  const result = runQuestionLocator({ questionNumber: 2, scope: "core" }, 3);
+  assert.deepEqual(result.scrolled, [2]);
+  assert.equal(result.loadMoreClicks, 0);
+  assert.equal(result.scheduled.length, 0);
+  assert.equal(result.attributes["data-daguanyuan-bridge-question-locator"], "success:2");
+});
+
+test("完整题库仍按当前分类的题卡序号直接定位", () => {
+  const result = runQuestionLocator({ questionNumber: 2, scope: "complete" }, 3);
+  assert.deepEqual(result.scrolled, [2]);
+  assert.equal(result.loadMoreClicks, 0);
+});
+
+test("只在目标序号尚未加载时加载下一批题目", () => {
+  const result = runQuestionLocator({ questionNumber: 38, scope: "core" }, 20, 40);
+  result.flush();
+  assert.equal(result.loadMoreClicks, 1);
+  assert.deepEqual(result.scrolled, [38]);
+  assert.equal(result.attributes["data-daguanyuan-bridge-question-locator"], "success:38");
+});
+
+test("无加载更多按钮时只为未加载的目标题目触发一次列表加载", () => {
+  const result = runQuestionLocator({ questionNumber: 38, scope: "core", lazy: true }, 20, 40);
+  result.flush();
+  assert.equal(result.scroller.scrollTop, 800);
+  assert.deepEqual(result.scrolled, [38]);
+  assert.equal(result.attributes["data-daguanyuan-bridge-question-locator"], "success:38");
+});
+
+test("当前范围题目不足时停止，不持续向下滚动", () => {
+  const result = runQuestionLocator({ questionNumber: 7, scope: "core" }, 3);
+  result.flush();
+  assert.deepEqual(result.scrolled, []);
+  assert.equal(result.loadMoreClicks, 0);
+  assert.equal(result.attributes["data-daguanyuan-bridge-question-locator"], "failed:7");
+});
+
+test("题库范围与点击时不一致时不误定位另一范围同序号题目", () => {
+  const result = runQuestionLocator({ questionNumber: 2, scope: "core", actualScope: "complete" }, 3);
+  result.flush();
+  assert.deepEqual(result.scrolled, []);
+  assert.equal(result.attributes["data-daguanyuan-bridge-question-locator"], "failed:2");
+});
+
+test("用户手动触摸列表后停止待完成的定位", () => {
+  const result = runQuestionLocator({ questionNumber: 38, scope: "core" }, 20, 40);
+  result.listeners.touchstart();
+  result.flush();
+  assert.deepEqual(result.scrolled, []);
+  assert.equal(result.attributes["data-daguanyuan-bridge-question-locator"], "cancelled:38");
+});
+
+test("定位前读取网页当前严选范围，拒绝从其他网站猜测题库范围", () => {
+  const context = {
+    JSB: { defineClass() { return { new() { return {}; } }; } },
+    __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__: { importContextScript() { return "read-scope"; } },
+    __DAGUANYUAN_MATH_API_GLOBAL__: {
+      questionScope(value) { if (!["complete", "core", "exam"].includes(value)) throw new Error("范围无效"); return value; },
+    },
+    Number, String, Array, Object, JSON, Math, RegExp, Error, console,
+  };
+  vm.createContext(context);
+  vm.runInContext(panelSource, context);
+  const panel = context.__DAGUANYUAN_WEB_PANEL_GLOBAL__;
+  let currentURL = "https://www.cxyonly.fans/math/practice/321";
+  const controller = {
+    currentContentPage: "math",
+    webView: { evaluateJavaScript(script, completion) {
+      assert.equal(script, "read-scope");
+      completion(JSON.stringify({ url: currentURL, scope: "core" }), null);
+    } },
+  };
+  let received;
+  panel.currentQuestionScope(controller, (error, scope) => { received = { error, scope }; });
+  assert.equal(received.error, null);
+  assert.equal(received.scope, "core");
+  currentURL = "https://www.408os.cn/exercise?year=2026";
+  panel.currentQuestionScope(controller, (error, scope) => { received = { error, scope }; });
+  assert.match(received.error.message, /请先在数学题库/);
 });
 
 test("原生网络层在打开网页前取得第 38 题的真实 ID", () => {
@@ -211,14 +308,14 @@ test("题目导航提供定位开关并复用题型绑定和同级进度", () =>
   assert.match(addonSource, /locateQuestion: function/);
   assert.match(addonSource, /bindingForSource\(source\)/);
   assert.match(addonSource, /questionRouteFor\(result, context\.progress\.index\)/);
-  assert.match(addonSource, /__DAGUANYUAN_QUESTION_RESOLVER_GLOBAL__\.resolve\(route/);
+  assert.doesNotMatch(addonSource, /__DAGUANYUAN_QUESTION_RESOLVER_GLOBAL__\.resolve\(route/);
   assert.match(panelSource, /openDaguanyuanQuestion\(controller, route\)/);
   assert.match(panelSource, /questionLocatorScript/);
   assert.match(panelSource, /加载更多题目/);
   assert.ok(mainSource.indexOf('JSB.require("DaguanyuanQuestionResolver")') < mainSource.indexOf('JSB.require("WebAddon")'));
 });
 
-test("点击定位题目时先解析真实题目 ID 再打开分类页面", () => {
+test("普通题卡按已绑定分类和同级序号打开数学页面", () => {
   let openedRoute;
   const context = {
     JSB: {
@@ -249,14 +346,6 @@ test("点击定位题目时先解析真实题目 ID 再打开分类页面", () =
         };
       },
     },
-    __DAGUANYUAN_QUESTION_RESOLVER_GLOBAL__: {
-      resolve(route, completion) {
-        completion(null, {
-          ...route,
-          questionId: 3525,
-        });
-      },
-    },
     __DAGUANYUAN_WEB_PANEL_GLOBAL__: {
       openDaguanyuanQuestion(controller, route) { openedRoute = route; },
     },
@@ -267,7 +356,8 @@ test("点击定位题目时先解析真实题目 ID 再打开分类页面", () =
   vm.runInContext(addonSource, context);
   const addon = context.createDaguanyuanBridgeAddon();
   addon.locateQuestion();
-  assert.equal(openedRoute.questionId, 3525);
+  assert.equal(openedRoute.questionNumber, 38);
+  assert.equal(openedRoute.questionId, undefined);
   assert.equal(openedRoute.url, "https://www.cxyonly.fans/math/practice/321?resumeCategoryId=704");
 });
 

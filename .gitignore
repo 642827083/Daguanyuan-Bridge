@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.mnaddon
+.DS_Store
+*.gitignore.tmp
+marginpkg/
+AGENTS.md
+Daguanyuan Bridge * 社区介绍.md

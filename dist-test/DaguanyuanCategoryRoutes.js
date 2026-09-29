@@ -128,6 +128,7 @@ var __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = (function () {
       const path = pathFor(record).map(function (item) { return item.name; });
       return {
         id: record.id,
+        parentId: record.parentId,
         name: record.name,
         path,
         searchText: path.join(" / ").toLowerCase(),

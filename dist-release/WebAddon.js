@@ -4,7 +4,6 @@ function createDaguanyuanBridgeAddon() {
       self.focusNavigationEnabled = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.enabled();
       self.__daguanyuanFocusNextRememberToken = 0;
       self.__daguanyuanFocusNextPlaceToken = 0;
-      self.__daguanyuanQuestionLocatorToken = 0;
       self.panelController = __DAGUANYUAN_WEB_PANEL_GLOBAL__.createController(self);
       console.log("[Daguanyuan Bridge] 插件已初始化");
     },
@@ -12,7 +11,6 @@ function createDaguanyuanBridgeAddon() {
     sceneDidDisconnect: function () {
       self.__daguanyuanFocusNextRememberToken += 1;
       self.__daguanyuanFocusNextPlaceToken += 1;
-      self.__daguanyuanQuestionLocatorToken += 1;
       __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.remove(self);
       self.focusNavigationEnabled = false;
       if (self.panelController && self.panelController.view && self.panelController.view.superview) {
@@ -28,6 +26,9 @@ function createDaguanyuanBridgeAddon() {
       if (self.focusNavigationEnabled !== false) __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.show(self);
       else __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.hide(self);
       if (self.focusNavigationEnabled !== false) __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.syncQuestionLocator(self);
+      if (typeof __DAGUANYUAN_WEB_PANEL_GLOBAL__.refreshRetestButtons === "function") {
+        __DAGUANYUAN_WEB_PANEL_GLOBAL__.refreshRetestButtons(self.panelController);
+      }
       if (__DAGUANYUAN_WEB_PANEL_GLOBAL__.shouldRestorePanel()) {
         __DAGUANYUAN_WEB_PANEL_GLOBAL__.showPanel(self.panelController);
       }
@@ -144,6 +145,19 @@ function createDaguanyuanBridgeAddon() {
         return;
       }
       try {
+        const focused = typeof __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.currentFocus === "function"
+          ? __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.currentFocus(self) : undefined;
+        const imported = typeof __DAGUANYUAN_MATH_IMPORT_GLOBAL__ !== "undefined" && focused
+          ? __DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionForNote(focused) : null;
+        if (imported && imported.url) {
+          __DAGUANYUAN_WEB_PANEL_GLOBAL__.openDaguanyuanQuestion(self.panelController, {
+            url: imported.url,
+            questionId: imported.id,
+            questionNumber: 0,
+            imported: true,
+          });
+          return;
+        }
         const context = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.currentQuestionContext(self);
         const source = context.source;
         const binding408 = __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__.binding408ForSource(source);
@@ -169,19 +183,7 @@ function createDaguanyuanBridgeAddon() {
         }
         const route = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.questionRouteFor(result, context.progress.index);
         if (!route) throw new Error("无法生成对应题目的大观园地址");
-        const token = Number(self.__daguanyuanQuestionLocatorToken || 0) + 1;
-        self.__daguanyuanQuestionLocatorToken = token;
-        __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.showMessage(self, `正在读取第 ${route.questionNumber} 题`);
-        __DAGUANYUAN_QUESTION_RESOLVER_GLOBAL__.resolve(route, function (resolveError, resolvedRoute) {
-          if (token !== self.__daguanyuanQuestionLocatorToken) return;
-          if (resolveError) {
-            const message = resolveError && resolveError.message ? resolveError.message : String(resolveError);
-            __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.showMessage(self, message);
-            console.log(`[Daguanyuan Bridge Question Locator] 读取题目失败：${message}`);
-            return;
-          }
-          __DAGUANYUAN_WEB_PANEL_GLOBAL__.openDaguanyuanQuestion(self.panelController, resolvedRoute);
-        });
+        __DAGUANYUAN_WEB_PANEL_GLOBAL__.openDaguanyuanQuestion(self.panelController, route);
       }
       catch (error) {
         const message = error && error.message ? error.message : String(error);

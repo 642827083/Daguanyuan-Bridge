@@ -5,6 +5,7 @@ const { execFileSync } = require("child_process");
 const rootDir = path.join(__dirname, "..");
 const srcDir = path.join(rootDir, "src");
 const packageJson = JSON.parse(fs.readFileSync(path.join(rootDir, "package.json"), "utf8"));
+const packageLock = JSON.parse(fs.readFileSync(path.join(rootDir, "package-lock.json"), "utf8"));
 const version = packageJson.version;
 const stageDir = path.join(rootDir, "dist-release");
 const outputPath = path.join(rootDir, `Daguanyuan Bridge-v${version}.mnaddon`);
@@ -22,6 +23,9 @@ function copyDirectory(source, destination) {
 
 if (fs.existsSync(outputPath)) {
   throw new Error(`正式包已存在，拒绝覆盖：${path.basename(outputPath)}`);
+}
+if (version !== packageLock.version || version !== packageLock.packages[""].version) {
+  throw new Error("package.json 与 package-lock.json 版本不一致");
 }
 
 if (fs.existsSync(stageDir)) fs.rmSync(stageDir, { recursive: true, force: true });
