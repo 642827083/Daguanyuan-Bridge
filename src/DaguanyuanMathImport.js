@@ -38,6 +38,13 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
 
   function linkedQuestion(note) {
     const body = commentBody(note);
+    const os408 = body.match(/<!--\s*DAGUANYUAN_408_QUESTION_ID:(\d+)\s*-->/);
+    if (os408) {
+      const id = Number(os408[1]);
+      const address = body.match(/<!--\s*DAGUANYUAN_408_URL:(https:\/\/www\.408os\.cn\/exercise\?[^\s<>]+)\s*-->/);
+      return Number.isSafeInteger(id) && id > 0
+        ? { id, provider: "408", url: address ? address[1] : "", noteId: noteId(note) } : null;
+    }
     const idMatch = body.match(/<!--\s*DAGUANYUAN_QUESTION_ID:(\d+)\s*-->/);
     if (!idMatch) return null;
     const id = Number(idMatch[1]);
@@ -62,7 +69,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
     return { application, study, notebookController, database, notebook, document, topicId };
   }
 
-  function indexForContext(context) {
+  function indexForContext(context, provider) {
     const byQuestion = {};
     const byNote = {};
     const visited = {};
@@ -71,7 +78,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
       if (id && visited[id]) return;
       if (id) visited[id] = true;
       const link = linkedQuestion(note);
-      if (link && !byQuestion[link.id]) {
+      if (link && (link.provider || "math") === (provider || "math") && !byQuestion[link.id]) {
         byQuestion[link.id] = note;
         if (id) byNote[id] = link;
       }
@@ -90,6 +97,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
   function questionForNote(note) {
     const link = linkedQuestion(note);
     if (!link) return null;
+    if (link.provider === "408") return link;
     const path = [];
     const visited = {};
     let parent = value(note, "parentNote");
@@ -186,15 +194,15 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
     }).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   }
 
-  function questionMarkdown(question, url) {
+  function questionMarkdown(question, url, provider) {
     const stem = normalizeDisplayMath(normalizeInlineMath(question.stem));
     if (!stem) throw new Error("题目缺少题干");
     const options = (question.options || []).map(function (option, index) {
       return option ? normalizeDisplayMath(`${"ABCD"[index]}. ${normalizeInlineMath(option)}`) : "";
     }).filter(Boolean);
     return [stem].concat(options).concat([
-      marker(`${QUESTION_PREFIX}${question.id}`),
-      marker(`${URL_PREFIX}${url}`),
+        marker(`${provider === "408" ? "DAGUANYUAN_408_QUESTION_ID:" : QUESTION_PREFIX}${question.id}`),
+        marker(`${provider === "408" ? "DAGUANYUAN_408_URL:" : URL_PREFIX}${url}`),
     ]).join("\n\n");
   }
 
@@ -212,6 +220,63 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
       seen[id] = true;
       return id;
     });
+  }
+
+  function saveQuestionImages(note, question) {
+    if (!question.hasBase64Image) return;
+    const before = commentBody(note);
+    const diagnostics = {
+      imageCount: (before.match(/data:image\/[^\s)]+;base64,/gi) || []).length,
+      base64Chars: (before.match(/data:image\/[^\s)]+/gi) || []).reduce(function (size, item) { return size + item.length; }, 0),
+      processorAvailable: typeof note.processMarkdownBase64Images === "function",
+    };
+    const mediaBefore = String(value(note, "mediaList") || "");
+    try {
+      if (!diagnostics.processorAvailable) throw new Error("当前 MarginNote 未提供题目图片保存接口");
+      const processed = note.processMarkdownBase64Images();
+      diagnostics.processorResult = `${String(processed)}（${typeof processed}）`;
+      diagnostics.remainingImages = (commentBody(note).match(/data:image\/[^\s)]+;base64,/gi) || []).length;
+      diagnostics.mediaChanged = String(value(note, "mediaList") || "") !== mediaBefore;
+      if (processed !== true || diagnostics.remainingImages) throw new Error("MarginNote 未能完整保存题目图片");
+    } catch (failure) {
+      const error = new Error(String(failure && failure.message || failure));
+      error.stage = "MarginNote 保存图片";
+      error.diagnostics = diagnostics;
+      throw error;
+    }
+  }
+
+  function prepared408Session(addon) {
+    const context = notebookContext(addon, true);
+    const index = indexForContext(context, "408");
+    return {
+      hasQuestion: function (id) { return Boolean(index.byQuestion[id]); },
+      write: function (question, category) {
+        const id = __DAGUANYUAN_MATH_API_GLOBAL__.positiveInteger(question && question.id, "题目 ID");
+        if (index.byQuestion[id]) return false;
+        if (!category || !category.title || !/^https:\/\/www\.408os\.cn\/exercise\?/.test(category.url)) {
+          throw new Error("408 分类信息无效");
+        }
+        const url = `${category.url}&questionId=${id}`;
+        let note;
+        UndoManager.sharedInstance().undoGrouping("导入 408 题目", context.topicId, function () {
+          try {
+            const markdown = questionMarkdown(question, url, "408");
+            const parent = findOrCreatePath(findRoot(context), ["408", category.title], context);
+            note = createNote(titleFor(question), context);
+            note.appendMarkdownComment(markdown);
+            parent.addChild(note);
+            saveQuestionImages(note, question);
+            index.byQuestion[id] = note;
+          } catch (error) {
+            if (note && noteId(note)) context.database.deleteBookNoteTree(noteId(note));
+            throw error;
+          }
+        });
+        context.application.refreshAfterDBChanged(context.topicId);
+        return true;
+      },
+    };
   }
 
   function importQuestions(addon, rawIds, onProgress, categoryIdsByQuestion, existingContext, existingIndex) {
@@ -261,14 +326,13 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
               note = createNote(titleFor(question), context);
               note.appendMarkdownComment(questionMarkdown(question, url));
               parent.addChild(note);
-              if (question.hasBase64Image && note.processMarkdownBase64Images() !== true) {
-                throw new Error("MarginNote 未能保存题目图片");
-              }
+              saveQuestionImages(note, question);
               index.byQuestion[question.id] = note;
               result.createdCount += 1;
             } catch (error) {
               if (note && noteId(note)) context.database.deleteBookNoteTree(noteId(note));
-              result.failed.push({ questionId: question.id, reason: String(error && error.message || error) });
+              result.failed.push({ questionId: question.id, source: titleFor(question), stage: error.stage || "MarginNote 建卡",
+                diagnostics: error.diagnostics, reason: String(error && error.message || error) });
             }
             written += 1;
             report({ phase: "writing", processed: written, total: ready.length, created: result.createdCount,
@@ -329,5 +393,5 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
     });
   }
 
-  return { importedQuestionIds, questionForNote, focusQuestion, importCategory, linkedQuestion, questionMarkdown };
+  return { importedQuestionIds, questionForNote, focusQuestion, importCategory, linkedQuestion, questionMarkdown, prepared408Session };
 })();

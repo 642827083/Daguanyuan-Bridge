@@ -276,7 +276,7 @@ test("数学分类导入按钮在绑定按钮右侧，两个开关独立", () =>
   vm.runInContext(bridge.bindCategoryScript(true, true), page.context);
   page.runSync();
   let toolbar = page.main.querySelector("[data-daguanyuan-bind-category-wrap]");
-  assert.deepEqual(toolbar.children.map((item) => item.textContent), ["绑定当前分类", "导入分类题目"]);
+  assert.deepEqual(toolbar.children.map((item) => item.textContent), ["绑定当前分类", "导入当前题目"]);
   assert.equal(toolbar.children[0].style.cssText, toolbar.children[1].style.cssText);
   const importButton = toolbar.children[1];
   importButton.handlers.click.call(importButton, { preventDefault() {}, stopPropagation() {} });
@@ -289,7 +289,7 @@ test("数学分类导入按钮在绑定按钮右侧，两个开关独立", () =>
   vm.runInContext(bridge.bindCategoryScript(false, true), page.context);
   page.runSync();
   toolbar = page.main.querySelector("[data-daguanyuan-bind-category-wrap]");
-  assert.deepEqual(toolbar.children.map((item) => item.textContent), ["导入分类题目"]);
+  assert.deepEqual(toolbar.children.map((item) => item.textContent), ["导入当前题目"]);
   vm.runInContext(bridge.bindCategoryScript(true, false), page.context);
   page.runSync();
   assert.deepEqual(toolbar.children.map((item) => item.textContent), ["绑定当前分类"]);
@@ -319,13 +319,40 @@ test("分类导入在侧栏收起时读取网站保存的严选范围", () => {
   assert.equal(JSON.parse(vm.runInContext(bridge.importContextScript(), context)).scope, "");
 });
 
-test("408 页面不显示数学分类导入按钮", () => {
+test("408 年份页在模式图标右侧显示导入按钮，样式与数学一致", () => {
   const page = browser("www.408os.cn", "/exercise", "?year=2026");
   const bridge = page.context.__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__;
   vm.runInContext(bridge.bindCategoryScript(true, true), page.context);
   page.runSync();
   const toolbar = page.main.querySelector("[data-daguanyuan-bind-category-wrap]");
-  assert.deepEqual(toolbar.children.map((item) => item.textContent), ["绑定当前分类"]);
+  assert.deepEqual(toolbar.children.map((item) => item.textContent), ["绑定当前分类", "导入当前题目"]);
+  assert.equal(toolbar.previousElementSibling, page.modeSwitch);
+  assert.equal(toolbar.parentNode, page.exerciseLeft);
+  assert.equal(toolbar.children[0].style.cssText, toolbar.children[1].style.cssText);
+  const button = toolbar.children[1];
+  button.handlers.click.call(button, { preventDefault() {}, stopPropagation() {} });
+  assert.equal(page.body.children.at(-1).src, "daguanyuanbridge://import-category");
+  assert.equal(button.disabled, true);
+  page.context.window.__DAGUANYUAN_BIND_CATEGORY_BUTTON__.finishImport();
+  page.runSync();
+  assert.equal(button.disabled, false);
+  vm.runInContext(bridge.bindCategoryScript(false, false), page.context);
+  page.runSync();
+  assert.equal(page.main.querySelector("[data-daguanyuan-bind-category-wrap]"), null);
+});
+
+test("408 知识点分类即使没有年份参数也能显示整类导入按钮", () => {
+  const page = browser("www.408os.cn", "/exercise", "?knowledgeId=125&knowledgeName=浮点数");
+  const bridge = page.context.__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__;
+  vm.runInContext(bridge.bindCategoryScript(true, true), page.context);
+  page.runSync();
+  const toolbar = page.main.querySelector("[data-daguanyuan-bind-category-wrap]");
+  assert.deepEqual(toolbar.children.map((item) => item.textContent), ["导入当前题目"]);
+  assert.equal(toolbar.previousElementSibling, page.modeSwitch);
+  assert.equal(toolbar.children[0].title, "导入当前分类的全部题目");
+  vm.runInContext(bridge.bindCategoryScript(true, false), page.context);
+  page.runSync();
+  assert.equal(page.main.querySelector("[data-daguanyuan-bind-category-wrap]"), null);
 });
 
 test("408 总览和数学首页不显示分类绑定按钮", () => {

@@ -89,7 +89,7 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
 
   function bindCategoryPageScript(bindEnabled, importEnabled) {
     var state = window.__DAGUANYUAN_BIND_CATEGORY_BUTTON__;
-    if (state && state.version === 3) {
+    if (state && state.version === 4) {
       state.bindEnabled = bindEnabled;
       state.importEnabled = importEnabled;
       state.schedule();
@@ -99,7 +99,7 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
     if (previous) previous.timer = -1;
     var oldToolbar = document.querySelector("[data-daguanyuan-bind-category-wrap]");
     if (oldToolbar && oldToolbar.parentNode) oldToolbar.parentNode.removeChild(oldToolbar);
-    state = { version: 3, bindEnabled: bindEnabled, importEnabled: importEnabled,
+    state = { version: 4, bindEnabled: bindEnabled, importEnabled: importEnabled,
       importBusy: false, timer: null, schedule: null, finishImport: null, contextStyle: null };
     window.__DAGUANYUAN_BIND_CATEGORY_BUTTON__ = state;
     function restoreContextStyle() {
@@ -116,8 +116,10 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
       var host = window.location.hostname || "";
       var path = window.location.pathname || "";
       var math = /(^|\.)cxyonly\.fans$/i.test(host) && /^\/math\/practice\/\d+(?:\/|$)/.test(path);
-      var os408 = /^www\.408os\.cn$/i.test(host) && path === "/exercise" && /[?&]year=\d{4}(?:[&#]|$)/.test(window.location.search || "");
-      var active = (math && (state.bindEnabled || state.importEnabled)) || (os408 && state.bindEnabled);
+      var os408 = /^www\.408os\.cn$/i.test(host) && /^\/exercise\/?$/.test(path)
+        && /[?&](?:year=\d{4}|knowledgeId=[1-9]\d*)(?:[&#]|$)/.test(window.location.search || "");
+      var canBind = math || os408 && /[?&]year=\d{4}(?:[&#]|$)/.test(window.location.search || "");
+      var active = (math || os408) && (state.importEnabled || state.bindEnabled && canBind);
       var toolbar = document.querySelector("[data-daguanyuan-bind-category-wrap]");
       if (!active) {
         if (toolbar && toolbar.parentNode) toolbar.parentNode.removeChild(toolbar);
@@ -145,7 +147,7 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
         toolbar.setAttribute("data-daguanyuan-bind-category-wrap", "");
       }
       var bindButton = toolbar.querySelector("[data-daguanyuan-bind-category]");
-      if (state.bindEnabled && !bindButton) {
+      if (state.bindEnabled && canBind && !bindButton) {
         bindButton = document.createElement("button");
         bindButton.type = "button";
         bindButton.setAttribute("data-daguanyuan-bind-category", "");
@@ -157,9 +159,12 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
         }, true);
         toolbar.insertBefore(bindButton, toolbar.firstChild);
       }
-      if (!state.bindEnabled && bindButton && bindButton.parentNode) bindButton.parentNode.removeChild(bindButton);
+      if ((!state.bindEnabled || !canBind) && bindButton && bindButton.parentNode) {
+        bindButton.parentNode.removeChild(bindButton);
+        bindButton = null;
+      }
       var importButton = toolbar.querySelector("[data-daguanyuan-import-category]");
-      if (math && state.importEnabled && !importButton) {
+      if (state.importEnabled && !importButton) {
         importButton = document.createElement("button");
         importButton.type = "button";
         importButton.setAttribute("data-daguanyuan-import-category", "");
@@ -173,7 +178,7 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
         }, true);
         toolbar.appendChild(importButton);
       }
-      if ((!math || !state.importEnabled) && importButton && importButton.parentNode) {
+      if (!state.importEnabled && importButton && importButton.parentNode) {
         importButton.parentNode.removeChild(importButton);
         importButton = null;
       }
@@ -181,7 +186,8 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
       if (bindButton) bindButton.style.cssText = buttonStyle;
       if (importButton) {
         importButton.style.cssText = buttonStyle;
-        importButton.textContent = state.importBusy ? "导入中…" : "导入分类题目";
+        importButton.textContent = state.importBusy ? "导入中…" : "导入当前题目";
+        importButton.title = "导入当前分类的全部题目";
         importButton.disabled = state.importBusy;
       }
       toolbar.style.cssText = math

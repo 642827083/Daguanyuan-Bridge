@@ -12,7 +12,8 @@ test("面板移除旧导入页并在题目导航中提供分类导入开关", ()
   assert.match(panelSource, /button\("408", controller, "open408:"\)/);
   assert.match(panelSource, /button\("设置", controller, "openSettings:"\)/);
   assert.doesNotMatch(panelSource, /importWebView|openImport:/);
-  assert.match(panelSource, /显示导入分类题目/);
+  assert.match(panelSource, /显示导入当前题目/);
+  assert.match(panelSource, /在数学与 408 页导入当前分类全部题目/);
   assert.match(panelSource, /toggleCategoryImportDisplay:/);
   assert.match(panelSource, /handleCategoryImport\(self\)/);
 });
@@ -22,6 +23,7 @@ test("入口加载数学取题、建卡和双向定位模块", () => {
   assert.equal(existsSync(new URL("../web/src/main.js", import.meta.url)), false);
   assert.match(mainSource, /JSB\.require\("DaguanyuanMathApi"\)/);
   assert.match(mainSource, /JSB\.require\("DaguanyuanMathImport"\)/);
+  assert.match(mainSource, /JSB\.require\("Daguanyuan408Import"\)/);
   assert.match(mainSource, /JSB\.require\("DaguanyuanRetestBridge"\)/);
   assert.match(mainSource, /JSB\.require\("DaguanyuanWebsiteBridge"\)/);
   assert.match(panelSource, /injectWebsiteButtons\(self\)/);

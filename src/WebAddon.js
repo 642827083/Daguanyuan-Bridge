@@ -155,6 +155,7 @@ function createDaguanyuanBridgeAddon() {
             questionId: imported.id,
             questionNumber: 0,
             imported: true,
+            provider: imported.provider,
           });
           return;
         }

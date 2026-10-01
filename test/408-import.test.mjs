@@ -1,0 +1,262 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import vm from "node:vm";
+
+const mathSource = readFileSync(new URL("../src/DaguanyuanMathImport.js", import.meta.url), "utf8");
+const source = readFileSync(new URL("../src/Daguanyuan408Import.js", import.meta.url), "utf8");
+const pageSource = readFileSync(new URL("../src/Daguanyuan408Page.js", import.meta.url), "utf8");
+const addonSource = readFileSync(new URL("../src/WebAddon.js", import.meta.url), "utf8");
+const category = { title: "浮点数的表示与运算", url: "https://www.408os.cn/exercise?knowledgeId=125&knowledgeName=浮点数" };
+
+function runtime(questions, options = {}) {
+  const notebook = { topicId: "topic-1", notes: [] };
+  const notes = new Map();
+  const deleted = [];
+  const scripts = [];
+  let serial = 0;
+  let payload = "";
+  let current = -1;
+  let pageError = "";
+  let cancelled = false;
+  let nativeResource = false;
+  let receivedBase64 = "";
+  const lateCallbacks = [];
+  const context = {
+    console,
+    __DAGUANYUAN_MATH_API_GLOBAL__: { positiveInteger(value) {
+      if (!Number.isSafeInteger(Number(value)) || Number(value) < 1) throw new Error("题目 ID 无效");
+      return Number(value);
+    } },
+    Application: { sharedInstance() { return {
+      studyController() { return { notebookController: { notebookId: "notebook-1" }, readerController: { currentDocumentController: { document: {} } } }; },
+      refreshAfterDBChanged() {},
+    }; } },
+    Database: { sharedInstance() { return {
+      getNotebookById() { return notebook; },
+      deleteBookNoteTree(id) {
+        const note = notes.get(id);
+        if (note.parentNote) note.parentNote.childNotes = note.parentNote.childNotes.filter((item) => item !== note);
+        notebook.notes = notebook.notes.filter((item) => item !== note);
+        deleted.push(id);
+        notes.delete(id);
+      },
+    }; } },
+    Note: { createWithTitleNotebookDocument(title) {
+      const note = {
+        noteId: `note-${++serial}`, noteTitle: title, comments: [], childNotes: [], parentNote: null,
+        appendMarkdownComment(text) { this.comments.push({ text }); },
+        addChild(child) {
+          notebook.notes = notebook.notes.filter((item) => item !== child);
+          child.parentNote = this;
+          this.childNotes.push(child);
+        },
+        processMarkdownBase64Images() {
+          if (options.failImage) return false;
+          if (options.partialImage) return true;
+          this.comments.forEach((comment) => { comment.text = comment.text.replace(/data:image\/[^)\s]+/g, "marginnote-media://saved-image.png"); });
+          this.mediaList = "saved-image.png";
+          return true;
+        },
+      };
+      if (options.noImageProcessor) delete note.processMarkdownBase64Images;
+      notebook.notes.push(note);
+      notes.set(note.noteId, note);
+      return note;
+    } },
+    UndoManager: { sharedInstance() { return { undoGrouping(label, topic, action) { action(); } }; } },
+    NSTimer: { scheduledTimerWithTimeInterval(delay, repeat, callback) {
+      let active = true;
+      const timer = { invalidate() { active = false; } };
+      const fire = () => { if (active) callback(timer); };
+      if (delay < 5) queueMicrotask(fire);
+      else if (options.fireWatchdogs) setImmediate(fire);
+      return timer;
+    } },
+    NSURL: { URLWithString(url) { return url; } },
+    NSMutableURLRequest: { requestWithURL(url) { return { url, setHTTPMethod() {}, setTimeoutInterval() {} }; } },
+    NSOperationQueue: { mainQueue() { return {}; } },
+    NSURLConnection: { sendAsynchronousRequestQueueCompletionHandler(request, queue, completion) {
+      assert.equal(request.url, "https://oss.408os.cn/diagram.png");
+      if (options.imageNoCallback) return;
+      completion({ statusCode: options.imageStatus || 200, allHeaderFields: { "Content-Type": "image/png" } },
+        { length: 12, base64Encoding() { return "iVBORw0KGgo="; } }, null);
+    } },
+  };
+  vm.createContext(context);
+  vm.runInContext(mathSource, context);
+  vm.runInContext(pageSource, context);
+  vm.runInContext(source, context);
+  const page = {
+    read() {
+      if (options.switched && current === 1) return JSON.stringify({ error: "当前 408 分类已切换，导入停止" });
+      return JSON.stringify({ error: pageError, ready: !nativeResource, length: payload.length,
+        resource: nativeResource ? "https://oss.408os.cn/diagram.png" : "" });
+    },
+    chunk(key, offset) { return payload.slice(offset, offset + 65536); },
+    prepare(key, index) {
+      current = index;
+      pageError = options.badQuestion === index ? "图片读取失败" : "";
+      payload = JSON.stringify({ question: questions[index] });
+      nativeResource = Boolean(options.crossOrigin);
+      return true;
+    },
+    resourceStart(key, type) { assert.equal(type, "image/png"); return true; },
+    resourceAppend(key, chunk) { receivedBase64 += chunk; return true; },
+    resourceFinish(key, error) { nativeResource = false; pageError = error || ""; return true; },
+    cancel() { cancelled = true; return true; },
+  };
+  context.window = { __DAGUANYUAN_408_IMPORT_PAGE__: page };
+  const controller = { addon: { window: {} }, webView: { evaluateJavaScript(script, callback) {
+    scripts.push(script);
+    const stall = options.stall === "start" && script.startsWith("String((function pageReceiver")
+      || options.stall === "read" && script.includes(".read(")
+      || options.stall === "chunk" && script.includes(".chunk(")
+      || options.stall === "cancel" && script.includes(".cancel(");
+    if (stall) { lateCallbacks.push(() => callback("true")); return; }
+    if (script.startsWith("String((function pageReceiver")) {
+      payload = JSON.stringify({ category, ids: questions.map((question) => question.id) });
+      callback(options.foreignPage ? "false" : "true");
+    } else {
+      try { callback(vm.runInContext(script, context)); } catch (error) { callback(null, error); }
+    }
+  } } };
+  return { context, controller, notes, notebook, deleted, scripts, page, options, lateCallbacks,
+    get cancelled() { return cancelled; }, get receivedBase64() { return receivedBase64; },
+    importer: context.__DAGUANYUAN_408_IMPORT_GLOBAL__, writer: context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__ };
+}
+
+test("408 导入整类所有题目，来源与数学 ID 独立，重复导入跳过", async () => {
+  const questions = Array.from({ length: 48 }, (_, i) => ({ id: i + 1, source: `2009年 第${i + 1}题`, stem: `题干 ${i + 1}`, options: ["选项甲", "选项乙"] }));
+  const run = runtime(questions);
+  const mathNote = run.context.Note.createWithTitleNotebookDocument("数学题");
+  mathNote.appendMarkdownComment("<!-- DAGUANYUAN_QUESTION_ID:1 -->");
+  const result = await run.importer.importCategory(run.controller);
+  assert.equal(result.total, 48);
+  assert.equal(result.createdCount, 48);
+  assert.equal(result.failed.length, 0);
+  const topic = [...run.notes.values()].find((note) => note.noteTitle === category.title);
+  assert.equal(topic.childNotes.length, 48);
+  assert.equal(topic.parentNote.noteTitle, "408");
+  const text = topic.childNotes[0].comments[0].text;
+  assert.match(text, /A\. 选项甲\n\nB\. 选项乙/);
+  assert.match(text, /DAGUANYUAN_408_QUESTION_ID:1/);
+  const link = run.writer.questionForNote(topic.childNotes[0]);
+  assert.equal(link.provider, "408");
+  assert.match(link.url, /knowledgeId=125.*questionId=1/);
+  assert.deepEqual(Array.from(run.writer.importedQuestionIds(run.controller.addon)), [1]);
+  const again = await run.importer.importCategory(run.controller);
+  assert.equal(again.createdCount, 0);
+  assert.equal(again.skippedCount, 48);
+  assert.equal(run.cancelled, true);
+});
+
+test("带大图片的 408 题目分块读取并保存为卡片媒体", async () => {
+  const run = runtime([{ id: 13, stem: `题干 ![图](data:image/png;base64,${"A".repeat(180000)})`, options: ["甲"], hasBase64Image: true }]);
+  const result = await run.importer.importCategory(run.controller);
+  assert.equal(result.createdCount, 1);
+  const note = [...run.notes.values()].find((note) => /DAGUANYUAN_408_QUESTION_ID/.test(note.comments[0]?.text));
+  assert.match(note.comments[0].text, /marginnote-media:\/\/saved-image/);
+  assert.doesNotMatch(note.comments[0].text, /data:image/);
+  assert.ok(run.scripts.filter((script) => script.includes(".chunk(")).length >= 4);
+});
+
+test("图片未保存或只保存部分时清理题卡，重试后能正常导入", async () => {
+  for (const setting of ["failImage", "partialImage"]) {
+    const run = runtime([{ id: 13, stem: "![图](data:image/png;base64,AQID)", options: [], hasBase64Image: true }], { [setting]: true });
+    const result = await run.importer.importCategory(run.controller);
+    assert.equal(result.createdCount, 0);
+    assert.equal(result.failed.length, 1);
+    assert.match(result.failed[0].reason, /完整保存题目图片/);
+    assert.equal(result.failed[0].stage, "MarginNote 保存图片");
+    assert.equal(result.failed[0].diagnostics.imageCount, 1);
+    assert.equal(result.failed[0].diagnostics.remainingImages, 1);
+    assert.equal(run.deleted.length, 1);
+    run.options[setting] = false;
+    assert.equal((await run.importer.importCategory(run.controller)).createdCount, 1);
+  }
+});
+
+test("宿主未提供图片保存接口时保留题号和诊断信息，不暴露图片数据", async () => {
+  const run = runtime([{ id: 44, source: "2026年 第44题", stem: "![图](data:image/png;base64,AQID)", options: [], hasBase64Image: true }], { noImageProcessor: true });
+  const result = await run.importer.importCategory(run.controller);
+  assert.equal(result.failed[0].source, "2026年 第44题");
+  assert.equal(result.failed[0].stage, "MarginNote 保存图片");
+  assert.equal(result.failed[0].diagnostics.processorAvailable, false);
+  assert.doesNotMatch(JSON.stringify(result.failed), /AQID|data:image/);
+  assert.equal(run.deleted.length, 1);
+});
+
+test("一题图片读取失败不影响整类后续题目，失败项可再次导入", async () => {
+  const run = runtime([{ id: 13, stem: "题干一" }, { id: 14, stem: "题干二" }], { badQuestion: 0 });
+  const progress = [];
+  const result = await run.importer.importCategory(run.controller, (value) => progress.push(value));
+  assert.equal(result.createdCount, 1);
+  assert.equal(result.failed[0].questionId, 13);
+  assert.equal(progress.at(-1).processed, 2);
+  run.options.badQuestion = -1;
+  const retried = await run.importer.importCategory(run.controller);
+  assert.equal(retried.createdCount, 1);
+  assert.equal(retried.skippedCount, 1);
+});
+
+test("跨域图片由原生系统网络下载，失败会计入题目错误", async () => {
+  const run = runtime([{ id: 13, stem: "题图", options: [] }], { crossOrigin: true });
+  assert.equal((await run.importer.importCategory(run.controller)).createdCount, 1);
+  assert.equal(run.receivedBase64, "iVBORw0KGgo=");
+  const failed = runtime([{ id: 13, stem: "题图" }], { crossOrigin: true, imageStatus: 404 });
+  const result = await failed.importer.importCategory(failed.controller);
+  assert.equal(result.createdCount, 0);
+  assert.match(result.failed[0].reason, /跨域题图下载失败：404/);
+});
+
+test("切换分类或不是 408 分类时停止，清理网页传输状态", async () => {
+  const foreign = runtime([{ id: 13, stem: "题干" }], { foreignPage: true });
+  await assert.rejects(foreign.importer.importCategory(foreign.controller), /请先进入 408/);
+  assert.equal(foreign.cancelled, true);
+  const switched = runtime([{ id: 13, stem: "题干一" }, { id: 14, stem: "题干二" }], { switched: true });
+  await assert.rejects(switched.importer.importCategory(switched.controller), /已新建 1 道.*分类已切换/);
+  assert.equal(switched.cancelled, true);
+});
+
+test("网页启动、状态读取或分块回调缺失时限时中断，不继续创建题卡", async () => {
+  for (const stall of ["start", "read", "chunk"]) {
+    const run = runtime([{ id: 13, stem: "题干" }], { stall, fireWatchdogs: true });
+    const outcome = run.importer.importCategory(run.controller);
+    const completed = await Promise.race([outcome.then(() => "success", (error) => error), new Promise((resolve) => setTimeout(() => resolve("never-finished"), 100))]);
+    assert.notEqual(completed, "never-finished", `${stall} 回调丢失时一直显示导入中`);
+    assert.match(completed.message, /网页调用超时/);
+    assert.equal(run.notes.size, 0);
+    run.lateCallbacks.forEach((callback) => callback());
+    assert.equal(run.notes.size, 0);
+  }
+});
+
+test("跨域图片请求不回调时记录超时失败并结束，清理调用不回调也不会阻止返回", async () => {
+  for (const stall of ["image", "cancel"]) {
+    const run = runtime([{ id: 13, stem: "题图" }], { fireWatchdogs: true,
+      crossOrigin: stall === "image", imageNoCallback: stall === "image", stall });
+    const outcome = run.importer.importCategory(run.controller);
+    const completed = await Promise.race([outcome, new Promise((resolve) => setTimeout(() => resolve("never-finished"), 100))]);
+    assert.notEqual(completed, "never-finished", `${stall} 回调丢失时一直显示导入中`);
+    if (stall === "image") assert.match(completed.failed[0].reason, /下载超时/);
+    else assert.equal(completed.createdCount, 1);
+  }
+});
+
+test("408 卡片定位保留 provider，防止进入数学定位流程", () => {
+  let opened;
+  const context = {
+    JSB: { defineClass(name, methods) { return methods; } },
+    __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__: { currentFocus() { return {}; } },
+    __DAGUANYUAN_MATH_IMPORT_GLOBAL__: { questionForNote() { return { id: 13, provider: "408", url: category.url + "&questionId=13" }; } },
+    __DAGUANYUAN_WEB_PANEL_GLOBAL__: { openDaguanyuanQuestion(controller, route) { opened = route; } },
+    console,
+  };
+  vm.createContext(context);
+  vm.runInContext(addonSource, context);
+  context.self = { panelController: {} };
+  context.createDaguanyuanBridgeAddon().locateQuestion();
+  assert.equal(opened.provider, "408");
+  assert.equal(opened.questionId, 13);
+});
