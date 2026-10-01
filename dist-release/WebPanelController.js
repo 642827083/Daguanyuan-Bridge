@@ -1051,6 +1051,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       controller.cardLocationActive = false;
       finishQuestionTool(controller, "finishLocate");
       showMessage(controller, "已定位脑图卡片");
+      performClosePanel(controller);
     }, function (error) {
       controller.questionToolBusy = false;
       controller.cardLocationActive = false;
@@ -1405,7 +1406,9 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
         return false;
       }
       if (webView === self.webView && __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__.handles(address)) {
-        __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__.open(address, function (message) { showMessage(self, message); });
+        const controller = self;
+        const opened = __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__.open(address, function (message) { showMessage(controller, message); });
+        if (opened) performClosePanel(controller);
         return false;
       }
       if (webView === self.webView && /^daguanyuanbridge:\/\/import-category(?:[/?#]|$)/i.test(address)) {

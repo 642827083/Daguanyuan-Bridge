@@ -7,15 +7,21 @@ const target = { provider: '408', year: 2026, number: 44, url: 'https://www.408o
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function runtime(options = {}) {
   let methods, resolve, reject, locateResolve, locateReject;
-  const calls = [], messages = [], scripts = [];
+  const calls = [], messages = [], scripts = [], timers = [];
+  const stored = new Map([['cn.marginnote.daguanyuan-bridge.panel-visible', true]]);
+  const study = { view: { bounds: { x: 0, y: 0, width: 1024, height: 768 },
+    addSubview(view) { view.superview = this; calls.push(['show']); } },
+    refreshAddonCommands() { calls.push(['refresh']); } };
   const context = {
     console, JSB: { defineClass(name, instanceMethods) { methods = instanceMethods; return {}; } },
     NSUserDefaults: { standardUserDefaults() { return { objectForKey(key) {
       if (key.endsWith('add-note-visible')) return options.note !== false;
       if (key.endsWith('website-locate-card-visible')) return options.locate !== false;
-      return false;
-    } }; } },
-    Application: { sharedInstance() { return { showHUD(message) { messages.push(message); } }; } },
+      return stored.get(key) ?? false;
+    }, setObjectForKey(value, key) { stored.set(key, value); } }; } },
+    Application: { sharedInstance() { return { showHUD(message) { messages.push(message); }, studyController() { return study; } }; } },
+    NSTimer: { scheduledTimerWithTimeInterval(interval, repeats, callback) { timers.push(callback); } },
+    __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__: { cancelMode() {} },
     __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__: { handles() { return false; } },
     __DAGUANYUAN_MATH_API_GLOBAL__: { positiveInteger(v) { assert.ok(Number(v) > 0); return Number(v); } },
     __DAGUANYUAN_408_IMPORT_GLOBAL__: { resolveQuestion(controller, t) {
@@ -33,9 +39,13 @@ function runtime(options = {}) {
   };
   vm.createContext(context);
   for (const name of ['DaguanyuanSingleImport', 'WebPanelController']) vm.runInContext(fs.readFileSync(new URL(`../src/${name}.js`, import.meta.url), 'utf8'), context);
-  const panel = { currentContentPage: '408', addon: { window: {} }, webView: { evaluateJavaScript(script, cb) { scripts.push(script); cb(true, null); } } };
+  const panel = { currentContentPage: '408', activePage: '408', panelVisible: true, addon: { window: {} },
+    view: { hidden: false, superview: study.view, removeFromSuperview() { this.superview = null; calls.push(['hide']); } },
+    settingsPage: {}, categoryManagerPage: {},
+    webView: { URL: 'https://www.408os.cn/exercise?year=2026', evaluateJavaScript(script, cb) { scripts.push(script); cb(true, null); },
+      loadRequest() { throw Error('恢复面板不应重新加载网页'); } } };
   context.self = panel;
-  return { panel, calls, messages, scripts,
+  return { panel, calls, messages, scripts, stored, timers, api: context.__DAGUANYUAN_WEB_PANEL_GLOBAL__,
     send(command) { return methods.webViewShouldStartLoadWithRequestNavigationType(panel.webView, { URL: { absoluteString: 'daguanyuanbridge://' + command + '?payload=' + encodeURIComponent(JSON.stringify(target)) } }); },
     complete() { resolve({ ...target, id: 843 }); }, fail() { reject(Error('题目读取失败')); },
     sendMath() { return methods.webViewShouldStartLoadWithRequestNavigationType(panel.webView, { URL: { absoluteString: 'daguanyuanbridge://locate-card?id=3356' } }); },
@@ -51,6 +61,71 @@ test('408 原生工具解析题号后定位专属题卡，查询期间阻止重�
   assert.equal(run.panel.questionToolBusy, false);
   assert.deepEqual(run.calls[1], ['locate', 843, '408']);
   assert.match(run.scripts.at(-1), /finishLocate/); assert.equal(run.messages.at(-1), '已定位脑图卡片');
+});
+
+test('数学和 408 定位成功后才收起面板，重新打开保留原网页及标签页', async () => {
+  for (const provider of ['math', '408']) {
+    const run = runtime({ deferLocate: true });
+    run.panel.currentContentPage = run.panel.activePage = provider;
+    const webView = run.panel.webView, originalURL = webView.URL;
+    if (provider === '408') { run.send('locate-card'); run.complete(); } else run.sendMath();
+    await tick();
+    assert.equal(run.panel.panelVisible, true);
+    assert.equal(run.panel.view.hidden, false);
+    assert.equal(run.calls.some(c => c[0] === 'hide'), false);
+    run.completeLocate(); await tick();
+    assert.equal(run.panel.panelVisible, false);
+    assert.equal(run.panel.view.hidden, true);
+    assert.equal(run.panel.view.superview, null);
+    assert.equal(run.stored.get('cn.marginnote.daguanyuan-bridge.panel-visible'), false);
+    assert.equal(run.calls.filter(c => c[0] === 'hide').length, 1);
+    assert.equal(run.timers.length, 1); run.timers[0]();
+    assert.equal(run.calls.filter(c => c[0] === 'refresh').length, 1);
+    run.api.showPanel(run.panel);
+    assert.equal(run.panel.panelVisible, true);
+    assert.equal(run.panel.view.hidden, false);
+    assert.ok(run.panel.view.superview);
+    assert.equal(run.panel.webView, webView);
+    assert.equal(run.panel.webView.URL, originalURL);
+    assert.equal(run.panel.activePage, provider);
+    assert.equal(run.stored.get('cn.marginnote.daguanyuan-bridge.panel-visible'), true);
+  }
+});
+
+test('未找到题卡、取消或超时时不收起面板，清理锁后可以重试', async () => {
+  for (const provider of ['math', '408']) {
+    for (const reason of ['没有这道题的脑图卡片', '已取消定位', '切换目标学习集超时']) {
+      const run = runtime({ deferLocate: true });
+      if (provider === '408') { run.send('locate-card'); run.complete(); } else run.sendMath();
+      await tick(); run.completeLocate(reason); await tick();
+      assert.equal(run.panel.panelVisible, true);
+      assert.equal(run.panel.view.hidden, false);
+      assert.ok(run.panel.view.superview);
+      assert.equal(run.stored.get('cn.marginnote.daguanyuan-bridge.panel-visible'), true);
+      assert.equal(run.timers.length, 0);
+      assert.equal(run.calls.some(c => c[0] === 'hide'), false);
+      assert.equal(run.messages.at(-1), reason);
+      if (provider === '408') { run.send('locate-card'); run.complete(); } else run.sendMath();
+      await tick(); run.completeLocate(); await tick();
+      assert.equal(run.panel.panelVisible, false);
+    }
+  }
+});
+
+test('408 读取失败、导入锁及添加笔记不收起面板', async () => {
+  const lookup = runtime(); lookup.send('locate-card'); lookup.fail(); await tick();
+  assert.equal(lookup.panel.panelVisible, true); assert.equal(lookup.panel.view.hidden, false);
+  for (const provider of ['math', '408']) {
+    for (const lock of ['categoryImportBusy', 'singleImportBusy', 'questionToolBusy']) {
+      const run = runtime(); run.panel[lock] = true;
+      if (provider === '408') run.send('locate-card'); else run.sendMath();
+      await tick();
+      assert.equal(run.panel.panelVisible, true); assert.equal(run.panel.view.hidden, false);
+      assert.equal(run.calls.some(c => c[0] === 'hide'), false);
+    }
+  }
+  const note = runtime(); note.send('add-note'); note.complete(); await tick();
+  assert.equal(note.panel.panelVisible, true); assert.equal(note.panel.view.hidden, false);
 });
 
 test('408 添加笔记接入自身粘贴模块，独立开关和导入锁生效', async () => {

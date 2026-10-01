@@ -1,19 +1,19 @@
 var __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__ = (function () {
-  function playerURL(bvid, page, start) {
-    const parameters = ["bvid=" + bvid];
+  function videoPageURL(bvid, page, start) {
+    const parameters = [];
     if (page && Number(page) > 0) parameters.push("p=" + Number(page));
     if (start !== undefined && start !== null && start !== "" && Number(start) >= 0) parameters.push("t=" + Number(start));
-    parameters.push("autoplay=1");
-    return "https://player.bilibili.com/player.html?" + parameters.join("&");
+    return "https://www.bilibili.com/video/" + bvid + "/" +
+      (parameters.length ? "?" + parameters.join("&") : "");
   }
 
-  function webPlayerURL(address) {
+  function webVideoPageURL(address) {
     const match = String(address || "").match(/^https:\/\/(?:www\.|m\.)?bilibili\.com\/video\/(BV[0-9A-Za-z]+)\/?(?:\?([^#]*))?(?:#.*)?$/i);
     if (!match) return "";
     const query = match[2] || "";
     const page = query.match(/(?:^|&)p=(\d+)(?:&|$)/);
     const start = query.match(/(?:^|&)t=(\d+(?:\.\d+)?)(?:&|$)/);
-    return playerURL(match[1], page && page[1], start && start[1]);
+    return videoPageURL(match[1], page && page[1], start && start[1]);
   }
 
   function videoURL(address) {
@@ -23,14 +23,14 @@ var __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__ = (function () {
       let decoded;
       try { decoded = decodeURIComponent(request[1]); }
       catch (error) { return ""; }
-      return /^https:\/\/[^\s]+$/i.test(decoded) ? webPlayerURL(decoded) || decoded : "";
+      return /^https:\/\/[^\s]+$/i.test(decoded) ? webVideoPageURL(decoded) || decoded : "";
     }
     const bilibili = value.match(/^bilibili:\/\/video\/(BV[0-9A-Za-z]+)(?:\?([^#]*))?$/i);
     if (!bilibili) return "";
     const query = bilibili[2] || "";
     const page = query.match(/(?:^|&)page=(\d+)(?:&|$)/);
     const start = query.match(/(?:^|&)start_progress=(\d+)(?:&|$)/);
-    return playerURL(bilibili[1], page ? Number(page[1]) + 1 : undefined,
+    return videoPageURL(bilibili[1], page ? Number(page[1]) + 1 : undefined,
       start ? Number(start[1]) / 1000 : undefined);
   }
 
@@ -51,7 +51,8 @@ var __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__ = (function () {
     }
     try {
       const payload = { url };
-      if (/^https:\/\/player\.bilibili\.com\/player\.html\?/i.test(url)) payload.desktop = true;
+      // 完整视频页使用桌面模式，避免进入移动端或嵌入式播放器。
+      if (/^https:\/\/www\.bilibili\.com\/video\/BV[0-9A-Za-z]+\//i.test(url)) payload.desktop = true;
       MNUtil.postNotification("openInBrowser", payload);
       return true;
     } catch (error) {

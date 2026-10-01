@@ -44,6 +44,10 @@ formatRows.push({ question: { id: 3001, year: 2026, questionIndex: 52,
 for (const year of [2024, 2025]) formatRows.push({ question: { id: year, year, questionIndex: 14,
   mdContent: fs.readFileSync(path.join(__dirname, 'fixtures', `408-${year}-14.html`), 'utf8'),
 } });
+// 按截图重建的第 27 题使用实际 KaTeX HTML，验证完整转换不会生成公式图片。
+formatRows.push({ question: { id: 826, year: 2026, questionIndex: 27,
+  mdContent: fs.readFileSync(path.join(__dirname, 'fixtures', '408-2026-27.html'), 'utf8'),
+} });
 const client = String.raw`
 document.querySelector('#run').onclick = async function () {
   const output = document.querySelector('#result');
@@ -64,13 +68,23 @@ document.querySelector('#run').onclick = async function () {
       throw new Error('回归样例超时');
     }
     check(!(await wait()).error, '分类读取成功');
-    for (let index = 0; index < 18; index++) {
+    for (let index = 0; index < 19; index++) {
       state.prepare('rich-test', index);
       const read = await wait();
       if (index === 6) { check(/404/.test(read.error), '坏图明确失败'); continue; }
       if (index === 7) { check(read.error.includes('转换结果为空白'), '空白图不会算作成功'); continue; }
       check(!read.error, '题目 ' + (index + 1) + ' 成功：' + (read.error || ''));
       const question = JSON.parse(state.payload).question;
+      if (index === 18) {
+        check(question.id === 826 && question.source === '2026年 第27题', '第 27 题身份正确');
+        for (const expression of ['R(Q)\\cap W(P)=\\varnothing', 'R(P)\\cap R(Q)=\\varnothing', 'W(P)\\cap W(Q)=\\varnothing', 'R(P)\\cap W(Q)=\\varnothing']) {
+          check(question.stem.includes('$' + expression + '$'), '第 27 题集合条件还原为 LaTeX：' + expression);
+        }
+        check(!question.hasBase64Image && !question.stem.includes('![公式]'), '第 27 题完整转换不使用公式图片');
+        const saved = __DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown(question, location.href, '408');
+        check(saved.startsWith(question.stem + '\n\n') && !saved.includes('data:image'), '第 27 题建卡内容保留 LaTeX');
+        continue;
+      }
       if (index >= 16) {
         check(!question.hasBase64Image && !question.stem.includes('![公式]'), '原题简单公式不转图片：' + question.source);
         check(!question.stem.includes('\n'), '原题行内公式与正文保持同段：' + question.source);

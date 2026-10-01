@@ -23,6 +23,30 @@ test("408 可可靠还原平面 KaTeX 变量、赋值和集合关系", () => {
   assert.equal(recover(span("mspace"), span("strut"), span("mord mathnormal", "G")), "G");
 });
 
+test("408 第 27 题四条交集与空集条件还原为 LaTeX", () => {
+  for (const [left, right] of [['R(Q)', 'W(P)'], ['R(P)', 'R(Q)'], ['W(P)', 'W(Q)'], ['R(P)', 'W(Q)']]) {
+    const tokens = text => Array.from(text).map(character => span(/[()]/.test(character) ? 'mopen' : 'mord mathnormal', character));
+    assert.equal(recover(...tokens(left), span('mbin', '∩'), ...tokens(right), span('mrel', '='), span('mord amsrm', '∅')),
+      left + '\\cap ' + right + '=\\varnothing');
+  }
+});
+
+test("408 集合运算及包含关系保持语义，未知符号仍交给图片兜底", () => {
+  const relations = [
+    ['∩', 'cap'], ['∪', 'cup'], ['∅', 'varnothing'],
+    ['⊂', 'subset'], ['⊃', 'supset'], ['⊆', 'subseteq'], ['⊇', 'supseteq'],
+    ['⊊', 'subsetneq'], ['⊋', 'supsetneq'], ['⊄', 'not\\subset'], ['⊅', 'not\\supset'],
+    ['⊈', 'nsubseteq'], ['⊉', 'nsupseteq'], ['∋', 'ni'], ['∌', 'notni'],
+  ];
+  for (const [symbol, command] of relations) {
+    assert.equal(recover(span('mord', 'A'), span('mrel', symbol), span('mord', 'B')), 'A\\' + command + ' B', symbol);
+  }
+  assert.equal(recover(span('mord', '∅'), span('mrel', '='), span('mopen', '{'), span('mclose', '}')), '\\varnothing =\\{\\}');
+  assert.equal(recover(span('mord', 'A'), span('mrel amsrm', '⊊'), span('mord', 'B')), 'A\\subsetneq B');
+  assert.equal(recover(span('mord amsrm', 'A')), '');
+  assert.equal(recover(span('mord', 'A'), span('mrel', '⊞'), span('mord', 'B')), '');
+});
+
 test("408 未知公式结构不能按文本顺序猜测", () => {
   assert.equal(recover(span("mord", "", [span("msupsub", "2")])), "");
   assert.equal(recover(span("mord mathbb", "R")), "");

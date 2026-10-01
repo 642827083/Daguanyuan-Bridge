@@ -385,6 +385,11 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
       // 只还原可确认语义的排版结构；未知结构返回空值，由图片兜底保留外观。
       var allowed = ["katex-html", "base", "strut", "mspace", "mord", "mathnormal", "mrel", "mbin", "mopen", "mclose", "mpunct", "minner", "mtight", "mop", "op-symbol", "small-op", "large-op", "sizing", "reset-size6", "size3"];
       var symbols = { "∣": "|", "−": "-", "∈": "\\in ", "∉": "\\notin ", "≤": "\\leq ", "≥": "\\geq ", "≠": "\\ne ", "×": "\\times ", "⋅": "\\cdot ", "∞": "\\infty ", "⋯": "\\cdots ", "∑": "\\sum ", "∏": "\\prod ", "∫": "\\int " };
+      // 集合符号逐字映射，避免缺少原始表达式时把普通集合关系变成图片。
+      var sets = { "∩": "cap", "∪": "cup", "∅": "varnothing", "⊂": "subset", "⊃": "supset", "⊆": "subseteq", "⊇": "supseteq", "⊊": "subsetneq", "⊋": "supsetneq", "⊄": "not\\subset", "⊅": "not\\supset", "⊈": "nsubseteq", "⊉": "nsupseteq", "∋": "ni", "∌": "notni" };
+      Object.keys(sets).forEach(function (character) { symbols[character] = "\\" + sets[character] + " "; });
+      symbols["{"] = "\\{";
+      symbols["}"] = "\\}";
       var greek = { "α": "alpha", "β": "beta", "γ": "gamma", "δ": "delta", "ϵ": "epsilon", "ε": "varepsilon", "ζ": "zeta", "η": "eta", "θ": "theta", "ϑ": "vartheta", "ι": "iota", "κ": "kappa", "λ": "lambda", "μ": "mu", "ν": "nu", "ξ": "xi", "π": "pi", "ϖ": "varpi", "ρ": "rho", "ϱ": "varrho", "σ": "sigma", "ς": "varsigma", "τ": "tau", "υ": "upsilon", "ϕ": "phi", "φ": "varphi", "χ": "chi", "ψ": "psi", "ω": "omega", "Γ": "Gamma", "Δ": "Delta", "Θ": "Theta", "Λ": "Lambda", "Ξ": "Xi", "Π": "Pi", "Σ": "Sigma", "Υ": "Upsilon", "Φ": "Phi", "Ψ": "Psi", "Ω": "Omega" };
       Object.keys(greek).forEach(function (character) { symbols[character] = "\\" + greek[character] + " "; });
       symbols["∼"] = "\\sim ";
@@ -449,6 +454,11 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
         }
         if (node.nodeType !== 1 || node.tagName.toLowerCase() !== "span") { validFormula = false; return ""; }
         var classes = Array.from(node.classList);
+        // KaTeX 的空集等符号使用 amsrm 字体，仅接受已知集合符号的叶节点。
+        if (node.classList.contains("amsrm")) {
+          if (node.children.length || !Object.prototype.hasOwnProperty.call(sets, node.textContent)) { validFormula = false; return ""; }
+          classes = classes.filter(function (name) { return name !== "amsrm"; });
+        }
         if (node.classList.contains("text") || node.classList.contains("cjk_fallback")) return textFormula(node);
         if (node.classList.contains("underline") && classes.every(function (name) { return name === "underline" || name === "mord" || name === "mtight"; })) return underlined(node);
         if (node.classList.contains("msupsub")) { validFormula = false; return ""; }
