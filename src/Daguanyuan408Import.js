@@ -2,8 +2,8 @@ var __DAGUANYUAN_408_IMPORT_GLOBAL__ = (function () {
   const PREFIX = "window.__DAGUANYUAN_408_IMPORT_PAGE__";
   const CHUNK_LENGTH = 65536;
 
-  function pageScript(token) {
-    return __DAGUANYUAN_408_PAGE_GLOBAL__.pageScript(token);
+  function pageScript(token, target) {
+    return __DAGUANYUAN_408_PAGE_GLOBAL__.pageScript(token, target);
   }
   function boundedCallback(seconds, message, start, stopImport) {
     return new Promise(function (resolve, reject) {
@@ -131,8 +131,8 @@ var __DAGUANYUAN_408_IMPORT_GLOBAL__ = (function () {
     }
     return poll();
   }
-  function importCategory(controller, onProgress) {
-    const session = __DAGUANYUAN_MATH_IMPORT_GLOBAL__.prepared408Session(controller.addon);
+  function importCategory(controller, onProgress, single) {
+    const session = single ? single.session : __DAGUANYUAN_MATH_IMPORT_GLOBAL__.prepared408Session(controller.addon);
     const token = `${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
     const key = JSON.stringify(token);
     const result = { total: 0, createdCount: 0, skippedCount: 0, failed: [] };
@@ -140,11 +140,12 @@ var __DAGUANYUAN_408_IMPORT_GLOBAL__ = (function () {
     function cleanup() {
       return evaluate(controller, PREFIX + "&&" + PREFIX + ".cancel(" + key + ")").catch(function () {});
     }
-    return evaluate(controller, pageScript(token)).then(function (accepted) {
+    return evaluate(controller, pageScript(token, single && single.target)).then(function (accepted) {
       if (String(accepted) !== "true") throw new Error("请先进入 408 知识点分类或年份真题页");
       return readPayload(controller, token);
     }).then(function (listing) {
       if (!listing || !Array.isArray(listing.ids) || !listing.category) throw new Error("408 分类信息读取失败");
+      if (single && listing.ids.length !== 1) throw new Error("408 单题读取结果无效，已停止导入");
       result.total = listing.ids.length;
       function next(index) {
         if (index >= listing.ids.length) return result;
@@ -182,5 +183,23 @@ var __DAGUANYUAN_408_IMPORT_GLOBAL__ = (function () {
       });
     });
   }
-  return { pageScript, importCategory };
+  function importSingle(controller, target, session) {
+    return importCategory(controller, null, { target: target, session: session });
+  }
+  function resolveQuestion(controller, target) {
+    const token = `lookup-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+    const key = JSON.stringify(token);
+    function cleanup() { return evaluate(controller, PREFIX + "&&" + PREFIX + ".cancel(" + key + ")").catch(function () {}); }
+    return evaluate(controller, pageScript(token, target)).then(function (accepted) {
+      if (String(accepted) !== "true") throw new Error("请先进入 408 知识点分类或年份真题页");
+      return readPayload(controller, token);
+    }).then(function (listing) {
+      if (!listing || !Array.isArray(listing.ids) || listing.ids.length !== 1) throw new Error("无法唯一确定所点击的 408 题目");
+      const id = __DAGUANYUAN_MATH_API_GLOBAL__.positiveInteger(listing.ids[0], "题目 ID");
+      return { id: id, provider: "408", year: target.year, number: target.number, url: target.url };
+    }).then(function (value) { return cleanup().then(function () { return value; }); }, function (error) {
+      return cleanup().then(function () { throw error; });
+    });
+  }
+  return { pageScript, importCategory, importSingle, resolveQuestion };
 })();

@@ -5,6 +5,7 @@ import vm from "node:vm";
 
 const apiSource = readFileSync(new URL("../src/DaguanyuanMathApi.js", import.meta.url), "utf8");
 const importSource = readFileSync(new URL("../src/DaguanyuanMathImport.js", import.meta.url), "utf8");
+const locatorSource = readFileSync(new URL("../src/DaguanyuanCardLocator.js", import.meta.url), "utf8");
 const retestSource = readFileSync(new URL("../src/DaguanyuanRetestBridge.js", import.meta.url), "utf8");
 const addonSource = readFileSync(new URL("../src/WebAddon.js", import.meta.url), "utf8");
 const panelSource = readFileSync(new URL("../src/WebPanelController.js", import.meta.url), "utf8");
@@ -154,16 +155,24 @@ test("按直接分类跨页导入完整层级，失败可重试且重复题目�
     Application: { sharedInstance() { return {
       studyController() { return {
         notebookController: { notebookId: "topic-1", changeFocusToNote(note) { focused = note; } },
+        focusNoteInMindMapById() {},
         readerController: { currentDocumentController: { document: {} } },
       }; },
       refreshAfterDBChanged() {},
     }; } },
     Database: { sharedInstance() { return {
       getNotebookById() { return notebook; },
+      getNoteById(id) { return notes[id]; },
       deleteBookNoteTree(id) { delete notes[id]; },
     }; } },
     Note: { createWithTitleNotebookDocument(title) { return createNote(title); } },
     UndoManager: { sharedInstance() { return { undoGrouping(label, id, callback) { callback(); } }; } },
+    NSTimer: { scheduledTimerWithTimeInterval(delay, repeat, callback) {
+      let active = true;
+      const timer = { invalidate() { active = false; } };
+      if (delay < 1) queueMicrotask(() => { if (active) callback(timer); });
+      return timer;
+    } },
     __DAGUANYUAN_MATH_API_GLOBAL__: {
       positiveInteger(value) { const number = Number(value); if (!Number.isSafeInteger(number) || number < 1) throw new Error("无效"); return number; },
       questionScope(value) { return value; },
@@ -192,6 +201,7 @@ test("按直接分类跨页导入完整层级，失败可重试且重复题目�
   };
   vm.createContext(context);
   vm.runInContext(importSource, context);
+  vm.runInContext(locatorSource, context);
   const importer = context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__;
   const addon = { window: {} };
   const first = await importer.importCategory(addon, 1035, "core");
@@ -211,7 +221,7 @@ test("按直接分类跨页导入完整层级，失败可重试且重复题目�
   assert.equal(second.skippedCount, 21);
   assert.equal(second.failed.length, 0);
   assert.equal(serial, 26);
-  assert.equal(importer.focusQuestion(addon, 8001).noteId, year.childNotes[21].noteId);
+  assert.equal((await importer.focusQuestion(addon, 8001)).noteId, year.childNotes[21].noteId);
   assert.equal(focused, year.childNotes[21]);
   const empty = await importer.importCategory(addon, 855, "core");
   assert.equal(empty.total, 0);
@@ -310,6 +320,20 @@ test("新导入题卡使用默认字号", () => {
   assert.doesNotMatch(markdown, /<small>/);
 });
 
+test("408 建卡整理格式时保留代码块缩进、连续空行和美元符号", () => {
+  const context = {};
+  vm.createContext(context);
+  vm.runInContext(importSource, context);
+  const code = '```\nwhile (x) {\n  x--;\n\n\n  price = "$ value $";  \n}\n```';
+  const markdown = context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown({
+    id: 806, stem: '若 $ G $ 无环。\n\n' + code, options: ['代码选项\n\n' + code, code],
+  }, 'https://www.408os.cn/exercise?year=2026', '408');
+  assert.equal(markdown.split(code).length, 4);
+  assert.ok(markdown.includes('B.\n\n' + code));
+  assert.ok(markdown.includes('若 $G$ 无环。'));
+  assert.ok(markdown.includes('DAGUANYUAN_408_QUESTION_ID:806'));
+});
+
 test("新题卡规范网站公式边界空格并保留公式内部内容", () => {
   const context = {};
   vm.createContext(context);
@@ -379,7 +403,7 @@ test("导入卡片定位会选择网站完整题库范围", () => {
   assert.match(script, /aria-pressed/);
 });
 
-test("错题复测按钮命令在插件层聚焦当前笔记本卡片", () => {
+test("错题复测按钮命令在插件层等待题卡定位完成", async () => {
   let focusedId;
   let panelMethods;
   const context = {
@@ -397,6 +421,7 @@ test("错题复测按钮命令在插件层聚焦当前笔记本卡片", () => {
     URL: { absoluteString: "daguanyuanbridge://locate-card?id=3356" },
   });
   assert.equal(allowed, false);
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(focusedId, 3356);
 });
 
@@ -408,6 +433,7 @@ test("错题复测页面无需先读取笔记本索引也能注入定位按钮",
     __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__: {
       practiceScript() { return "practice-buttons"; },
       bindCategoryScript() { return "bind-button"; },
+      singleImportScript() { return "single-button"; },
     },
     NSUserDefaults: { standardUserDefaults() { return { objectForKey() { return true; } }; } },
     __DAGUANYUAN_MATH_IMPORT_GLOBAL__: { importedQuestionIds() { throw new Error("笔记本未打开"); } },
@@ -418,7 +444,7 @@ test("错题复测页面无需先读取笔记本索引也能注入定位按钮",
   context.__DAGUANYUAN_WEB_PANEL_GLOBAL__.refreshRetestButtons({
     webView: { evaluateJavaScript(script, callback) { injected.push(script); callback(true, null); } },
   });
-  assert.deepEqual(injected, ["retest-buttons", "practice-buttons", "bind-button"]);
+  assert.deepEqual(injected, ["retest-buttons", "practice-buttons", "bind-button", "single-button"]);
 });
 
 test("题目导航开关同时控制题目页和错题复测网页按钮", () => {

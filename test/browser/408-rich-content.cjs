@@ -20,6 +20,14 @@ const textSVG = '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="100
 const rows = [latex, visual, simpleSVG, largeSVG, styledSVG, textSVG, '<p>坏图应失败</p><img src="/missing.png">', '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50"><rect width="100" height="50" fill="white"/></svg>'].map((mdContent, index) => ({ question: {
   id: index + 1, year: 2026, questionIndex: index + 1, mdContent,
 } }));
+// 原始样例来自网站公开静态题目，保留源码换行和 KaTeX 结构以复现真实导入。
+const formatRows = [5, 7, 14].map(number => ({ question: {
+  id: 1000 + number, year: 2026, questionIndex: number,
+  mdContent: fs.readFileSync(path.join(__dirname, 'fixtures', `408-2026-${number}.html`), 'utf8'),
+} }));
+formatRows.push({ question: { id: 2000, year: 2026, questionIndex: 50,
+  mdContent: '<p>普通\n  段落<span>\n文字</span><br>显式换行</p><p>第二段</p><pre><code>while (x) {\n  x--;\n\n\n  y++;\n}</code></pre><table><tr><th>变量</th><th>值</th></tr><tr><td>x\n  y</td><td>1<br>2</td></tr></table>',
+} });
 const client = String.raw`
 document.querySelector('#run').onclick = async function () {
   const output = document.querySelector('#result');
@@ -40,13 +48,33 @@ document.querySelector('#run').onclick = async function () {
       throw new Error('回归样例超时');
     }
     check(!(await wait()).error, '分类读取成功');
-    for (let index = 0; index < 8; index++) {
+    for (let index = 0; index < 12; index++) {
       state.prepare('rich-test', index);
       const read = await wait();
       if (index === 6) { check(/404/.test(read.error), '坏图明确失败'); continue; }
       if (index === 7) { check(read.error.includes('转换结果为空白'), '空白图不会算作成功'); continue; }
       check(!read.error, '题目 ' + (index + 1) + ' 成功：' + (read.error || ''));
       const question = JSON.parse(state.payload).question;
+      if (index >= 8) {
+        check(!question.hasBase64Image, '简单表达式和文字不转图片：' + question.source);
+        const savedMarkdown = __DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown(question, location.href, '408');
+        check(savedMarkdown.startsWith(question.stem + '\n\n'), '建卡整理保留转换后的正文：' + question.source);
+        if (index === 8) {
+          check(!question.stem.includes('\n') && question.stem.includes('$a=1$') && question.stem.includes('$g=12$'), '第 5 题行内赋值完整并保持同段');
+          check(question.options.join('|') === 'd|g|d,f|f,g', '第 5 题选项保留文字');
+        }
+        if (index === 9) {
+          check(!question.stem.includes('\n') && question.stem.includes('$G=(V,E)$') && question.stem.includes('$n=|V|$') && question.stem.includes('$e\\in E$'), '第 7 题集合关系完整并保持同段');
+          check(question.options.every(option => !option.includes('\n')) && question.options[0].includes('若 $G$ 无环，则 $S$ 是有限集'), '第 7 题选项不被行内公式拆行');
+        }
+        if (index === 10) check(!question.stem.includes('\n') && question.stem.includes('$x$ 为 $12.1$') && question.options[0].includes(String.fromCharCode(96) + '4141 9999H' + String.fromCharCode(96)), '第 14 题小数、变量及编码完整');
+        if (index === 11) {
+          check(question.stem.includes('普通 段落 文字\n显式换行\n\n第二段'), '折叠排版空白并保留显式换行和段落');
+          check(question.stem.includes('while (x) {\n  x--;\n\n\n  y++;\n}'), '代码的缩进和连续空行保留');
+          check(question.stem.includes('| x y | 1<br>2 |'), '表格保留单元格、源码空白和显式换行');
+        }
+        continue;
+      }
       if (index === 0) { check(question.stem.includes('$x^2$') && !question.hasBase64Image, '保留已有 LaTeX'); continue; }
       const sources = Array.from(question.stem.matchAll(/data:image[/][^)]+/g), match => match[0]);
       check(sources.length === 1 && question.hasBase64Image, '题目 ' + (index + 1) + ' 生成完整图片（数量 ' + sources.length + '，图片标记 ' + question.hasBase64Image + '）');
@@ -95,17 +123,64 @@ document.querySelector('#run').onclick = async function () {
     output.textContent = JSON.stringify({ passed: true, checks: checks.length, details: checks }, null, 2);
     state.cancel('rich-test');
   } catch (error) { output.textContent = JSON.stringify({ passed: false, error: error.message, checks }, null, 2); }
+};
+document.querySelector('#run-single').onclick = async function () {
+  const output = document.querySelector('#single-result');
+  const checks = [];
+  function check(ok, message) { if (!ok) throw Error(message); checks.push(message); }
+  async function read(state, token) {
+    for (let i = 0; i < 3500; i++) {
+      const value = JSON.parse(state.read(token));
+      if (value.ready || value.error) return value;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    throw Error('验证超时');
+  }
+  try {
+    output.textContent = '验证中';
+    const original = location.href;
+    for (const scenario of ['year', 'knowledge', 'missing', 'ambiguous']) {
+      history.replaceState(null, '', scenario === 'knowledge' ? '/exercise?knowledgeId=125' : '/exercise?year=2026&scenario=' + scenario);
+      document.querySelector('#requests').textContent = '';
+      const target = { provider: '408', year: 2026, number: scenario === 'missing' ? 99 : 4, url: location.href };
+      const token = 'single-' + scenario;
+      check(eval(__DAGUANYUAN_408_PAGE_GLOBAL__.pageScript(token, target)) === 'true', scenario + ' 网页连接成功');
+      const state = window.__DAGUANYUAN_408_IMPORT_PAGE__;
+      const listingStatus = await read(state, token);
+      if (scenario === 'missing' || scenario === 'ambiguous') {
+        check(listingStatus.error.includes('无法唯一确定'), scenario + ' 不会猜测题号');
+        state.cancel(token); continue;
+      }
+      check(!listingStatus.error, scenario + ' 单题列表读取成功');
+      const listing = JSON.parse(state.payload);
+      check(listing.ids.length === 1 && listing.ids[0] === 4, scenario + ' 列表只保留点击题目');
+      if (scenario === 'knowledge') check(document.querySelector('#requests').textContent === '1', '找到单题后不再读取剩余知识点分页');
+      check(state.prepare(token, 0), scenario + ' 转换仅有的一题');
+      const status = await read(state, token);
+      check(!status.error, scenario + ' 图文转换成功');
+      const question = JSON.parse(state.payload).question;
+      check(question.id === 4 && question.hasBase64Image, scenario + ' 56 图题保留图片');
+      const image = new Image();
+      image.src = question.stem.match(/data:image[/][^)]+/)[0];
+      await image.decode();
+      check(image.naturalWidth === 2902 && image.naturalHeight === 1490, scenario + ' 图像尺寸完整');
+      state.cancel(token);
+    }
+    history.replaceState(null, '', original);
+    output.textContent = JSON.stringify({ passed: true, checks: checks.length, details: checks }, null, 2);
+  } catch (error) { output.textContent = JSON.stringify({ passed: false, error: error.message, checks }, null, 2); }
 };`;
 http.createServer((request, response) => {
   const url = new URL(request.url, `http://127.0.0.1:${port}`);
   let content, type = 'text/javascript; charset=utf-8';
   if (url.pathname === '/exercise') {
     type = 'text/html; charset=utf-8';
-    content = '<!doctype html><meta charset="utf-8"><title>408 图文回归验证</title><style>pre{max-height:180px;overflow:auto}</style><script type="module" src="/assets/index-rich.js"></script><button id="run">运行验证</button><pre id="result">等待验证</pre><div id="images"></div><script src="/page.js"></script><script src="/client.js"></script>';
+    content = '<!doctype html><meta charset="utf-8"><title>408 图文回归验证</title><style>pre{max-height:180px;overflow:auto}</style><script type="module" src="/assets/index-rich.js"></script><button id="run-single">运行单题验证</button><pre id="single-result">等待单题验证</pre><span id="requests" hidden></span><button id="run">运行验证</button><pre id="result">等待验证</pre><div id="images"></div><script src="/page.js"></script><script src="/markdown.js"></script><script src="/client.js"></script>';
   } else if (url.pathname === '/page.js') {
     content = fs.readFileSync(path.join(root, 'src/Daguanyuan408Page.js'), 'utf8').replace('startURL.hostname !== "www.408os.cn"', 'startURL.hostname !== "127.0.0.1"');
-  } else if (url.pathname === '/client.js') content = client;
-  else if (url.pathname === '/assets/index-rich.js') content = 'export const r={async get(){return ' + JSON.stringify(rows) + '}}';
+  } else if (url.pathname === '/markdown.js') content = fs.readFileSync(path.join(root, 'src/DaguanyuanMathImport.js'), 'utf8');
+  else if (url.pathname === '/client.js') content = client;
+  else if (url.pathname === '/assets/index-rich.js') content = 'const rows=' + JSON.stringify(rows) + ';const formatRows=' + JSON.stringify(formatRows) + '; export const r={async get(url, options){if(url.includes("by-knowledge")){document.querySelector("#requests").textContent+=options.params.pageNum;return {rows,total:47000}}return location.search.includes("scenario=ambiguous")?rows.concat([rows[3]]):rows.concat(formatRows)}}';
   else if (url.pathname === '/red.svg' || url.pathname === '/blue.svg') {
     type = 'image/svg+xml';
     content = '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="80"><rect width="160" height="80" fill="' + (url.pathname === '/red.svg' ? 'red' : 'blue') + '"/></svg>';

@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
 const mathSource = readFileSync(new URL("../src/DaguanyuanMathImport.js", import.meta.url), "utf8");
+const locatorSource = readFileSync(new URL("../src/DaguanyuanCardLocator.js", import.meta.url), "utf8");
 const source = readFileSync(new URL("../src/Daguanyuan408Import.js", import.meta.url), "utf8");
 const pageSource = readFileSync(new URL("../src/Daguanyuan408Page.js", import.meta.url), "utf8");
 const addonSource = readFileSync(new URL("../src/WebAddon.js", import.meta.url), "utf8");
@@ -34,6 +35,8 @@ function runtime(questions, options = {}) {
     }; } },
     Database: { sharedInstance() { return {
       getNotebookById() { return notebook; },
+      getNoteById(id) { return notes.get(id); },
+      allNotebooks() { return [notebook]; },
       deleteBookNoteTree(id) {
         const note = notes.get(id);
         if (note.parentNote) note.parentNote.childNotes = note.parentNote.childNotes.filter((item) => item !== note);
@@ -69,7 +72,7 @@ function runtime(questions, options = {}) {
       let active = true;
       const timer = { invalidate() { active = false; } };
       const fire = () => { if (active) callback(timer); };
-      if (delay < 5) queueMicrotask(fire);
+      if (delay < 1) queueMicrotask(fire);
       else if (options.fireWatchdogs) setImmediate(fire);
       return timer;
     } },
@@ -85,6 +88,7 @@ function runtime(questions, options = {}) {
   };
   vm.createContext(context);
   vm.runInContext(mathSource, context);
+  vm.runInContext(locatorSource, context);
   vm.runInContext(pageSource, context);
   vm.runInContext(source, context);
   const page = {
@@ -149,6 +153,38 @@ test("408 导入整类所有题目，来源与数学 ID 独立，重复导入跳
   assert.equal(again.createdCount, 0);
   assert.equal(again.skippedCount, 48);
   assert.equal(run.cancelled, true);
+});
+
+test('408 工具只查询当前题 ID，不转换图片、不创建题卡，并清理查询状态', async () => {
+  const run = runtime([{ id: 843, stem: '带图题' }]);
+  const target = { provider: '408', year: 2026, number: 44, url: 'https://www.408os.cn/exercise?year=2026' };
+  const question = await run.importer.resolveQuestion(run.controller, target);
+  assert.equal(question.id, 843); assert.equal(question.year, 2026); assert.equal(question.number, 44);
+  assert.equal(question.provider, '408'); assert.equal(question.url, target.url);
+  assert.equal(run.notes.size, 0);
+  assert.equal(run.scripts.some(script => script.includes('.prepare(')), false);
+  assert.equal(run.cancelled, true);
+  for (const questions of [[], [{ id: 843 }, { id: 844 }]]) {
+    const ambiguous = runtime(questions);
+    await assert.rejects(ambiguous.importer.resolveQuestion(ambiguous.controller, target), /无法唯一确定/);
+    assert.equal(ambiguous.cancelled, true); assert.equal(ambiguous.notes.size, 0);
+  }
+});
+
+test('408 定位在当前学习集中按来源寻找卡片，与同 ID 数学题互不混淆', async () => {
+  const run = runtime([]);
+  const math = { noteId: 'math-card', comments: [{ text: '<!-- DAGUANYUAN_QUESTION_ID:843 -->' }], childNotes: [] };
+  const os408 = { noteId: '408-card', comments: [{ text: '<!-- DAGUANYUAN_408_QUESTION_ID:843 -->' }], childNotes: [] };
+  run.notebook.notes.push(math, os408);
+  run.notes.set(math.noteId, math); run.notes.set(os408.noteId, os408);
+  let focused;
+  run.context.Application.sharedInstance = () => ({ studyController() { return { notebookController: { notebookId: 'topic-1', changeFocusToNote(note) { focused = note; } }, focusNoteInMindMapById() {} }; } });
+  assert.equal((await run.writer.focusQuestion(run.controller.addon, 843, '408')).noteId, '408-card');
+  assert.equal(focused === os408, true);
+  assert.equal((await run.writer.focusQuestion(run.controller.addon, 843)).noteId, 'math-card');
+  assert.equal(focused === math, true);
+  run.notebook.notes.pop();
+  await assert.rejects(run.writer.focusQuestion(run.controller.addon, 843, '408'), /没有这道题/);
 });
 
 test("带大图片的 408 题目分块读取并保存为卡片媒体", async () => {

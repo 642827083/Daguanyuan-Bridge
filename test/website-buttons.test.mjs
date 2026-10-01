@@ -5,6 +5,86 @@ import vm from "node:vm";
 
 const source = readFileSync(new URL("../src/DaguanyuanWebsiteBridge.js", import.meta.url), "utf8");
 
+test('数学单题按钮默认隐藏，开启后位于题目元数据末尾，关闭立即移除', () => {
+  const page = browser('www.cxyonly.fans', '/math/practice/1');
+  page.context.window.location.href = 'https://www.cxyonly.fans/math/practice/1';
+  const row = page.element('li', { 'data-learning-question-id': '843' });
+  const card = page.element('article', { 'data-learning-question-card': '' });
+  const header = page.element('header'), metadata = page.element('div');
+  const source = page.element('span');
+  metadata.appendChild(page.element('strong')); metadata.appendChild(source);
+  header.appendChild(metadata); card.appendChild(header); row.appendChild(card); page.main.appendChild(row); page.rows.push(row);
+  const bridge = page.context.__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__;
+  vm.runInContext(bridge.singleImportScript(), page.context); page.runSync();
+  assert.equal(row.querySelector('[data-daguanyuan-single-import]'), null);
+  vm.runInContext(bridge.singleImportScript(true), page.context); page.runSync();
+  const button = row.querySelector('[data-daguanyuan-single-import]');
+  assert.equal(button.textContent, '导入单题'); assert.equal(button.previousElementSibling, source);
+  button.handlers.click.call(button, { preventDefault() {}, stopPropagation() {} });
+  const target = JSON.parse(decodeURIComponent(page.body.children.at(-1).src.split('payload=')[1]));
+  assert.equal(target.id, 843); assert.equal(target.provider, 'math'); assert.equal(button.disabled, true);
+  const frames = page.body.children.length;
+  button.handlers.click.call(button, { preventDefault() {}, stopPropagation() {} });
+  assert.equal(page.body.children.length, frames);
+  page.context.window.__DAGUANYUAN_SINGLE_IMPORT_BUTTONS__.finishImport(); page.runSync();
+  assert.equal(button.disabled, false); assert.equal(button.textContent, '导入单题');
+  vm.runInContext(bridge.singleImportScript(false), page.context); page.runSync();
+  assert.equal(row.querySelector('[data-daguanyuan-single-import]'), null);
+});
+
+test('408 单题按钮位于分值右侧，点击捕获当前题号，翻题后不会发送旧题号', () => {
+  const page = browser('www.408os.cn', '/exercise', '?year=2026');
+  page.context.window.location.href = 'https://www.408os.cn/exercise?year=2026';
+  const row = page.element('div', { class: 'question-card' });
+  const header = page.element('div', { class: 'question-header' }), metadata = page.element('div', { class: 'header-tags' });
+  const year = page.element('span', { class: 'year-tag' }), number = page.element('span', { class: 'index-tag' }), score = page.element('span', { class: 'score-tag' });
+  year.textContent = '2026'; number.textContent = '第44题'; score.textContent = '10分';
+  metadata.appendChild(year); metadata.appendChild(number); metadata.appendChild(score); header.appendChild(metadata); row.appendChild(header);
+  page.main.appendChild(row); page.rows.push(row);
+  const bridge = page.context.__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__;
+  vm.runInContext(bridge.singleImportScript(true), page.context); page.runSync();
+  const button = row.querySelector('[data-daguanyuan-single-import]');
+  assert.equal(button.previousElementSibling, score);
+  const original = JSON.parse(button.getAttribute('data-daguanyuan-single-import'));
+  assert.equal(original.year, 2026); assert.equal(original.number, 44);
+  number.textContent = '第45题';
+  button.handlers.click.call(button, { preventDefault() {}, stopPropagation() {} });
+  const target = JSON.parse(decodeURIComponent(page.body.children.at(-1).src.split('payload=')[1]));
+  assert.equal(target.number, 45); assert.equal(metadata.children.filter(n => n.tagName === 'BUTTON').length, 1);
+  page.context.window.location.pathname = '/overview';
+  vm.runInContext(bridge.singleImportScript(true), page.context); page.runSync();
+  assert.equal(row.querySelector('[data-daguanyuan-single-import]'), null);
+});
+
+test('数学的来源无论是视频按钮还是文本，三个工具均紧接来源右侧并位于分类路径之前', () => {
+  for (const sourceTag of ['button', 'span']) {
+    const page = browser('cxyonly.fans', '/math/practice/1');
+    page.context.window.location.href = 'https://cxyonly.fans/math/practice/1';
+    const row = page.element('li', { 'data-learning-question-id': '843' });
+    const card = page.element('article', { 'data-learning-question-card': '' });
+    const header = page.element('header'), metadata = page.element('div');
+    const sourceLabel = page.element(sourceTag, { 'data-question-source': '' });
+    const path = page.element('span', { 'data-question-category-paths': '' });
+    sourceLabel.textContent = '2026数二（1） ▷'; path.textContent = '高等数学 / 极限 / 函数';
+    let opened = false; sourceLabel.addEventListener('click', () => { opened = true; });
+    metadata.appendChild(page.element('strong')); metadata.appendChild(sourceLabel); metadata.appendChild(path);
+    header.appendChild(metadata); card.appendChild(header); row.appendChild(card); page.main.appendChild(row); page.rows.push(row);
+    const bridge = page.context.__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__;
+    vm.runInContext(bridge.practiceScript(true, true), page.context); page.runSync();
+    vm.runInContext(bridge.singleImportScript(true), page.context); page.runSync();
+    const tools = () => metadata.children.filter(b => b.getAttribute('data-daguanyuan-question-target') !== null);
+    assert.deepEqual(tools().map(b => b.textContent), ['定位卡片', '添加笔记', '导入单题']);
+    assert.equal(tools()[0].previousElementSibling === sourceLabel, true);
+    assert.equal(path.previousElementSibling === tools()[2], true);
+    sourceLabel.handlers.click(); assert.equal(opened, true);
+    vm.runInContext(bridge.practiceScript(true, false), page.context); page.runSync();
+    assert.deepEqual(tools().map(b => b.textContent), ['定位卡片', '导入单题']);
+    assert.equal(tools()[0].previousElementSibling === sourceLabel, true);
+    vm.runInContext(bridge.singleImportScript(false), page.context); page.runSync();
+    assert.equal(tools().length, 1); assert.equal(tools()[0].previousElementSibling === sourceLabel, true);
+  }
+});
+
 function browser(hostname, pathname, search = "") {
   const timers = [];
   function element(tagName = "div", attributes = {}) {
@@ -39,6 +119,7 @@ function browser(hostname, pathname, search = "") {
         return null;
       },
       querySelector(selector) {
+        if (selector === '.question-header > .header-tags') return this.querySelector('.header-tags');
         if (selector === '[data-learning-question-card] > header > div:first-child') {
           const card = this.querySelector("[data-learning-question-card]");
           const header = card?.children.find((child) => child.tagName === "HEADER");
@@ -46,6 +127,7 @@ function browser(hostname, pathname, search = "") {
         }
         const attribute = selector.match(/^\[([^\]]+)\]$/);
         for (const child of this.children) {
+          if (selector.startsWith('.') && String(child.getAttribute('class') || '').split(' ').includes(selector.slice(1))) return child;
           if (selector.toUpperCase() === child.tagName) return child;
           if (selector === '[class*="chapterSelector"]' && String(child.getAttribute("class") || "").includes("chapterSelector")) return child;
           if (attribute && child.getAttribute(attribute[1]) !== null) return child;
@@ -92,7 +174,14 @@ function browser(hostname, pathname, search = "") {
         return body.querySelector(selector);
       },
       querySelectorAll(selector) {
-        return selector === "[data-learning-question-id], article.question-document[data-question-id]" ? rows : [];
+        if (selector === "[data-learning-question-id], article.question-document[data-question-id]" || selector === '.question-card') return rows;
+        const found = [];
+        function visit(node) {
+          if (selector === '[data-daguanyuan-single-import]' && node.getAttribute('data-daguanyuan-single-import') !== null) found.push(node);
+          node.children.forEach(visit);
+        }
+        visit(body);
+        return found;
       },
     },
     MutationObserver: class { observe() {} },
@@ -107,6 +196,66 @@ function browser(hostname, pathname, search = "") {
   }
   return { context, body, main, contextBox, categorySelector, exerciseLeft, modeSwitch, rows, element, runSync };
 }
+
+test('数学和 408 三个工具统一排列、统一描边样式，开关互不覆盖', () => {
+  for (const provider of ['math', '408']) {
+    const page = browser(provider === 'math' ? 'cxyonly.fans' : 'www.408os.cn', provider === 'math' ? '/math/practice/1' : '/exercise', '?year=2026');
+    page.context.window.location.href = provider === 'math' ? 'https://cxyonly.fans/math/practice/1' : 'https://www.408os.cn/exercise?year=2026';
+    const row = page.element('li', provider === 'math' ? { 'data-learning-question-id': '843' } : { class: 'question-card' });
+    const card = page.element('article', { 'data-learning-question-card': '' });
+    const header = page.element('header'), metadata = page.element('div', { class: 'header-tags' });
+    const year = page.element('span', { class: 'year-tag' }), number = page.element('span', { class: 'index-tag' }), score = page.element('span', { class: 'score-tag' });
+    year.textContent = '2026'; number.textContent = '第44题'; score.textContent = '10分';
+    metadata.appendChild(year); metadata.appendChild(number); metadata.appendChild(score); header.appendChild(metadata); card.appendChild(header); row.appendChild(card);
+    page.main.appendChild(row); page.rows.push(row);
+    const bridge = page.context.__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__;
+    const buttons = () => metadata.children.filter(n => n.tagName === 'BUTTON');
+    vm.runInContext(bridge.singleImportScript(true), page.context); page.runSync();
+    vm.runInContext(bridge.practiceScript(true, true), page.context); page.runSync();
+    assert.deepEqual(buttons().map(b => b.textContent), ['定位卡片', '添加笔记', '导入单题']);
+    assert.equal(buttons()[0].previousElementSibling === score, true);
+    assert.equal(new Set(buttons().map(b => b.style.cssText)).size, 1);
+    assert.match(buttons()[2].style.cssText, /background:#fff/);
+    for (let i = 0; i < 3; i += 1) {
+      vm.runInContext(bridge.practiceScript(true, true), page.context); page.runSync();
+      vm.runInContext(bridge.singleImportScript(true), page.context); page.runSync();
+    }
+    assert.equal(buttons().length, 3);
+    vm.runInContext(bridge.singleImportScript(false), page.context); page.runSync();
+    assert.deepEqual(buttons().map(b => b.textContent), ['定位卡片', '添加笔记']);
+    vm.runInContext(bridge.practiceScript(false, true), page.context); page.runSync();
+    assert.deepEqual(buttons().map(b => b.textContent), ['添加笔记']);
+    vm.runInContext(bridge.singleImportScript(true), page.context); page.runSync();
+    vm.runInContext(bridge.practiceScript(true, false), page.context); page.runSync();
+    assert.deepEqual(buttons().map(b => b.textContent), ['定位卡片', '导入单题']);
+  }
+});
+
+test('408 定位与添加笔记发送独立来源及最新题号，完成后恢复按钮', () => {
+  const page = browser('www.408os.cn', '/exercise', '?knowledgeId=125');
+  page.context.window.location.href = 'https://www.408os.cn/exercise?knowledgeId=125';
+  const row = page.element('div', { class: 'question-card' }), metadata = page.element('div', { class: 'header-tags' });
+  const year = page.element('span', { class: 'year-tag' }), number = page.element('span', { class: 'index-tag' });
+  year.textContent = '2026'; number.textContent = '第44题'; metadata.appendChild(year); metadata.appendChild(number); row.appendChild(metadata);
+  page.main.appendChild(row); page.rows.push(row);
+  vm.runInContext(page.context.__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__.practiceScript(true, true), page.context); page.runSync();
+  for (const [key, command, finish] of [['locate-card', 'locate-card', 'finishLocate'], ['add-note', 'add-note', 'finishNotePaste']]) {
+    const button = row.querySelector('[data-daguanyuan-408-' + key + ']');
+    number.textContent = '第45题';
+    button.handlers.click.call(button, { preventDefault() {}, stopPropagation() {} });
+    assert.equal(button.disabled, true);
+    const frame = page.body.children.at(-1).src;
+    assert.match(frame, new RegExp('daguanyuanbridge://' + command + '\\?payload='));
+    const target = JSON.parse(decodeURIComponent(frame.split('payload=')[1]));
+    assert.equal(target.provider, '408'); assert.equal(target.number, 45); assert.equal(target.year, 2026);
+    const frameCount = page.body.children.length;
+    button.handlers.click.call(button, { preventDefault() {}, stopPropagation() {} });
+    assert.equal(page.body.children.length, frameCount);
+    page.context.window.__DAGUANYUAN_QUESTION_TOOLS__[finish](); page.runSync();
+    assert.equal(button.disabled, false);
+    number.textContent = '第44题';
+  }
+});
 
 test("数学题目页每题只插入一个定位卡片按钮并回传题目 ID", () => {
   const page = browser("www.cxyonly.fans", "/math/practice/855");
@@ -130,7 +279,7 @@ test("数学题目页每题只插入一个定位卡片按钮并回传题目 ID",
   page.runSync();
   const button = row.querySelector("[data-daguanyuan-practice-locate-card]");
   assert.equal(button?.textContent, "定位卡片");
-  assert.deepEqual(metadata.children.map((child) => child.tagName), ["STRONG", "BUTTON", "SPAN"]);
+  assert.deepEqual(metadata.children.map((child) => child.tagName), ["STRONG", "SPAN", "BUTTON"]);
   assert.equal(button.parentNode, metadata);
   assert.equal(article.querySelector("[data-daguanyuan-practice-locate-card]"), null);
   button.handlers.click.call(button, { preventDefault() {}, stopPropagation() {} });
@@ -140,7 +289,7 @@ test("数学题目页每题只插入一个定位卡片按钮并回传题目 ID",
   assert.equal(metadata.children.filter((child) => child.getAttribute("data-daguanyuan-practice-locate-card")).length, 1);
 });
 
-test("旧版题外按钮自动移入题序与来源之间并采用复测按钮尺寸", () => {
+test("旧版题外按钮自动移到元数据右侧并采用复测按钮尺寸", () => {
   const page = browser("cxyonly.fans", "/math/practice/855");
   const row = page.element("li", { "data-learning-question-id": "3356" });
   const card = page.element("article", { "data-learning-question-card": "" });
@@ -160,7 +309,7 @@ test("旧版题外按钮自动移入题序与来源之间并采用复测按钮�
   page.rows.push(row);
   vm.runInContext(page.context.__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__.practiceScript(), page.context);
   page.runSync();
-  assert.equal(metadata.children[1], oldButton);
+  assert.equal(metadata.children[2] === oldButton, true);
   assert.match(oldButton.style.cssText, /padding:5px 10px/);
   assert.match(oldButton.style.cssText, /font-size:12px/);
 });
@@ -208,7 +357,7 @@ test("添加笔记按钮紧邻定位卡片且两个开关独立", () => {
   page.runSync();
   const locate = row.querySelector("[data-daguanyuan-practice-locate-card]");
   const note = row.querySelector("[data-daguanyuan-practice-add-note]");
-  assert.deepEqual(metadata.children.slice(0, 3), [metadata.children[0], locate, note]);
+  assert.equal(metadata.children[2] === locate && metadata.children[3] === note, true);
   assert.equal(note.textContent, "添加笔记");
   assert.equal(note.style.cssText, locate.style.cssText);
   note.handlers.click.call(note, { preventDefault() {}, stopPropagation() {} });
@@ -219,7 +368,7 @@ test("添加笔记按钮紧邻定位卡片且两个开关独立", () => {
   vm.runInContext(bridge.practiceScript(false, true), page.context);
   page.runSync();
   assert.equal(row.querySelector("[data-daguanyuan-practice-locate-card]"), null);
-  assert.equal(metadata.children[1], note);
+  assert.equal(metadata.children[2] === note, true);
   vm.runInContext(bridge.practiceScript(true, false), page.context);
   page.runSync();
   assert.equal(row.querySelector("[data-daguanyuan-practice-add-note]"), null);

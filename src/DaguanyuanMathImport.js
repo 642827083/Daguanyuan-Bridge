@@ -97,7 +97,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
   function questionForNote(note) {
     const link = linkedQuestion(note);
     if (!link) return null;
-    if (link.provider === "408") return link;
+    if (link.provider === "408" || commentBody(note).indexOf(marker("DAGUANYUAN_SINGLE_IMPORT:1")) >= 0) return link;
     const path = [];
     const visited = {};
     let parent = value(note, "parentNote");
@@ -120,17 +120,14 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
     return link;
   }
 
-  function focusQuestion(addon, questionId) {
+  function focusQuestion(addon, questionId, provider) {
     const id = __DAGUANYUAN_MATH_API_GLOBAL__.positiveInteger(questionId, "题目 ID");
-    const context = notebookContext(addon, false);
-    const note = indexForContext(context).byQuestion[id];
-    if (!note) throw new Error("当前笔记本中没有这道题的脑图卡片");
-    context.notebookController.changeFocusToNote(note);
-    return { questionId: id, noteId: noteId(note) };
+    return __DAGUANYUAN_CARD_LOCATOR_GLOBAL__.locate(addon, id, provider);
   }
 
   function createNote(title, context) {
-    const note = Note.createWithTitleNotebookDocument(title, context.notebook, context.document);
+    const note = context.document ? Note.createWithTitleNotebookDocument(title, context.notebook, context.document)
+      : context.database.createNoteWithTitleTopicid(title, context.topicId);
     if (!note) throw new Error("MarginNote 未能创建脑图卡片");
     return note;
   }
@@ -194,11 +191,29 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
     }).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   }
 
+  function normalizeQuestionContent(content) {
+    const original = String(content || "");
+    const blocks = [];
+    let prefix = "\uE000DAGUANYUAN_CODE_";
+    while (original.indexOf(prefix) >= 0) prefix += "_";
+    // 代码中的空行、行尾空格和美元符号不参与题目公式整理。
+    const protectedContent = original.replace(/^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?^ {0,3}\1[ \t]*(?=\r?$)/gm, function (block) {
+      const marker = prefix + blocks.length + "\uE001";
+      blocks.push(block);
+      return marker;
+    });
+    let result = normalizeDisplayMath(normalizeInlineMath(protectedContent));
+    blocks.forEach(function (block, index) { result = result.split(prefix + index + "\uE001").join(block); });
+    return result;
+  }
+
   function questionMarkdown(question, url, provider) {
-    const stem = normalizeDisplayMath(normalizeInlineMath(question.stem));
+    const stem = normalizeQuestionContent(question.stem);
     if (!stem) throw new Error("题目缺少题干");
     const options = (question.options || []).map(function (option, index) {
-      return option ? normalizeDisplayMath(`${"ABCD"[index]}. ${normalizeInlineMath(option)}`) : "";
+      if (!option) return "";
+      const separator = /^ {0,3}(`{3,}|~{3,})[^\n]*\n/.test(option) ? "\n\n" : " ";
+      return normalizeQuestionContent(`${"ABCD"[index]}.${separator}${option}`);
     }).filter(Boolean);
     return [stem].concat(options).concat([
         marker(`${provider === "408" ? "DAGUANYUAN_408_QUESTION_ID:" : QUESTION_PREFIX}${question.id}`),
@@ -244,6 +259,62 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
       error.diagnostics = diagnostics;
       throw error;
     }
+  }
+
+  function preparedSingleSession(addon, provider) {
+    if (provider !== "math" && provider !== "408") throw new Error("题目来源无效");
+    const context = notebookContext(addon, false);
+    const parent = value(context.notebookController, "focusNote");
+    const parentId = noteId(parent);
+    const notebookId = String(value(context.notebookController, "notebookId"));
+    if (!parentId) throw new Error("请先在 MarginNote 中选中一张父卡片");
+    if (String(value(parent, "notebookId") || "") !== notebookId) {
+      throw new Error("所选卡片不属于当前笔记本");
+    }
+    const parentDocument = value(parent, "docMd5");
+    context.document = parentDocument && context.database.getDocumentById(parentDocument) || context.document;
+    function currentParent() {
+      const current = context.database.getNoteById(parentId);
+      const study = context.application.studyController(addon && addon.window);
+      const activeNotebookId = study && value(study.notebookController, "notebookId");
+      if (!current || String(value(current, "notebookId")) !== notebookId || String(activeNotebookId) !== notebookId) {
+        throw new Error("原父卡片已删除或笔记本已切换，请重新选择后导入");
+      }
+      return current;
+    }
+    function hasQuestion(id) {
+      return nativeItems(currentParent().childNotes).some(function (child) {
+        const link = linkedQuestion(child);
+        return link && (link.provider || "math") === provider && link.id === Number(id);
+      });
+    }
+    return {
+      hasQuestion: hasQuestion,
+      write: function (question, category) {
+        const id = __DAGUANYUAN_MATH_API_GLOBAL__.positiveInteger(question && question.id, "题目 ID");
+        if (hasQuestion(id)) return false;
+        if (provider === "408" && (!category || !/^https:\/\/www\.408os\.cn\/exercise\?/.test(category.url))) throw new Error("408 题目页面信息无效");
+        const url = provider === "408" ? `${category.url}&questionId=${id}`
+          : category && /^https:\/\/(?:www\.)?cxyonly\.fans\/math\/practice\/\d+\/?$/.test(category.url)
+            ? `${category.url}?questionId=${id}` : questionURL(question.categoryId, id);
+        const markdown = questionMarkdown(question, url, provider) + "\n\n" + marker("DAGUANYUAN_SINGLE_IMPORT:1");
+        let note;
+        UndoManager.sharedInstance().undoGrouping("导入单题", context.topicId, function () {
+          try {
+            const selectedParent = currentParent();
+            note = createNote(titleFor(question), context);
+            note.appendMarkdownComment(markdown);
+            selectedParent.addChild(note);
+            saveQuestionImages(note, question);
+          } catch (error) {
+            if (note && noteId(note)) context.database.deleteBookNoteTree(noteId(note));
+            throw error;
+          }
+        });
+        context.application.refreshAfterDBChanged(context.topicId);
+        return true;
+      },
+    };
   }
 
   function prepared408Session(addon) {
@@ -393,5 +464,5 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
     });
   }
 
-  return { importedQuestionIds, questionForNote, focusQuestion, importCategory, linkedQuestion, questionMarkdown, prepared408Session };
+  return { importedQuestionIds, questionForNote, focusQuestion, importCategory, linkedQuestion, questionMarkdown, prepared408Session, preparedSingleSession };
 })();

@@ -9,6 +9,7 @@ function createDaguanyuanBridgeAddon() {
     },
 
     sceneDidDisconnect: function () {
+      if (typeof __DAGUANYUAN_CARD_LOCATOR_GLOBAL__ !== "undefined") __DAGUANYUAN_CARD_LOCATOR_GLOBAL__.cancel(self);
       self.__daguanyuanFocusNextRememberToken += 1;
       self.__daguanyuanFocusNextPlaceToken += 1;
       __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.remove(self);
@@ -22,6 +23,7 @@ function createDaguanyuanBridgeAddon() {
     notebookWillOpen: function () {
       self.panelController.addon = self;
       self.panelController.addonWindow = self.window;
+      if (typeof __DAGUANYUAN_CARD_LOCATOR_GLOBAL__ !== "undefined") __DAGUANYUAN_CARD_LOCATOR_GLOBAL__.resume(self);
       self.__daguanyuanFocusNextLastFocus = null;
       if (self.focusNavigationEnabled !== false) __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.show(self);
       else __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.hide(self);

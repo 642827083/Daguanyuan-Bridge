@@ -1,6 +1,6 @@
 var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
   // 此函数只在网站 WebView 中执行，浏览器对象不会用于插件原生环境。
-  function pageReceiver(token) {
+  function pageReceiver(token, target) {
     var startURL = new URL(window.location.href);
     if (startURL.hostname !== "www.408os.cn" || !/^\/exercise\/?$/.test(startURL.pathname)) return false;
     var knowledgeId = Number(startURL.searchParams.get("knowledgeId"));
@@ -12,6 +12,12 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
     }
     startURL.hash = "";
     startURL.searchParams.delete("questionId");
+    if (target) {
+      var selectedURL = new URL(target.url);
+      selectedURL.hash = "";
+      selectedURL.searchParams.delete("questionId");
+      if (selectedURL.toString() !== startURL.toString()) throw new Error("当前 408 分类已切换，请重新点击导入单题");
+    }
     var category = {
       title: knowledgeId ? startURL.searchParams.get("knowledgeName") || "知识点 " + knowledgeId : year + "年真题",
       url: startURL.toString(),
@@ -368,6 +374,39 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
       imageCache.set(url, operation);
       return operation;
     }
+    function simpleFormula(formula) {
+      var rendered = formula.querySelector(".katex-html");
+      if (!rendered) return "";
+      // 仅还原已知的平面排版；分式、根号、上下标或未知字体仍走图片兜底。
+      var allowed = ["katex-html", "base", "strut", "mspace", "mord", "mathnormal", "mrel", "mbin", "mopen", "mclose", "mpunct"];
+      var symbols = { "∣": "|", "−": "-", "∈": "\\in ", "∉": "\\notin ", "≤": "\\leq ", "≥": "\\geq ", "≠": "\\ne ", "×": "\\times ", "⋅": "\\cdot ", "∞": "\\infty " };
+      var validFormula = true;
+      function read(node) {
+        if (node.nodeType === 3) {
+          if (node.textContent.trim()) validFormula = false;
+          return "";
+        }
+        if (node.nodeType !== 1 || node.tagName.toLowerCase() !== "span") { validFormula = false; return ""; }
+        var classes = Array.from(node.classList);
+        if (!classes.length || classes.some(function (name) { return allowed.indexOf(name) < 0; })) { validFormula = false; return ""; }
+        if (node.classList.contains("strut") || node.classList.contains("mspace")) {
+          if (node.children.length || node.textContent.trim()) validFormula = false;
+          return "";
+        }
+        if (node.classList.contains("katex-html") || node.classList.contains("base")) return Array.from(node.childNodes).map(read).join("");
+        if (node.children.length || /(?:position|transform|display)\s*:/i.test(node.getAttribute("style") || "")) { validFormula = false; return ""; }
+        var value = node.textContent;
+        if (!value || !classes.some(function (name) { return /^(mord|mrel|mbin|mopen|mclose|mpunct)$/.test(name); })) { validFormula = false; return ""; }
+        return Array.from(value).map(function (character) {
+          if (Object.prototype.hasOwnProperty.call(symbols, character)) return symbols[character];
+          if (/^[a-zA-Z0-9.,()+\-=\/|\[\]:!]$/.test(character)) return character;
+          validFormula = false;
+          return "";
+        }).join("");
+      }
+      var expression = read(rendered).trim();
+      return validFormula ? expression : "";
+    }
     async function markdown(html, baseURL) {
       state.stage = "解析题目图文";
       var parsed = new DOMParser().parseFromString(String(html || ""), "text/html");
@@ -377,7 +416,9 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
         var formula = formulas[formulaIndex];
         var original = formula.querySelector('annotation[encoding="application/x-tex"]');
         if (!original || !original.textContent.trim()) {
-          formula.setAttribute("data-daguanyuan-import-image", await formulaImage(formula, baseURL));
+          var restored = simpleFormula(formula);
+          if (restored) formula.setAttribute("data-daguanyuan-import-tex", restored);
+          else formula.setAttribute("data-daguanyuan-import-image", await formulaImage(formula, baseURL));
         }
       }
       var images = Array.from(parsed.body.querySelectorAll("img, svg"));
@@ -402,8 +443,12 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
         }
         item.setAttribute("data-daguanyuan-import-image", data);
       }
+      var codeBlocks = [];
+      var codeMarker = "\uE000DAGUANYUAN_CODE_";
+      while (String(html).indexOf(codeMarker) >= 0) codeMarker += "_";
       function convert(node) {
-        if (node.nodeType === 3) return node.textContent;
+        // 普通 HTML 文本中的排版换行折叠为空格；代码块单独保留原文。
+        if (node.nodeType === 3) return node.textContent.replace(/[\t\n\r\f ]+/g, " ");
         if (node.nodeType !== 1) return "";
         var tag = node.tagName.toLowerCase();
         if (["script", "style", "noscript"].indexOf(tag) >= 0) return "";
@@ -412,10 +457,15 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
           ? "![公式](" + picture + ")" : "\n\n![题图](" + picture + ")\n\n";
         if (node.classList.contains("katex")) {
           var formula = node.querySelector('annotation[encoding="application/x-tex"]');
-          if (!formula) throw new Error("题目公式缺少原始表达式");
-          return node.closest(".katex-display") ? "\n\n$$\n" + formula.textContent + "\n$$\n\n" : "$" + formula.textContent + "$";
+          var expression = formula && formula.textContent.trim() || node.getAttribute("data-daguanyuan-import-tex");
+          if (!expression) throw new Error("题目公式缺少原始表达式");
+          return node.closest(".katex-display") ? "\n\n$$\n" + expression + "\n$$\n\n" : "$" + expression + "$";
         }
-        if (tag === "pre") return "\n\n```\n" + node.textContent.trim() + "\n```\n\n";
+        if (tag === "pre") {
+          var marker = codeMarker + codeBlocks.length + "\uE001";
+          codeBlocks.push("```\n" + node.textContent.replace(/^\r?\n|\r?\n$/g, "") + "\n```");
+          return "\n\n" + marker + "\n\n";
+        }
         if (tag === "table") {
           var rows = Array.from(node.querySelectorAll("tr")).map(function (row) {
             return Array.from(row.children).map(function (cell) {
@@ -437,7 +487,9 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
         if (tag === "li") return "\n" + (node.parentNode.tagName.toLowerCase() === "ol" ? "1. " : "- ") + body.trim();
         return /^(p|div|section|article|h[1-6]|ul|ol|figure|blockquote)$/.test(tag) ? "\n\n" + body + "\n\n" : body;
       }
-      return Array.from(parsed.body.childNodes).map(convert).join("").replace(/\n{3,}/g, "\n\n").trim();
+      var result = Array.from(parsed.body.childNodes).map(convert).join("").replace(/[\t ]*\n[\t ]*/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+      codeBlocks.forEach(function (body, index) { result = result.split(codeMarker + index + "\uE001").join(body); });
+      return result;
     }
     async function loadModules() {
       var entry = document.querySelector('script[type="module"][src*="/assets/index-"]');
@@ -463,6 +515,9 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
       if (!response || !Array.isArray(response.rows)) throw new Error("408 分类题目列表格式无效");
       return response.rows;
     }
+    function matchesTarget(row) {
+      return row.question && Number(row.question.year) === target.year && Number(row.question.questionIndex) === target.number;
+    }
     async function listQuestions() {
       var rows = [];
       if (knowledgeId) {
@@ -486,12 +541,17 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
             seen.add(id);
             rows.push(item);
           });
+          if (target && rows.some(matchesTarget)) break;
           if (rows.length >= total) break;
         }
-        if (rows.length !== total) throw new Error("408 分类题目数量不一致，请刷新后重试");
+        if (!target && rows.length !== total) throw new Error("408 分类题目数量不一致，请刷新后重试");
       } else {
         rows = await request.get("/api/zt/question/list-with-details", { params: { year: year } });
         if (!Array.isArray(rows)) throw new Error("408 年份题目列表格式无效");
+      }
+      if (target) {
+        rows = rows.filter(matchesTarget);
+        if (rows.length !== 1) throw new Error("无法唯一确定所点击的 408 题目，请刷新后重试");
       }
       var ids = rows.map(function (row) { return Number(row.question && row.question.id); });
       if (ids.some(function (id, index) { return !Number.isSafeInteger(id) || id < 1 || ids.indexOf(id) !== index; })) {
@@ -620,8 +680,8 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
     return true;
   }
 
-  function pageScript(token) {
-    return "String((" + pageReceiver.toString() + ")(" + JSON.stringify(token) + "))";
+  function pageScript(token, target) {
+    return "String((" + pageReceiver.toString() + ")(" + JSON.stringify(token) + "," + JSON.stringify(target || null) + "))";
   }
   return { pageScript };
 })();

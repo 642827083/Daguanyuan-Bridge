@@ -6,6 +6,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   const WEBSITE_LOCATE_KEY = "cn.marginnote.daguanyuan-bridge.question-navigation.website-locate-card-visible";
   const CATEGORY_IMPORT_KEY = "cn.marginnote.daguanyuan-bridge.question-navigation.import-category-visible";
   const NOTE_ADD_KEY = "cn.marginnote.daguanyuan-bridge.question-tools.add-note-visible";
+  const SINGLE_IMPORT_KEY = "cn.marginnote.daguanyuan-bridge.question-tools.import-single-visible";
   const TITLE_HEIGHT = 38;
   const DEFAULT_WIDTH = 960;
   const DEFAULT_HEIGHT = 680;
@@ -68,12 +69,12 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.settingsButton.frame = { x: tabsX + 160, y: 4, width: 72, height: 30 };
     controller.webView.frame = contentFrame;
     controller.settingsPage.frame = contentFrame;
-    controller.settingsPage.contentSize = { width: contentFrame.width, height: Math.max(contentFrame.height + 1, 1128) };
+    controller.settingsPage.contentSize = { width: contentFrame.width, height: Math.max(contentFrame.height + 1, 1198) };
     __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__.layout(controller, contentFrame);
     controller.focusSettingsSection.frame = { x: 20, y: 18, width: sectionWidth, height: 336 };
     controller.categorySettingsSection.frame = { x: 20, y: 366, width: sectionWidth, height: 336 };
     controller.questionNavigationSettingsSection.frame = { x: 20, y: 714, width: sectionWidth, height: 194 };
-    controller.questionToolsSettingsSection.frame = { x: 20, y: 920, width: sectionWidth, height: 196 };
+    controller.questionToolsSettingsSection.frame = { x: 20, y: 920, width: sectionWidth, height: 266 };
     controller.focusSectionTitle.frame = { x: 20, y: 12, width: Math.max(0, sectionWidth - 40), height: 28 };
     controller.focusDivider.frame = { x: 20, y: 48, width: Math.max(0, sectionWidth - 40), height: 1 };
     controller.focusEnabledTitle.frame = { x: 20, y: 61, width: Math.max(0, sectionWidth - 110), height: 24 };
@@ -127,9 +128,14 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.noteAddTitle.frame = { x: 20, y: 131, width: Math.max(0, sectionWidth - 110), height: 24 };
     controller.noteAddDescription.frame = { x: 20, y: 157, width: Math.max(0, sectionWidth - 110), height: 18 };
     controller.noteAddSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 139, width: 51, height: 31 };
+    controller.singleImportDivider.frame = { x: 20, y: 188, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.singleImportTitle.frame = { x: 20, y: 201, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.singleImportDescription.frame = { x: 20, y: 227, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.singleImportSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 209, width: 51, height: 31 };
     controller.resizeHandle.frame = { x: Math.max(0, bounds.width - 30), y: Math.max(0, bounds.height - 30), width: 30, height: 30 };
     controller.resizeGlyph.frame = { x: 0, y: 0, width: 30, height: 30 };
     __DAGUANYUAN_IMPORT_REPORT_GLOBAL__.layout(controller);
+    if (typeof __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__ !== "undefined") __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.layout(controller);
   }
 
   function button(title, controller, selector) {
@@ -186,6 +192,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       refreshQuestionLocatorSetting(controller);
       refreshWebsiteLocateSetting(controller);
       refreshNoteAddSetting(controller);
+      refreshSingleImportSetting(controller);
       refreshCategoryImportSetting(controller);
       refreshPreviousSetting(controller);
     } else if (page === "category-manager") {
@@ -271,6 +278,18 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       if (typeof value.booleanValue === "function") return Boolean(value.booleanValue());
       return value === true || value === 1 || String(value).toLowerCase() === "true";
     } catch (ignored) { return false; }
+  }
+
+  function singleImportVisible() {
+    try {
+      const value = NSUserDefaults.standardUserDefaults().objectForKey(SINGLE_IMPORT_KEY);
+      if (typeof (value && value.booleanValue) === "function") return Boolean(value.booleanValue());
+      return value === true || value === 1 || String(value).toLowerCase() === "true";
+    } catch (ignored) { return false; }
+  }
+
+  function refreshSingleImportSetting(controller) {
+    if (controller && controller.singleImportSwitch) controller.singleImportSwitch.on = singleImportVisible();
   }
 
   function refreshCategoryImportSetting(controller) {
@@ -491,7 +510,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
     controller.websiteLocateTitle = label("显示定位卡片", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
 
-    controller.websiteLocateDescription = label("在大观园题目页和错题复测页显示定位卡片", UIFont.systemFontOfSize(12), UIColor.grayColor());
+    controller.websiteLocateDescription = label("在数学、408 题目页及数学错题复测页显示定位卡片", UIFont.systemFontOfSize(12), UIColor.grayColor());
 
     controller.websiteLocateSwitch = new UISwitch({ x: DEFAULT_WIDTH - 108, y: 139, width: 51, height: 31 });
     controller.websiteLocateSwitch.addTargetActionForControlEvents(controller, "toggleWebsiteLocateCards:", 1 << 12);
@@ -510,7 +529,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.categoryImportSwitch.addTargetActionForControlEvents(controller, "toggleCategoryImportDisplay:", 1 << 12);
     controller.questionNavigationSettingsSection.addSubview(controller.categoryImportSwitch);
 
-    controller.questionToolsSettingsSection = new UIView({ x: 20, y: 920, width: DEFAULT_WIDTH - 40, height: 196 });
+    controller.questionToolsSettingsSection = new UIView({ x: 20, y: 920, width: DEFAULT_WIDTH - 40, height: 266 });
     controller.questionToolsSettingsSection.backgroundColor = UIColor.whiteColor();
     controller.questionToolsSettingsSection.layer.cornerRadius = 10;
     controller.questionToolsSettingsSection.layer.borderWidth = 0.5;
@@ -531,12 +550,23 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.noteAddTitle = label("显示添加笔记", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
     controller.questionToolsSettingsSection.addSubview(controller.noteAddTitle);
 
-    controller.noteAddDescription = label("在每题定位卡片右侧显示剪贴板图片添加按钮", UIFont.systemFontOfSize(12), UIColor.grayColor());
+    controller.noteAddDescription = label("在数学与 408 题目中添加剪贴板图片笔记", UIFont.systemFontOfSize(12), UIColor.grayColor());
     controller.questionToolsSettingsSection.addSubview(controller.noteAddDescription);
 
     controller.noteAddSwitch = new UISwitch({ x: DEFAULT_WIDTH - 108, y: 69, width: 51, height: 31 });
     controller.noteAddSwitch.addTargetActionForControlEvents(controller, "toggleNoteAddDisplay:", 1 << 12);
     controller.questionToolsSettingsSection.addSubview(controller.noteAddSwitch);
+
+    controller.singleImportDivider = new UIView({ x: 20, y: 188, width: DEFAULT_WIDTH - 80, height: 1 });
+    controller.singleImportDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
+    controller.questionToolsSettingsSection.addSubview(controller.singleImportDivider);
+    controller.singleImportTitle = label("显示导入单题", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
+    controller.questionToolsSettingsSection.addSubview(controller.singleImportTitle);
+    controller.singleImportDescription = label("将数学或 408 的一道题导入为所选卡片的子节点", UIFont.systemFontOfSize(12), UIColor.grayColor());
+    controller.questionToolsSettingsSection.addSubview(controller.singleImportDescription);
+    controller.singleImportSwitch = new UISwitch({ x: DEFAULT_WIDTH - 108, y: 209, width: 51, height: 31 });
+    controller.singleImportSwitch.addTargetActionForControlEvents(controller, "toggleSingleImportDisplay:", 1 << 12);
+    controller.questionToolsSettingsSection.addSubview(controller.singleImportSwitch);
 
     controller.previousTitle = label("显示上一张", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
     controller.focusSettingsSection.addSubview(controller.previousTitle);
@@ -574,6 +604,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     refreshCategoryImportSetting(controller);
     refreshQuestionLocatorSetting(controller);
     refreshNoteAddSetting(controller);
+    refreshSingleImportSetting(controller);
     refreshPreviousSetting(controller);
     refreshTabStyle(controller);
     layout(controller);
@@ -829,6 +860,12 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
   function handleCategoryImport(controller) {
     if (controller.categoryImportBusy) return;
+    if (controller.questionToolBusy) { finishCategoryImport(controller); showMessage(controller, "正在读取当前题目，请稍后导入"); return; }
+    if (controller.singleImportBusy) {
+      finishCategoryImport(controller);
+      showMessage(controller, "正在导入单题，请稍后再导入整类题目");
+      return;
+    }
     if (!categoryImportVisible() || ["math", "408"].indexOf(controller.currentContentPage) < 0) {
       showMessage(controller, "请在数学或 408 页开启导入当前题目");
       return;
@@ -921,9 +958,115 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     }
   }
 
+  function finishSingleImport(controller) {
+    controller.singleImportBusy = false;
+    try {
+      controller.webView.evaluateJavaScript("window.__DAGUANYUAN_SINGLE_IMPORT_BUTTONS__&&window.__DAGUANYUAN_SINGLE_IMPORT_BUTTONS__.finishImport()", function () {});
+    } catch (error) { console.log(`[Daguanyuan Bridge] 恢复单题导入按钮失败：${error && error.message || error}`); }
+  }
+
+  function handleSingleImport(controller, address) {
+    if (controller.singleImportBusy) return;
+    try {
+      if (controller.categoryImportBusy) throw new Error("正在导入整类题目，请稍后再导入单题");
+      if (controller.questionToolBusy) throw new Error("正在读取当前题目，请稍后导入");
+      if (!singleImportVisible()) throw new Error("请先在设置的题目工具中开启显示导入单题");
+      const target = __DAGUANYUAN_SINGLE_IMPORT_GLOBAL__.targetFromAddress(address);
+      if (target.provider !== controller.currentContentPage) throw new Error("题库页面已切换，请重新点击导入单题");
+      controller.singleImportBusy = true;
+      const operation = __DAGUANYUAN_SINGLE_IMPORT_GLOBAL__.importQuestion(controller, target);
+      showMessage(controller, "正在将此题导入为所选卡片的子节点…");
+      operation.then(function (result) {
+        showCategoryImportResult(controller, result, "没有可导入的题目");
+      }).catch(function (error) {
+        if (error.importResult) {
+          error.importResult.interrupted = String(error.message || error);
+          showImportReport(controller, error.importResult);
+        } else showMessage(controller, String(error && error.message || error));
+      }).then(function () { finishSingleImport(controller); }, function (error) {
+        finishSingleImport(controller);
+        console.log(`[Daguanyuan Bridge] 单题导入结束提示失败：${error && error.message || error}`);
+      });
+    } catch (error) {
+      finishSingleImport(controller);
+      showMessage(controller, String(error && error.message || error));
+    }
+  }
+
+  function injectSingleImportButtons(controller) {
+    if (!controller || !controller.webView) return;
+    try {
+      controller.webView.evaluateJavaScript(__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__.singleImportScript(singleImportVisible()), function (result, error) {
+        if (error) console.log(`[Daguanyuan Bridge] 注入单题导入按钮失败：${error.localizedDescription || error}`);
+      });
+    } catch (error) { console.log(`[Daguanyuan Bridge] 注入单题导入按钮失败：${error && error.message || error}`); }
+  }
+
+  function finishQuestionTool(controller, method) {
+    try {
+      controller.webView.evaluateJavaScript("window.__DAGUANYUAN_QUESTION_TOOLS__&&window.__DAGUANYUAN_QUESTION_TOOLS__." + method + "()", function () {});
+    } catch (error) { console.log(`[Daguanyuan Bridge] 恢复题目工具按钮失败：${error && error.message || error}`); }
+  }
+
+  function handleCardLocate(controller, questionId, provider) {
+    if (controller.categoryImportBusy || controller.singleImportBusy || controller.questionToolBusy) {
+      showMessage(controller, "题目正在读取、导入或定位，请稍后重试");
+      if (!controller.cardLocationActive) finishQuestionTool(controller, "finishLocate");
+      return Promise.resolve();
+    }
+    controller.questionToolBusy = true;
+    controller.cardLocationActive = true;
+    return Promise.resolve().then(function () {
+      return __DAGUANYUAN_MATH_IMPORT_GLOBAL__.focusQuestion(controller.addon, questionId, provider);
+    }).then(function () {
+      controller.questionToolBusy = false;
+      controller.cardLocationActive = false;
+      finishQuestionTool(controller, "finishLocate");
+      showMessage(controller, "已定位脑图卡片");
+    }, function (error) {
+      controller.questionToolBusy = false;
+      controller.cardLocationActive = false;
+      finishQuestionTool(controller, "finishLocate");
+      showMessage(controller, String(error && error.message || error));
+    });
+  }
+
+  function handle408QuestionTool(controller, address, addingNote) {
+    const finishMethod = addingNote ? "finishNotePaste" : "finishLocate";
+    let ownsLookup = false;
+    try {
+      if (controller.currentContentPage !== "408") throw new Error("请先进入 408 题目页");
+      if (addingNote ? !noteAddVisible() : !websiteLocateCardsVisible()) throw new Error("请先开启对应的题目工具开关");
+      if (controller.categoryImportBusy || controller.singleImportBusy || controller.questionToolBusy) throw new Error("题目正在读取或导入，请稍后重试");
+      if (addingNote && controller.notePasteOperation) throw new Error("上一张图片仍在添加中，请稍候");
+      const target = __DAGUANYUAN_SINGLE_IMPORT_GLOBAL__.targetFromAddress(address);
+      if (target.provider !== "408") throw new Error("408 题目参数无效");
+      controller.questionToolBusy = true;
+      ownsLookup = true;
+      __DAGUANYUAN_408_IMPORT_GLOBAL__.resolveQuestion(controller, target).then(function (question) {
+        controller.questionToolBusy = false;
+        if (!addingNote) {
+          return handleCardLocate(controller, question.id, "408");
+        }
+        return __DAGUANYUAN_408_NOTE_PASTE_GLOBAL__.start(controller, question).then(function (token) {
+          if (controller.notePasteOperation && controller.notePasteOperation.token === token) showMessage(controller, "正在添加图片，等待 408 网站保存");
+        });
+      }).catch(function (error) {
+        controller.questionToolBusy = false;
+        finishQuestionTool(controller, finishMethod);
+        showMessage(controller, String(error && error.message || error));
+      });
+    } catch (error) {
+      if (ownsLookup) controller.questionToolBusy = false;
+      if (addingNote || !controller.cardLocationActive) finishQuestionTool(controller, finishMethod);
+      showMessage(controller, String(error && error.message || error));
+    }
+  }
+
   function injectWebsiteButtons(controller) {
     injectWebsiteLocateButtons(controller);
     injectBindCategoryButton(controller);
+    injectSingleImportButtons(controller);
   }
 
   function injectBindCategoryButton(controller) {
@@ -968,6 +1111,14 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
     viewDidLayoutSubviews: function () {
       layout(self);
+    },
+
+    selectCardLocationChoice: function (sender) {
+      __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.select(self, Number(sender && sender.tag), sender);
+    },
+
+    cancelCardLocationChoice: function () {
+      __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.cancel(self);
     },
 
     openDaguanyuan: function () {
@@ -1196,8 +1347,19 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       if (recognizer.state === 3) persistFrame(self);
     },
 
+    toggleSingleImportDisplay: function (sender) {
+      const requested = sender && typeof sender.on !== "undefined" ? Boolean(sender.on) : !singleImportVisible();
+      NSUserDefaults.standardUserDefaults().setObjectForKey(requested, SINGLE_IMPORT_KEY);
+      refreshSingleImportSetting(self);
+      injectSingleImportButtons(self);
+    },
+
     webViewShouldStartLoadWithRequestNavigationType: function (webView, request) {
       const address = requestAddress(request);
+      if (webView === self.webView && /^daguanyuanbridge:\/\/import-single\?/i.test(address)) {
+        handleSingleImport(self, address);
+        return false;
+      }
       if (webView === self.webView && __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__.handles(address)) {
         __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__.open(address, function (message) { showMessage(self, message); });
         return false;
@@ -1207,13 +1369,14 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
         return false;
       }
       if (webView === self.webView && /^daguanyuanbridge:\/\/locate-card\?/i.test(address)) {
+        if (/[?&]payload=/.test(address)) { handle408QuestionTool(self, address, false); return false; }
         try {
           const match = address.match(/[?&]id=(\d+)/);
           if (!match) throw new Error("题目 ID 无效");
-          __DAGUANYUAN_MATH_IMPORT_GLOBAL__.focusQuestion(self.addon, Number(match[1]));
-          showMessage(self, "已定位脑图卡片");
+          handleCardLocate(self, Number(match[1]));
         } catch (error) {
           showMessage(self, String(error && error.message || error));
+          finishQuestionTool(self, "finishLocate");
         }
         return false;
       }
@@ -1221,15 +1384,17 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
         const token = (address.match(/[?&]token=([0-9-]+)/) || ["", ""])[1];
         const status = (address.match(/[?&]status=([a-z]+)/i) || ["", ""])[1];
         const message = __DAGUANYUAN_NOTE_PASTE_GLOBAL__.result(self, token, status);
-        if (message) showMessage(self, message);
+        if (message) { finishQuestionTool(self, "finishNotePaste"); showMessage(self, message); }
         return false;
       }
       if (webView === self.webView && /^daguanyuanbridge:\/\/add-note\?/i.test(address)) {
+        if (/[?&]payload=/.test(address)) { handle408QuestionTool(self, address, true); return false; }
         const match = address.match(/[?&]id=(\d+)/);
-        if (!noteAddVisible() || !match) { showMessage(self, "请先开启显示添加笔记"); return false; }
+        if (!noteAddVisible() || !match) { finishQuestionTool(self, "finishNotePaste"); showMessage(self, "请先开启显示添加笔记"); return false; }
         __DAGUANYUAN_NOTE_PASTE_GLOBAL__.start(self, Number(match[1])).then(function (token) {
           if (self.notePasteOperation && self.notePasteOperation.token === token) showMessage(self, "正在添加图片，等待网站保存");
         }).catch(function (error) {
+          finishQuestionTool(self, "finishNotePaste");
           showMessage(self, String(error && error.message || error));
         });
         return false;

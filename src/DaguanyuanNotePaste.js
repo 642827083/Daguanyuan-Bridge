@@ -28,7 +28,7 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
   }
 
   function pageReceiver() {
-    if (window.__DAGUANYUAN_NOTE_PASTE__ && window.__DAGUANYUAN_NOTE_PASTE__.version === 1) return true;
+    if (window.__DAGUANYUAN_NOTE_PASTE__ && window.__DAGUANYUAN_NOTE_PASTE__.version === 2) return true;
     var current = null;
     function validPage() {
       return /(^|\.)cxyonly\.fans$/i.test(window.location.hostname || "")
@@ -53,6 +53,14 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
     }
     function buttonFor(row) {
       return row.querySelector("[data-daguanyuan-practice-add-note], [data-daguanyuan-retest-add-note]");
+    }
+    function noteDialog() {
+      var dialogs = document.querySelectorAll('[role="dialog"][data-kind="dialog"]');
+      for (var index = 0; index < dialogs.length; index += 1) {
+        var heading = dialogs[index].querySelector("h2");
+        if (heading && String(heading.textContent || "").trim() === "题目笔记") return dialogs[index];
+      }
+      return null;
     }
     function finish(token, status) {
       if (!current || current.token !== token) return;
@@ -84,9 +92,14 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
         if (!current || current.token !== token || !validPage()) return;
         var row = questionRow(current.id);
         if (!row) { finish(token, "missing"); return; }
-        var wrapper = row.querySelector('[data-note-rich-editor="true"]');
+        var scope = row;
+        var wrapper = scope.querySelector('[data-note-rich-editor="true"]');
+        if (!wrapper && noteOpened) {
+          scope = noteDialog();
+          wrapper = scope && scope.querySelector('[data-note-rich-editor="true"]');
+        }
         var editor = wrapper && wrapper.querySelector('[data-note-editor="true"]');
-        if (wrapper && editor) { callback(row, wrapper, editor); return; }
+        if (wrapper && editor) { callback(scope, wrapper, editor); return; }
         if (!noteOpened) {
           var buttons = row.querySelectorAll("button");
           var noteButton = null;
@@ -118,7 +131,7 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
         file = new File([bytes], transfer.fileName, { type: transfer.mimeType });
       } catch (error) { finish(token, "decode"); return true; }
       transfer.chunks = [];
-      openEditor(token, function (row, wrapper, editor) {
+      openEditor(token, function (scope, wrapper, editor) {
         try {
           var before = wrapper.querySelectorAll("img[data-attachment-id]").length;
           editor.focus();
@@ -137,7 +150,7 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
               function watch() {
                 if (!current || current.token !== token || !validPage()) return;
                 var imageCount = wrapper.querySelectorAll("img[data-attachment-id]").length;
-                var status = row.querySelector('[aria-label="富文本题目笔记"] [data-state]');
+                var status = scope.querySelector('[aria-label="富文本题目笔记"] [data-state]');
                 if (status && status.getAttribute("data-state") === "error") { finish(token, "save"); return; }
                 if (imageCount > before && status && status.getAttribute("data-state") === "saved") {
                   finish(token, "saved"); return;
@@ -159,7 +172,7 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
       current = null;
       return true;
     }
-    window.__DAGUANYUAN_NOTE_PASTE__ = { version: 1, prepare: prepare, append: append, commit: commit, cancel: cancel };
+    window.__DAGUANYUAN_NOTE_PASTE__ = { version: 2, prepare: prepare, append: append, commit: commit, cancel: cancel };
     return true;
   }
 
@@ -195,7 +208,7 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
       image = clipboardImage();
       return evaluate(controller, "(" + pageReceiver.toString() + ")();");
     }).then(function () {
-      return evaluate(controller, "String(!!(" + prefix + " && " + prefix + ".version === 1))");
+      return evaluate(controller, "String(!!(" + prefix + " && " + prefix + ".version === 2))");
     }).then(function (ready) {
       if (!accepted(ready)) throw new Error("无法连接题目笔记编辑器");
       return evaluate(controller, "String(" + prefix + ".prepare(" + [id, token, image.mimeType, image.fileName].map(JSON.stringify).join(",") + "))");
@@ -215,7 +228,11 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
     }).then(function (started) {
       if (!accepted(started)) throw new Error("网站未能开始添加图片");
       NSTimer.scheduledTimerWithTimeInterval(55, false, function () {
-        if (controller.notePasteOperation && controller.notePasteOperation.token === token) controller.notePasteOperation = null;
+        if (controller.notePasteOperation && controller.notePasteOperation.token === token) {
+          controller.notePasteOperation = null;
+          evaluate(controller, prefix + " && " + prefix + ".cancel(" + JSON.stringify(token) + ")").catch(function () {});
+          evaluate(controller, "window.__DAGUANYUAN_QUESTION_TOOLS__&&window.__DAGUANYUAN_QUESTION_TOOLS__.finishNotePaste()").catch(function () {});
+        }
       });
       return token;
     }).catch(function (error) {
@@ -231,8 +248,12 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
     if (status === "saved") return "图片已添加到题目笔记";
     if (status === "save") return "网站未能保存图片，请查看题目笔记";
     if (status === "timeout") return "尚未确认图片保存，请查看题目笔记";
+    if (status === "changed") return "408 当前题目已切换，图片未继续添加";
+    if (status === "permission") return "当前 408 账号尚未开放笔记图片功能";
+    if (status === "limit") return "图片超出 408 网站的数量或大小限制，请查看网站提示";
+    if (status === "upload") return "408 题目笔记图片上传失败，请重试";
     return "图片未能添加，请查看题目笔记后重试";
   }
 
-  return { start, result };
+  return { start, result, clipboardImage };
 })();

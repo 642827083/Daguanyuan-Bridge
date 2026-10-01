@@ -124,3 +124,61 @@ test("复测页笔记藏在更多操作时先展开，再粘贴到当前题目�
   assert.match(frames[0].src, /status=saved/);
   assert.equal(plugin.disabled, false);
 });
+
+test("窄面板的题目笔记弹窗在卡片外仍能添加图片", async () => {
+  const image = { pngData() { return { length: 3, base64Encoding() { return "AQID"; } }; } };
+  const { controller, scripts, paste } = runtime(image, "https://cxyonly.fans/math/retest");
+  await paste.start(controller, 4042);
+  const receiver = scripts.find((script) => script.includes("function pageReceiver()"));
+  const queued = [];
+  const frames = [];
+  let dialogOpen = false;
+  let uploaded = false;
+  const note = { textContent: "查看笔记", hasAttribute() { return false; }, click() { dialogOpen = true; } };
+  const plugin = { textContent: "添加笔记", disabled: false };
+  const editor = { lastChild: null, focus() {} };
+  const wrapper = {
+    querySelector() { return editor; },
+    querySelectorAll() { return uploaded ? [{}] : []; },
+    dispatchEvent(event) { assert.equal(event.clipboardData.files[0].type, "image/png"); uploaded = true; },
+  };
+  const dialog = {
+    querySelector(selector) {
+      if (selector === "h2") return { textContent: "题目笔记" };
+      if (selector.includes("data-note-rich-editor")) return wrapper;
+      if (selector.includes("data-state")) return { getAttribute() { return "saved"; } };
+      return null;
+    },
+  };
+  const row = {
+    getAttribute(name) { return name === "data-retest-question-id" ? "4042" : null; },
+    querySelector(selector) { return selector.includes("data-daguanyuan") ? plugin : null; },
+    querySelectorAll() { return [note]; },
+  };
+  const context = {
+    window: {
+      location: { hostname: "cxyonly.fans", pathname: "/math/retest" },
+      setTimeout(callback) { queued.push(callback); },
+      getSelection() { return { removeAllRanges() {}, addRange() {} }; },
+    },
+    document: {
+      body: { appendChild(frame) { frames.push(frame); frame.parentNode = { removeChild() {} }; } },
+      querySelectorAll(selector) { return selector.includes("role=\"dialog\"") ? (dialogOpen ? [dialog] : []) : [row]; },
+      createElement() { return { style: {} }; },
+      createRange() { return { selectNodeContents() {}, collapse() {} }; },
+    },
+    File: class { constructor(parts, name, options) { this.parts = parts; this.name = name; this.type = options.type; } },
+    Event: class {},
+    atob(value) { return Buffer.from(value, "base64").toString("binary"); },
+  };
+  vm.createContext(context);
+  vm.runInContext(receiver, context);
+  const page = context.window.__DAGUANYUAN_NOTE_PASTE__;
+  assert.equal(page.prepare(4042, "token", "image/png", "note.png"), true);
+  page.append("token", "AQID");
+  page.commit("token");
+  for (let attempt = 0; queued.length && !frames.length && attempt < 100; attempt += 1) queued.shift()();
+  assert.equal(dialogOpen, true);
+  assert.equal(uploaded, true, frames[0] && frames[0].src);
+  assert.match(frames[0].src, /status=saved/);
+});
