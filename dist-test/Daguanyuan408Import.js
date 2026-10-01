@@ -135,7 +135,7 @@ var __DAGUANYUAN_408_IMPORT_GLOBAL__ = (function () {
     const session = single ? single.session : __DAGUANYUAN_MATH_IMPORT_GLOBAL__.prepared408Session(controller.addon);
     const token = `${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
     const key = JSON.stringify(token);
-    const result = { total: 0, createdCount: 0, skippedCount: 0, failed: [] };
+    const result = { total: 0, createdCount: 0, updatedCount: 0, skippedCount: 0, failed: [] };
     const report = typeof onProgress === "function" ? onProgress : function () {};
     function cleanup() {
       return evaluate(controller, PREFIX + "&&" + PREFIX + ".cancel(" + key + ")").catch(function () {});
@@ -153,8 +153,7 @@ var __DAGUANYUAN_408_IMPORT_GLOBAL__ = (function () {
         let source = listing.sources && listing.sources[id] || "";
         let stage = "读取题目与传输";
         let diagnostics;
-        const operation = session.hasQuestion(id) ? Promise.resolve().then(function () { result.skippedCount += 1; })
-          : evaluate(controller, "String(" + PREFIX + "&&" + PREFIX + ".prepare(" + key + "," + index + "))").then(function (accepted) {
+        const operation = evaluate(controller, "String(" + PREFIX + "&&" + PREFIX + ".prepare(" + key + "," + index + "))").then(function (accepted) {
             if (String(accepted) !== "true") throw new Error("当前 408 分类已切换，导入停止");
             return readPayload(controller, token);
           }).then(function (payload) {
@@ -162,7 +161,9 @@ var __DAGUANYUAN_408_IMPORT_GLOBAL__ = (function () {
             source = payload.question.source || source;
             diagnostics = payload.diagnostics;
             stage = "MarginNote 建卡";
-            if (session.write(payload.question, listing.category)) result.createdCount += 1;
+            const outcome = session.write(payload.question, listing.category);
+            if (outcome === "updated") result.updatedCount += 1;
+            else if (outcome) result.createdCount += 1;
             else result.skippedCount += 1;
           });
         return operation.catch(function (error) {
@@ -170,14 +171,14 @@ var __DAGUANYUAN_408_IMPORT_GLOBAL__ = (function () {
           result.failed.push({ questionId: id, source: error.source || source, stage: error.stage || stage,
             diagnostics: error.diagnostics || diagnostics, reason: String(error && error.message || error) });
         }).then(function () {
-          report({ processed: index + 1, total: result.total, created: result.createdCount, skipped: result.skippedCount, failed: result.failed.length });
+          report({ processed: index + 1, total: result.total, created: result.createdCount, updated: result.updatedCount, skipped: result.skippedCount, failed: result.failed.length });
           return next(index + 1);
         });
       }
       return next(0);
     }).then(function (value) { return cleanup().then(function () { return value; }); }, function (error) {
       return cleanup().then(function () {
-        const failure = new Error(`408 导入中断：已新建 ${result.createdCount} 道、跳过 ${result.skippedCount} 道、失败 ${result.failed.length} 道。${error && error.message || error}`);
+        const failure = new Error(`408 导入中断：已新建 ${result.createdCount} 道、更新 ${result.updatedCount} 道、跳过 ${result.skippedCount} 道、失败 ${result.failed.length} 道。${error && error.message || error}`);
         failure.importResult = result;
         throw failure;
       });

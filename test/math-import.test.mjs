@@ -152,6 +152,7 @@ test("按直接分类跨页导入完整层级，失败可重试且重复题目�
   const all = Array.from({ length: 22 }, (_, index) => index + 7980);
   const context = {
     console,
+    MNUtil: { getNoteById(id) { return notes[id]; } },
     Application: { sharedInstance() { return {
       studyController() { return {
         notebookController: { notebookId: "topic-1", changeFocusToNote(note) { focused = note; } },
@@ -204,11 +205,15 @@ test("按直接分类跨页导入完整层级，失败可重试且重复题目�
   vm.runInContext(locatorSource, context);
   const importer = context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__;
   const addon = { window: {} };
+  const elsewhere = createNote('别处的单题父卡片');
+  const single = createNote('单题导入');
+  single.appendMarkdownComment('<!-- DAGUANYUAN_QUESTION_ID:7980 -->\n<!-- DAGUANYUAN_SINGLE_IMPORT:1 -->');
+  elsewhere.addChild(single);
   const first = await importer.importCategory(addon, 1035, "core");
   assert.equal(first.total, 22);
   assert.equal(first.createdCount, 21);
   assert.equal(first.failed.length, 1);
-  const root = notebook.notes[0];
+  const root = notebook.notes.find(note => note.noteTitle === 'Daguanyuan Bridge');
   assert.equal(root.noteTitle, "Daguanyuan Bridge");
   const year = root.childNotes[0].childNotes[0].childNotes[0];
   assert.deepEqual(year.childNotes.map((card) => card.noteTitle),
@@ -220,9 +225,20 @@ test("按直接分类跨页导入完整层级，失败可重试且重复题目�
   assert.equal(second.createdCount, 1);
   assert.equal(second.skippedCount, 21);
   assert.equal(second.failed.length, 0);
-  assert.equal(serial, 26);
+  assert.equal(serial, 28);
   assert.equal((await importer.focusQuestion(addon, 8001)).noteId, year.childNotes[21].noteId);
   assert.equal(focused, year.childNotes[21]);
+  delete notes[year.childNotes[0].noteId];
+  const afterDelete = await importer.importCategory(addon, 1035, 'core');
+  assert.equal(afterDelete.createdCount, 1, '旧子节点对象残留不能阻止删除后重新导入');
+  assert.equal(afterDelete.skippedCount, 21);
+  const moved = year.childNotes[1];
+  year.childNotes = year.childNotes.filter(note => note !== moved);
+  elsewhere.addChild(moved);
+  const afterMove = await importer.importCategory(addon, 1035, 'core');
+  assert.equal(afterMove.createdCount, 1, '移出目标分类后可以重新导入，不受别处同题卡影响');
+  assert.equal(afterMove.skippedCount, 21);
+  assert.equal(single.parentNote, elsewhere);
   const empty = await importer.importCategory(addon, 855, "core");
   assert.equal(empty.total, 0);
   assert.equal(empty.createdCount, 0);

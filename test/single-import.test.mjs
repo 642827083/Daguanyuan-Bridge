@@ -13,6 +13,8 @@ function runtime() {
   function create(title) {
     const note = { noteId: `note-${++serial}`, notebookId: 'book-1', noteTitle: title, comments: [], childNotes: [],
       appendMarkdownComment(text) { this.comments.push({ text }); },
+      removeCommentByIndex(index) { this.comments.splice(index, 1); },
+      sortCommentsByNewIndices(indices) { this.comments = indices.map(index => this.comments[index]); },
       addChild(child) { child.parentNote = this; this.childNotes.push(child); notebook.notes = notebook.notes.filter(n => n !== child); },
       processMarkdownBase64Images() {
         if (imageFailure) return false;
@@ -31,7 +33,7 @@ function runtime() {
     },
   };
   const study = { notebookController: controller, readerController: { currentDocumentController: { document } } };
-  const context = { console, Application: { sharedInstance() { return { studyController() { return study; }, refreshAfterDBChanged() {} }; } },
+  const context = { console, MNNote: { new(id) { return notes.get(id); } }, Application: { sharedInstance() { return { studyController() { return study; }, refreshAfterDBChanged() {} }; } },
     Database: { sharedInstance() { return database; } },
     Note: { createWithTitleNotebookDocument(title, book, doc) { assert.equal(book, notebook); assert.equal(doc, document); return create(title); } },
     UndoManager: { sharedInstance() { return { undoGrouping(label, topic, fn) { assert.equal(topic, 'book-1'); fn(); } }; } },
@@ -94,8 +96,9 @@ test('408 只转换并建卡一道带图题，不创建分类路径', async () =
 test('同一父节点重复题目跳过，其他父节点、孙节点和其他来源独立', async () => {
   const run = runtime();
   const first = run.importer.importQuestion(run.panel, math); run.complete(); await first;
-  assert.equal((await run.importer.importQuestion(run.panel, math)).skippedCount, 1);
-  assert.equal(run.requests.length, 1);
+  const repeated = run.importer.importQuestion(run.panel, math); run.complete();
+  assert.equal((await repeated).skippedCount, 1);
+  assert.equal(run.requests.length, 2);
   assert.equal((await run.importer.importQuestion(run.panel, os408)).createdCount, 1);
   run.controller.focusNote = run.create('另一张父卡片');
   const grandparent = run.controller.focusNote;
@@ -110,6 +113,24 @@ test('未选父卡片时不发请求、不创建卡片', () => {
     const run = runtime(); run.controller.focusNote = null;
     assert.throws(() => run.importer.importQuestion(run.panel, target), /选中一张父卡片/);
     assert.equal(run.requests.length, 0); assert.equal(run.notes.size, 1);
+  }
+});
+
+test('数学与408单题再次导入更新原卡，保持父节点、独立笔记和子卡片', async () => {
+  for (const target of [math, os408]) {
+    const run = runtime();
+    async function importOnce() {
+      const promise = run.importer.importQuestion(run.panel, target); if (target === math) run.complete(); return promise;
+    }
+    await importOnce(); const card = run.parent.childNotes[0];
+    const personal = { text: '我的笔记' }; card.comments.push(personal); const child = run.create('子节点'); card.addChild(child);
+    run.question.stem = '新题干 $x$'; run.question.hasBase64Image = false;
+    assert.equal((await importOnce()).updatedCount, 1);
+    assert.equal(run.parent.childNotes[0], card); assert.equal(card.childNotes[0], child); assert.equal(card.comments[1], personal);
+    assert.match(card.comments[0].text, /新题干/); assert.match(card.comments[0].text, /DAGUANYUAN_SINGLE_IMPORT:1/);
+    assert.equal((await importOnce()).skippedCount, 1);
+    run.database.deleteBookNoteTree(card.noteId);
+    assert.equal((await importOnce()).createdCount, 1);
   }
 });
 

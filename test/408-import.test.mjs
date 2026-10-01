@@ -8,7 +8,7 @@ const locatorSource = readFileSync(new URL("../src/DaguanyuanCardLocator.js", im
 const source = readFileSync(new URL("../src/Daguanyuan408Import.js", import.meta.url), "utf8");
 const pageSource = readFileSync(new URL("../src/Daguanyuan408Page.js", import.meta.url), "utf8");
 const addonSource = readFileSync(new URL("../src/WebAddon.js", import.meta.url), "utf8");
-const category = { title: "浮点数的表示与运算", url: "https://www.408os.cn/exercise?knowledgeId=125&knowledgeName=浮点数" };
+const category = { title: "浮点数的表示与运算", path: ["计算机组成原理", "数据的机器表示", "浮点数的表示与运算"], url: "https://www.408os.cn/exercise?knowledgeId=52&knowledgeName=浮点数" };
 
 function runtime(questions, options = {}) {
   const notebook = { topicId: "topic-1", notes: [] };
@@ -25,6 +25,8 @@ function runtime(questions, options = {}) {
   const lateCallbacks = [];
   const context = {
     console,
+    MNUtil: { getNoteById(id) { return notes.get(id); } },
+    MNNote: { new(id) { return notes.get(id); } },
     __DAGUANYUAN_MATH_API_GLOBAL__: { positiveInteger(value) {
       if (!Number.isSafeInteger(Number(value)) || Number(value) < 1) throw new Error("题目 ID 无效");
       return Number(value);
@@ -49,6 +51,8 @@ function runtime(questions, options = {}) {
       const note = {
         noteId: `note-${++serial}`, noteTitle: title, comments: [], childNotes: [], parentNote: null,
         appendMarkdownComment(text) { this.comments.push({ text }); },
+      removeCommentByIndex(index) { this.comments.splice(index, 1); },
+      sortCommentsByNewIndices(indices) { this.comments = indices.map(index => this.comments[index]); },
         addChild(child) {
           notebook.notes = notebook.notes.filter((item) => item !== child);
           child.parentNote = this;
@@ -141,18 +145,66 @@ test("408 导入整类所有题目，来源与数学 ID 独立，重复导入跳
   assert.equal(result.failed.length, 0);
   const topic = [...run.notes.values()].find((note) => note.noteTitle === category.title);
   assert.equal(topic.childNotes.length, 48);
-  assert.equal(topic.parentNote.noteTitle, "408");
+  assert.equal(topic.parentNote.noteTitle, "数据的机器表示");
+  assert.equal(topic.parentNote.parentNote.noteTitle, "计算机组成原理");
+  assert.equal(topic.parentNote.parentNote.parentNote.noteTitle, "408");
   const text = topic.childNotes[0].comments[0].text;
   assert.match(text, /A\. 选项甲\n\nB\. 选项乙/);
   assert.match(text, /DAGUANYUAN_408_QUESTION_ID:1/);
   const link = run.writer.questionForNote(topic.childNotes[0]);
   assert.equal(link.provider, "408");
-  assert.match(link.url, /knowledgeId=125.*questionId=1/);
+  assert.equal(link.year, 2009);
+  assert.match(link.url, /knowledgeId=52.*questionId=1/);
   assert.deepEqual(Array.from(run.writer.importedQuestionIds(run.controller.addon)), [1]);
   const again = await run.importer.importCategory(run.controller);
   assert.equal(again.createdCount, 0);
   assert.equal(again.skippedCount, 48);
   assert.equal(run.cancelled, true);
+});
+
+test('408 知识点目录不完整时不创建任何题卡，年份分类兼容既有导入', () => {
+  const run = runtime([]);
+  const session = run.writer.prepared408Session(run.controller.addon);
+  const question = { id: 801, source: '2026年 第1题', stem: '题干', options: [] };
+  for (const path of [undefined, [], ['计算机组成原理', ''], ['另一分类']]) {
+    assert.throws(() => session.write(question, { ...category, path }), /目录不完整/);
+    assert.equal(run.notes.size, 0);
+  }
+  assert.equal(session.write(question, { title: '2026年真题', url: 'https://www.408os.cn/exercise?year=2026' }), true);
+  const note = [...run.notes.values()].find(item => item.noteTitle === question.source);
+  assert.equal(note.parentNote.noteTitle, '2026年真题');
+  assert.equal(note.parentNote.parentNote.noteTitle, '408');
+});
+
+test('408 整类导入只对目标分类查重，单题、其他分类和删除后的旧对象不阻止导入', async () => {
+  const question = { id: 801, source: '2026年 第1题', stem: '题干', options: [] };
+  const run = runtime([question]);
+  const single = run.context.Note.createWithTitleNotebookDocument('其他位置的单题');
+  single.appendMarkdownComment('<!-- DAGUANYUAN_408_QUESTION_ID:801 -->\n<!-- DAGUANYUAN_SINGLE_IMPORT:1 -->');
+  const first = await run.importer.importCategory(run.controller);
+  assert.equal(first.createdCount, 1);
+  assert.equal(first.skippedCount, 0);
+  const target = [...run.notes.values()].find(note => note.noteTitle === category.title);
+  const again = await run.importer.importCategory(run.controller);
+  assert.equal(again.skippedCount, 1);
+  const deletedNote = target.childNotes[0];
+  run.notes.delete(deletedNote.noteId);
+  const retry = await run.importer.importCategory(run.controller);
+  assert.equal(retry.createdCount, 1, '数据库已删除，即使旧子节点列表保留对象也不能跳过');
+  const otherCategory = { title: '另一个知识点', path: ['数据结构', '另一个知识点'], url: 'https://www.408os.cn/exercise?knowledgeId=999' };
+  const session = run.writer.prepared408Session(run.controller.addon);
+  assert.equal(session.hasQuestion(801, otherCategory), false);
+  assert.equal(session.write(question, otherCategory), true);
+  assert.equal(session.hasQuestion(801, otherCategory), true);
+  assert.equal(single.parentNote, null, '不移动已有的单题卡片');
+});
+
+test('408 分类查重缺少 MN Utils 查询接口时给出明确提示', async () => {
+  const run = runtime([{ id: 801, source: '2026年 第1题', stem: '题干', options: [] }]);
+  delete run.context.MNUtil;
+  const result = await run.importer.importCategory(run.controller);
+  assert.match(result.failed[0].reason, /安装并启用 MN Utils/);
+  assert.equal(run.notes.size, 0);
 });
 
 test('408 工具只查询当前题 ID，不转换图片、不创建题卡，并清理查询状态', async () => {

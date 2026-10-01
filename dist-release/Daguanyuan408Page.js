@@ -5,9 +5,12 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
     if (startURL.hostname !== "www.408os.cn" || !/^\/exercise\/?$/.test(startURL.pathname)) return false;
     var knowledgeId = Number(startURL.searchParams.get("knowledgeId"));
     var year = Number(startURL.searchParams.get("year"));
+    var collectionId = Number(startURL.searchParams.get("collectionId"));
+    var collectionMode = startURL.searchParams.get("mode") === "collection"
+      && Number.isSafeInteger(collectionId) && collectionId > 0;
     if (!(Number.isSafeInteger(knowledgeId) && knowledgeId > 0)
-      && !(Number.isSafeInteger(year) && year >= 2009 && year <= 2100)) return false;
-    if (startURL.searchParams.has("mode") || startURL.searchParams.has("collectionId")) {
+      && !(Number.isSafeInteger(year) && year >= 2009 && year <= 2100) && !collectionMode) return false;
+    if ((startURL.searchParams.has("mode") || startURL.searchParams.has("collectionId")) && !(target && collectionMode)) {
       throw new Error("请先进入 408 知识点分类或年份真题页");
     }
     startURL.hash = "";
@@ -19,7 +22,8 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
       if (selectedURL.toString() !== startURL.toString()) throw new Error("当前 408 分类已切换，请重新点击导入单题");
     }
     var category = {
-      title: knowledgeId ? startURL.searchParams.get("knowledgeName") || "知识点 " + knowledgeId : year + "年真题",
+      title: collectionMode ? startURL.searchParams.get("collectionName") || "题本"
+        : knowledgeId ? startURL.searchParams.get("knowledgeName") || "知识点 " + knowledgeId : year + "年真题",
       url: startURL.toString(),
     };
     var state = { token: token, payload: "", error: "", ready: false, rows: [], sequence: 0, resources: [],
@@ -236,11 +240,12 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
       }));
       return withLayout(clone, function (laidOut) {
         var visible = laidOut.querySelector(".katex-html") || laidOut;
-        // 行内公式的外框只表示行高，分式和上下标可能伸出外框，需合并实际子元素边界。
+        // 上下标和分式可能伸出行内外框，合并实际元素边界以免截掉内容。
         var rectangles = [visible].concat(Array.from(visible.querySelectorAll("*"))).filter(function (element) {
           var style = window.getComputedStyle(element);
           return style.display !== "none" && style.visibility !== "hidden" && !element.closest("math, annotation, .katex-mathml");
         }).map(function (element) { return element.getBoundingClientRect(); }).filter(function (rect) { return rect.width > 0 && rect.height > 0; });
+        if (!rectangles.length) throw new Error("题目公式没有可绘制的内容");
         var left = Math.min.apply(null, rectangles.map(function (rect) { return rect.left; }));
         var top = Math.min.apply(null, rectangles.map(function (rect) { return rect.top; }));
         var right = Math.max.apply(null, rectangles.map(function (rect) { return rect.right; }));
@@ -377,10 +382,66 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
     function simpleFormula(formula) {
       var rendered = formula.querySelector(".katex-html");
       if (!rendered) return "";
-      // 仅还原已知的平面排版；分式、根号、上下标或未知字体仍走图片兜底。
-      var allowed = ["katex-html", "base", "strut", "mspace", "mord", "mathnormal", "mrel", "mbin", "mopen", "mclose", "mpunct"];
-      var symbols = { "∣": "|", "−": "-", "∈": "\\in ", "∉": "\\notin ", "≤": "\\leq ", "≥": "\\geq ", "≠": "\\ne ", "×": "\\times ", "⋅": "\\cdot ", "∞": "\\infty " };
+      // 只还原可确认语义的排版结构；未知结构返回空值，由图片兜底保留外观。
+      var allowed = ["katex-html", "base", "strut", "mspace", "mord", "mathnormal", "mrel", "mbin", "mopen", "mclose", "mpunct", "minner", "mtight", "mop", "op-symbol", "small-op", "large-op", "sizing", "reset-size6", "size3"];
+      var symbols = { "∣": "|", "−": "-", "∈": "\\in ", "∉": "\\notin ", "≤": "\\leq ", "≥": "\\geq ", "≠": "\\ne ", "×": "\\times ", "⋅": "\\cdot ", "∞": "\\infty ", "⋯": "\\cdots ", "∑": "\\sum ", "∏": "\\prod ", "∫": "\\int " };
+      var greek = { "α": "alpha", "β": "beta", "γ": "gamma", "δ": "delta", "ϵ": "epsilon", "ε": "varepsilon", "ζ": "zeta", "η": "eta", "θ": "theta", "ϑ": "vartheta", "ι": "iota", "κ": "kappa", "λ": "lambda", "μ": "mu", "ν": "nu", "ξ": "xi", "π": "pi", "ϖ": "varpi", "ρ": "rho", "ϱ": "varrho", "σ": "sigma", "ς": "varsigma", "τ": "tau", "υ": "upsilon", "ϕ": "phi", "φ": "varphi", "χ": "chi", "ψ": "psi", "ω": "omega", "Γ": "Gamma", "Δ": "Delta", "Θ": "Theta", "Λ": "Lambda", "Ξ": "Xi", "Π": "Pi", "Σ": "Sigma", "Υ": "Upsilon", "Φ": "Phi", "Ψ": "Psi", "Ω": "Omega" };
+      Object.keys(greek).forEach(function (character) { symbols[character] = "\\" + greek[character] + " "; });
+      symbols["∼"] = "\\sim ";
       var validFormula = true;
+      function textFormula(node) {
+        function textRead(part) {
+          if (part.nodeType === 3) return part.textContent;
+          if (part.nodeType !== 1 || part.tagName.toLowerCase() !== "span"
+            || Array.from(part.classList).some(function (name) { return ["mord", "text", "mtight", "cjk_fallback"].indexOf(name) < 0; })
+            || /(?:position|transform|display)\s*:/i.test(part.getAttribute("style") || "")) { validFormula = false; return ""; }
+          return part.childNodes.length ? Array.from(part.childNodes).map(textRead).join("") : part.textContent;
+        }
+        var text = textRead(node).replace(/\u00a0/g, " ");
+        if (!text.trim() || /[\u0000-\u001f\u007f]/.test(text)) { validFormula = false; return ""; }
+        // 文字中的特殊字符必须逐字转义，避免被 LaTeX 当作命令、分组或注释。
+        var escapes = { "\\": "\\textbackslash{}", "{": "\\{", "}": "\\}", "$": "\\$", "&": "\\&", "#": "\\#", "%": "\\%", "_": "\\_", "^": "\\textasciicircum{}", "~": "\\textasciitilde{}" };
+        return "\\text{" + Array.from(text).map(function (character) { return Object.prototype.hasOwnProperty.call(escapes, character) ? escapes[character] : character; }).join("") + "}";
+      }
+      function underlined(node) {
+        var wrapper = node.children[0];
+        var row = wrapper && wrapper.children[0];
+        var list = row && row.children[0];
+        if (node.children.length !== 1 || !wrapper.classList.contains("vlist-t") || !row || !row.classList.contains("vlist-r") || !list || !list.classList.contains("vlist") || list.children.length !== 2) { validFormula = false; return ""; }
+        var expression = "", lines = 0;
+        Array.from(list.children).forEach(function (slot) {
+          var parts = Array.from(slot.children);
+          if (parts.length !== 2 || !parts[0].classList.contains("pstrut") || parts[0].textContent.trim()) { validFormula = false; return; }
+          if (parts[1].classList.contains("underline-line")) {
+            if (parts[1].children.length || parts[1].textContent.trim()) validFormula = false;
+            lines += 1;
+          } else {
+            if (expression) validFormula = false;
+            expression = read(parts[1]).trim();
+          }
+        });
+        // vlist 的基线占位符只有零宽字符；额外文字不能静默丢弃。
+        var helpers = Array.from(row.children).slice(1).concat(Array.from(wrapper.children).slice(1));
+        if (helpers.some(function (helper) { return /[^\s\u200b]/.test(helper.textContent); }) || lines !== 1 || !expression) { validFormula = false; return ""; }
+        return "\\underline{" + expression + "}";
+      }
+      function scripts(node) {
+        var list = node.querySelector && node.querySelector(".vlist-t > .vlist-r > .vlist");
+        if (!list || list.children.length < 1 || list.children.length > 2) { validFormula = false; return ""; }
+        var suffixes = {};
+        Array.from(list.children).forEach(function (slot) {
+          var parts = Array.from(slot.children);
+          var top = (slot.getAttribute("style") || "").match(/(?:^|;)\s*top\s*:\s*(-?[\d.]+)em\s*(?:;|$)/);
+          var height = parts[0] && (parts[0].getAttribute("style") || "").match(/(?:^|;)\s*height\s*:\s*([\d.]+)em\s*(?:;|$)/);
+          if (parts.length !== 2 || !parts[0].classList.contains("pstrut") || parts[0].textContent.trim() || !parts[1].classList.contains("sizing") || !top || !height) { validFormula = false; return; }
+          var shift = Number(top[1]) + Number(height[1]);
+          var sign = shift < -0.001 ? "^" : shift > 0.001 ? "_" : "";
+          var expression = read(parts[1]);
+          if (!sign || suffixes[sign] || !expression) { validFormula = false; return; }
+          suffixes[sign] = "{" + expression.trim() + "}";
+        });
+        return (suffixes._ ? "_" + suffixes._ : "") + (suffixes["^"] ? "^" + suffixes["^"] : "");
+      }
       function read(node) {
         if (node.nodeType === 3) {
           if (node.textContent.trim()) validFormula = false;
@@ -388,15 +449,29 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
         }
         if (node.nodeType !== 1 || node.tagName.toLowerCase() !== "span") { validFormula = false; return ""; }
         var classes = Array.from(node.classList);
+        if (node.classList.contains("text") || node.classList.contains("cjk_fallback")) return textFormula(node);
+        if (node.classList.contains("underline") && classes.every(function (name) { return name === "underline" || name === "mord" || name === "mtight"; })) return underlined(node);
+        if (node.classList.contains("msupsub")) { validFormula = false; return ""; }
         if (!classes.length || classes.some(function (name) { return allowed.indexOf(name) < 0; })) { validFormula = false; return ""; }
         if (node.classList.contains("strut") || node.classList.contains("mspace")) {
           if (node.children.length || node.textContent.trim()) validFormula = false;
           return "";
         }
-        if (node.classList.contains("katex-html") || node.classList.contains("base")) return Array.from(node.childNodes).map(read).join("");
-        if (node.children.length || /(?:position|transform|display)\s*:/i.test(node.getAttribute("style") || "")) { validFormula = false; return ""; }
+        if (!node.classList.contains("op-symbol") && /(?:position|transform|display)\s*:/i.test(node.getAttribute("style") || "")) { validFormula = false; return ""; }
+        if (node.children.length) {
+          var children = Array.from(node.children);
+          var attached = children.filter(function (child) { return child.classList.contains("msupsub"); });
+          if (attached.length) {
+            if (attached.length !== 1 || children[children.length - 1] !== attached[0] || children.length < 2 || !classes.some(function (name) { return name === "mord" || name === "mop"; })) { validFormula = false; return ""; }
+            var base = children.slice(0, -1).map(read).join("").trim();
+            if (!base) { validFormula = false; return ""; }
+            // 组合基底必须加括号分组，避免把 (a+b) 的平方改成 a+b 的最后一项平方。
+            return (/^(?:[a-zA-Z0-9]|\\(?:sum|prod|int))$/.test(base) ? base : "{" + base + "}") + scripts(attached[0]);
+          }
+          return Array.from(node.childNodes).map(read).join("");
+        }
         var value = node.textContent;
-        if (!value || !classes.some(function (name) { return /^(mord|mrel|mbin|mopen|mclose|mpunct)$/.test(name); })) { validFormula = false; return ""; }
+        if (!value || !classes.some(function (name) { return /^(mord|mrel|mbin|mopen|mclose|mpunct|minner|mop)$/.test(name); })) { validFormula = false; return ""; }
         return Array.from(value).map(function (character) {
           if (Object.prototype.hasOwnProperty.call(symbols, character)) return symbols[character];
           if (/^[a-zA-Z0-9.,()+\-=\/|\[\]:!]$/.test(character)) return character;
@@ -411,7 +486,7 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
       state.stage = "解析题目图文";
       var parsed = new DOMParser().parseFromString(String(html || ""), "text/html");
       if (parsed.querySelector(".missing-asset")) throw new Error("网站标记此题存在失效图片，已跳过以免导入不完整题目");
-      var formulas = Array.from(parsed.body.querySelectorAll(".katex")).filter(function (formula) { return !formula.parentElement.closest(".katex, svg"); });
+      var formulas = Array.from(parsed.body.querySelectorAll(".katex")).filter(function (formula) { return !formula.parentElement.closest(".katex, svg, table"); });
       for (var formulaIndex = 0; formulaIndex < formulas.length; formulaIndex += 1) {
         var formula = formulas[formulaIndex];
         var original = formula.querySelector('annotation[encoding="application/x-tex"]');
@@ -424,7 +499,7 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
       var images = Array.from(parsed.body.querySelectorAll("img, svg"));
       for (var index = 0; index < images.length; index += 1) {
         var item = images[index];
-        if (item.closest(".katex") || item.parentElement && item.parentElement.closest("svg")) continue;
+        if (item.closest(".katex, table") || item.parentElement && item.parentElement.closest("svg")) continue;
         var data;
         if (item.tagName.toLowerCase() === "svg") {
           Array.from(parsed.querySelectorAll("style")).forEach(function (style) {
@@ -443,6 +518,55 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
         }
         item.setAttribute("data-daguanyuan-import-image", data);
       }
+      var tables = Array.from(parsed.body.querySelectorAll("table")).filter(function (table) { return !table.parentElement.closest("table, svg, .katex"); });
+      for (var tableIndex = 0; tableIndex < tables.length; tableIndex += 1) {
+        var table = tables[tableIndex];
+        var tableClone = table.cloneNode(true);
+        // 表内图片先转为本地数据，截图不依赖跨域地址或未加载的资源。
+        for (var tableImage of Array.from(tableClone.querySelectorAll("img, svg"))) {
+          if (tableImage.parentElement.closest("svg")) continue;
+          var tableData;
+          if (tableImage.tagName.toLowerCase() === "svg") tableData = await prepareSVG(tableImage, baseURL);
+          else {
+            var tableSource = tableImage.getAttribute("src") || tableImage.getAttribute("data-src");
+            if (!tableSource) throw new Error("题目表格图片地址为空");
+            tableData = await imageData(tableSource, baseURL);
+          }
+          var tablePicture = document.createElement("img");
+          Array.from(tableImage.attributes).forEach(function (attribute) { if (["src", "srcset", "data-src"].indexOf(attribute.name) < 0) tablePicture.setAttribute(attribute.name, attribute.value); });
+          tablePicture.src = tableData;
+          tableImage.replaceWith(tablePicture);
+        }
+        state.stage = "转换表格图片";
+        // 网站表格样式带组件作用域，复制当前正文外框的样式属性才能保留边框和间距。
+        var tableHost = document.createElement("div");
+        var viewer = document.querySelector(".question-content");
+        if (viewer) {
+          Array.from(viewer.attributes).forEach(function (attribute) {
+            if (attribute.name === "class" || /^data-v-/.test(attribute.name)) tableHost.setAttribute(attribute.name, attribute.value);
+          });
+          var viewerWidth = viewer.getBoundingClientRect().width;
+          if (viewerWidth > 0) tableHost.style.width = viewerWidth + "px";
+        }
+        tableHost.appendChild(tableClone);
+        var tablePictureData = await withLayout(tableHost, function (laidOut) {
+          var renderedTable = laidOut.querySelector("table");
+          // 宽表常被滚动容器裁切，导出前展开完整宽度，不能只截可见列。
+          var frame = renderedTable.getBoundingClientRect();
+          var fullWidth = Math.max(frame.width, renderedTable.scrollWidth);
+          var fullHeight = Math.max(frame.height, renderedTable.scrollHeight);
+          renderedTable.style.maxWidth = "none";
+          renderedTable.style.maxHeight = "none";
+          renderedTable.style.overflow = "visible";
+          if (fullWidth > frame.width) renderedTable.style.width = fullWidth + "px";
+          if (fullHeight > frame.height) renderedTable.style.height = fullHeight + "px";
+          frame = renderedTable.getBoundingClientRect();
+          state.diagnostics = { imageKind: "表格", width: frame.width, height: frame.height };
+          return captureHTML(renderedTable, frame);
+        }, table);
+        table.setAttribute("data-daguanyuan-import-image", tablePictureData);
+        table.setAttribute("data-daguanyuan-import-kind", "表格");
+      }
       var codeBlocks = [];
       var codeMarker = "\uE000DAGUANYUAN_CODE_";
       while (String(html).indexOf(codeMarker) >= 0) codeMarker += "_";
@@ -453,8 +577,11 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
         var tag = node.tagName.toLowerCase();
         if (["script", "style", "noscript"].indexOf(tag) >= 0) return "";
         var picture = node.getAttribute("data-daguanyuan-import-image");
-        if (picture) return node.classList.contains("katex") && !node.closest(".katex-display")
-          ? "![公式](" + picture + ")" : "\n\n![题图](" + picture + ")\n\n";
+        if (picture) {
+          var kind = node.getAttribute("data-daguanyuan-import-kind") || (node.classList.contains("katex") ? "公式" : "题图");
+          var pictureMarkdown = "![" + kind + "](" + picture + ")";
+          return kind === "公式" && !node.closest(".katex-display") ? pictureMarkdown : "\n\n" + pictureMarkdown + "\n\n";
+        }
         if (node.classList.contains("katex")) {
           var formula = node.querySelector('annotation[encoding="application/x-tex"]');
           var expression = formula && formula.textContent.trim() || node.getAttribute("data-daguanyuan-import-tex");
@@ -466,23 +593,11 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
           codeBlocks.push("```\n" + node.textContent.replace(/^\r?\n|\r?\n$/g, "") + "\n```");
           return "\n\n" + marker + "\n\n";
         }
-        if (tag === "table") {
-          var rows = Array.from(node.querySelectorAll("tr")).map(function (row) {
-            return Array.from(row.children).map(function (cell) {
-              return Array.from(cell.childNodes).map(convert).join("").trim().replace(/\|/g, "\\|").replace(/\n/g, "<br>");
-            });
-          });
-          if (!rows.length) return "";
-          var columns = Math.max.apply(null, rows.map(function (row) { return row.length; }));
-          var lines = rows.map(function (row) { while (row.length < columns) row.push(""); return "| " + row.join(" | ") + " |"; });
-          lines.splice(1, 0, "| " + Array(columns).fill("---").join(" | ") + " |");
-          return "\n\n" + lines.join("\n") + "\n\n";
-        }
         var body = Array.from(node.childNodes).map(convert).join("");
         if (tag === "br") return "\n";
         if (tag === "strong" || tag === "b") return "**" + body + "**";
         if (tag === "em" || tag === "i") return "*" + body + "*";
-        if (tag === "code") return "`" + body + "`";
+        if (tag === "code") return body.replace(/[\\`*_]/g, "\\$&");
         if (tag === "sup" || tag === "sub") return "<" + tag + ">" + body + "</" + tag + ">";
         if (tag === "li") return "\n" + (node.parentNode.tagName.toLowerCase() === "ol" ? "1. " : "- ") + body.trim();
         return /^(p|div|section|article|h[1-6]|ul|ol|figure|blockquote)$/.test(tag) ? "\n\n" + body + "\n\n" : body;
@@ -500,6 +615,30 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
       request = module.r;
       if (!request || typeof request.get !== "function") throw new Error("408 网站请求模块已变化，请反馈插件适配");
       var entryText = await (await fetchResource(url.href)).text();
+      if (knowledgeId && !target) {
+        var knowledgeAssets = entryText.match(/\bknowledge-[\w-]+\.js\b/g) || [];
+        var knowledgeTree;
+        for (var assetIndex = 0; assetIndex < knowledgeAssets.length; assetIndex += 1) {
+          if (knowledgeAssets.indexOf(knowledgeAssets[assetIndex]) !== assetIndex) continue;
+          var knowledgeModule = await importModule(new URL(knowledgeAssets[assetIndex], url.href).href);
+          if (Array.isArray(knowledgeModule.k)) { knowledgeTree = knowledgeModule.k; break; }
+        }
+        if (!knowledgeTree) throw new Error("未找到 408 知识点目录，请刷新后重试");
+        var matchedPaths = [];
+        function findKnowledgePath(nodes, ancestors, depth) {
+          if (depth > 20) throw new Error("408 知识点目录层级无效");
+          nodes.forEach(function (node) {
+            if (!node || typeof node.name !== "string" || !node.name.trim()) throw new Error("408 知识点目录名称无效");
+            var path = ancestors.concat(node.name.trim());
+            if (Number(node.id) === knowledgeId) matchedPaths.push(path);
+            if (Array.isArray(node.children)) findKnowledgePath(node.children, path, depth + 1);
+          });
+        }
+        findKnowledgePath(knowledgeTree, [], 0);
+        if (matchedPaths.length !== 1) throw new Error("无法唯一确定 408 知识点分类目录，请刷新后重试");
+        category.path = matchedPaths[0];
+        category.title = category.path[category.path.length - 1];
+      }
       var asset = entryText.match(/\bwdQuestionContent-[\w-]+\.js\b/);
       if (asset) {
         var renderer = await importModule(new URL(asset[0], url.href).href);
@@ -520,13 +659,15 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
     }
     async function listQuestions() {
       var rows = [];
-      if (knowledgeId) {
+      if (knowledgeId || collectionMode) {
         var seen = new Set();
         var total = null;
         for (var page = 1; page <= 1000; page += 1) {
-          var response = await request.get("/api/zt/question/list-with-details-by-knowledge", {
-            params: { knowledgePointId: knowledgeId, pageNum: page, pageSize: 47, sourcePage: startURL.searchParams.get("sourcePage") || undefined },
+          var response = await request.get(collectionMode ? "/api/zt/collection/question/list-with-details" : "/api/zt/question/list-with-details-by-knowledge", {
+            params: collectionMode ? { collectionId: collectionId, pageNum: page, pageSize: 47, sortType: "COLLECT_TIME_DESC" }
+              : { knowledgePointId: knowledgeId, pageNum: page, pageSize: 47, sourcePage: startURL.searchParams.get("sourcePage") || undefined },
           });
+          if (collectionMode && response && response.data && Array.isArray(response.data.rows)) response = response.data;
           if (!valid()) throw new Error("当前 408 分类已切换，导入停止");
           if (total === null) {
             total = Number(response.total);

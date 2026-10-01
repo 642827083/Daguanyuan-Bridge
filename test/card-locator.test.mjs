@@ -6,6 +6,7 @@ import vm from 'node:vm';
 const importerSource = fs.readFileSync(new URL('../src/DaguanyuanMathImport.js', import.meta.url), 'utf8');
 const locatorURL = new URL('../src/DaguanyuanCardLocator.js', import.meta.url);
 function runtime(options = {}) {
+  const stored = new Map(options.mode === undefined ? [] : [['cn.marginnote.daguanyuan-bridge.question-tools.card-location-mode', options.mode]]);
   let clock = 0, current = options.current === undefined ? 'book-a' : options.current;
   const timers = [], calls = [], cards = new Map(), books = new Map();
   const book = (id, title = id) => { const result = { topicId: id, title, notes: [] }; books.set(id, result); return result; };
@@ -19,7 +20,9 @@ function runtime(options = {}) {
     focusNoteInMindMapById(id) { if (options.centerThrows) throw Error('画布不可用'); calls.push(['center', id, clock]); } };
   let choiceResolve, choiceReject;
   const addon = { window: {}, panelController: {} };
-  const context = { console, Application: { sharedInstance() { return {
+  const context = { console, NSUserDefaults: { standardUserDefaults() { return {
+    objectForKey(key) { return stored.get(key); }, setObjectForKey(value, key) { stored.set(key, value); },
+  }; } }, Application: { sharedInstance() { return {
     studyController() { return study; }, openURL(url) {
       calls.push(['open', url, clock]);
       if (options.openThrows) throw Error('链接派发异常');
@@ -55,7 +58,7 @@ function runtime(options = {}) {
     }
     clock = target; await flush();
   }
-  return { addon, context, calls, cards, books, card, advance, flush,
+  return { addon, context, calls, cards, books, card, advance, flush, stored, study,
     locate(id = 843, provider = '408') { return Promise.resolve().then(() => context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__.focusQuestion(addon, id, provider)); },
     choose(index) { const candidates = calls.find(call => call[0] === 'choose')[1]; choiceResolve(candidates[index]); },
     switchTo(id) { current = id; }, get activeTimers() { return timers.filter(t => t.active).length; },
@@ -137,4 +140,29 @@ test('选择列表超时可重试，找不到题卡时提示所有学习集并�
   const pending = assert.rejects(run.locate(), /选择.*超时/); await run.advance(121); await pending;
   assert.equal(run.addon.__daguanyuanCardLocation, null); assert.equal(run.activeTimers, 0);
   const empty = runtime(); await assert.rejects(empty.locate(), /学习集.*没有/); assert.equal(empty.activeTimers, 0);
+});
+
+test('仅定位在当前和其他学习集中均居中，不调用进入题卡焦点', async () => {
+  for (const bookId of ['book-a', 'book-b']) {
+    const run = runtime({ mode: 'locate', switchAfter: 0.4 }); run.card(bookId, 'target');
+    delete run.study.notebookController.changeFocusToNote;
+    const pending = run.locate(); await run.advance(1); assert.equal((await pending).noteId, 'target');
+    assert.equal(run.calls.filter(c => c[0] === 'center').length, 1);
+    assert.equal(run.calls.some(c => c[0] === 'focus'), false);
+    if (bookId === 'book-b') assert.ok(run.calls.find(c => c[0] === 'center')[2] >= 0.6);
+    assert.equal(run.activeTimers, 0);
+  }
+});
+
+test('定位方式默认保持聚焦，持久化选择并在每次操作开始时固定', async () => {
+  const run = runtime(); const locator = run.context.__DAGUANYUAN_CARD_LOCATOR_GLOBAL__;
+  assert.equal(locator.mode(), 'focus'); locator.setMode('locate');
+  vm.runInContext(fs.readFileSync(locatorURL, 'utf8'), run.context);
+  assert.equal(run.context.__DAGUANYUAN_CARD_LOCATOR_GLOBAL__.mode(), 'locate');
+  run.card('book-a', 'target'); const first = run.locate(); await run.flush(); locator.setMode('focus');
+  await run.advance(1); await first; assert.equal(run.calls.some(c => c[0] === 'focus'), false);
+  const second = run.locate(); await run.advance(1); await second;
+  assert.equal(run.calls.filter(c => c[0] === 'focus').length, 1);
+  assert.throws(() => locator.setMode('bad'), /无效/); assert.equal(locator.mode(), 'focus');
+  assert.equal(runtime({ mode: 'bad' }).context.__DAGUANYUAN_CARD_LOCATOR_GLOBAL__.mode(), 'focus');
 });

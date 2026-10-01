@@ -9,6 +9,16 @@ var __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__ = (function () {
   }
 
   function layout(controller) {
+    const modeChoice = controller && controller.cardLocationModeChoice;
+    if (modeChoice) {
+      const bounds = controller.containerView.bounds;
+      const width = Math.min(360, Math.max(0, bounds.width - 40));
+      const height = Math.max(0, bounds.height - 38);
+      modeChoice.overlay.frame = { x: 0, y: 38, width: bounds.width, height };
+      modeChoice.sheet.frame = { x: (bounds.width - width) / 2, y: Math.max(0, (height - 224) / 2), width, height: 224 };
+      modeChoice.title.frame = { x: 16, y: 16, width: Math.max(0, width - 32), height: 30 };
+      modeChoice.buttons.forEach(function (row, index) { row.frame = { x: 16, y: 62 + index * 50, width: Math.max(0, width - 32), height: 42 }; });
+    }
     const choice = controller && controller.cardLocationChoice;
     if (!choice) return;
     const bounds = controller.containerView.bounds;
@@ -85,5 +95,48 @@ var __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__ = (function () {
       }
     });
   }
-  return { choose, layout, select, cancel };
+  function cancelMode(controller) {
+    const choice = controller && controller.cardLocationModeChoice;
+    if (!choice) return;
+    controller.cardLocationModeChoice = null;
+    choice.overlay.removeFromSuperview();
+  }
+
+  function selectMode(controller, index, sender) {
+    const choice = controller && controller.cardLocationModeChoice;
+    if (!choice || !Number.isSafeInteger(index) || index < 0 || index > 2) return;
+    if (sender && choice.buttons[index] !== sender) return;
+    cancelMode(controller);
+    if (index < 2) choice.onSelect(index === 0 ? "locate" : "focus");
+  }
+
+  function chooseMode(controller, current, onSelect) {
+    if (!controller || !controller.containerView) throw new Error("定位方式选择窗口不可用，请重新打开插件面板");
+    if (controller.cardLocationChoice) throw new Error("请先完成当前题卡选择");
+    cancelMode(controller);
+    const overlay = new UIView({ x: 0, y: 0, width: 100, height: 100 });
+    overlay.backgroundColor = UIColor.colorWithWhiteAlpha(0, 0.2);
+    const sheet = new UIView({ x: 0, y: 0, width: 100, height: 100 });
+    sheet.backgroundColor = UIColor.whiteColor();
+    sheet.layer.cornerRadius = 12;
+    const title = new UILabel({ x: 0, y: 0, width: 100, height: 30 });
+    title.text = "定位卡片方式";
+    title.font = UIFont.boldSystemFontOfSize(17);
+    title.textColor = UIColor.darkGrayColor();
+    sheet.addSubview(title);
+    const buttons = ["仅定位", "定位并聚焦", "取消"].map(function (text, index) {
+      const row = button(text + (index < 2 && (index === 0 ? "locate" : "focus") === current ? "（当前）" : ""), controller, "selectCardLocationMode:");
+      row.tag = index;
+      row.backgroundColor = UIColor.colorWithRedGreenBlueAlpha(0.94, 0.97, 1, 1);
+      row.layer.cornerRadius = 8;
+      sheet.addSubview(row);
+      return row;
+    });
+    overlay.addSubview(sheet);
+    controller.cardLocationModeChoice = { overlay, sheet, title, buttons, onSelect };
+    controller.containerView.addSubview(overlay);
+    layout(controller);
+  }
+
+  return { choose, layout, select, cancel, chooseMode, selectMode, cancelMode };
 })();

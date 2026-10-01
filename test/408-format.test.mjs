@@ -23,12 +23,60 @@ test("408 可可靠还原平面 KaTeX 变量、赋值和集合关系", () => {
   assert.equal(recover(span("mspace"), span("strut"), span("mord mathnormal", "G")), "G");
 });
 
-test("408 未知公式结构和字体保留图片兜底，避免按文本顺序错误还原", () => {
+test("408 未知公式结构不能按文本顺序猜测", () => {
   assert.equal(recover(span("mord", "", [span("msupsub", "2")])), "");
   assert.equal(recover(span("mord mathbb", "R")), "");
   assert.equal(recover(span("mord", "x", [], "transform:translateY(-10px)")), "");
-  assert.equal(recover(span("mord", "α")), "");
+  assert.equal(recover(span("mord", "∛")), "");
   assert.equal(recover(span("mspace", "x")), "");
+});
+
+function scripts(top, height, content) {
+  const node = span('msupsub');
+  node.querySelector = () => span('vlist', '', [span('', '', [span('pstrut', '', [], 'height:' + height + 'em'),
+    span('sizing reset-size6 size3 mtight', '', [content])], 'top:' + top + 'em')]);
+  return node;
+}
+function underline(content, line = span('underline-line')) {
+  const node = span('mord underline', '', []);
+  node.children = node.childNodes = [span('vlist-t vlist-t2', '', [span('vlist-r', '', [
+    span('vlist', '', [span('', '', [span('pstrut'), line]), span('', '', [span('pstrut'), content])]),
+    span('vlist-s', '\u200b'),
+  ]), span('vlist-r', '', [span('vlist', '', [span('')])])])];
+  return node;
+}
+test('408 第 43 题下划线填空标记还原为 LaTeX，未知内容仍不猜测', () => {
+  for (const number of ['1', '2', '3', '4']) {
+    assert.equal(recover(underline(span('mord', '', [span('mspace'), span('mord', number), span('mspace')]))), '\\underline{' + number + '}');
+  }
+  assert.equal(recover(underline(span('mord', '', [span('mord', 'a'), span('mbin', '+'), span('mord', 'b')]))), '\\underline{a+b}');
+  assert.equal(recover(underline(span('mord', '∛'))), '');
+  assert.equal(recover(underline(span('mord', '1'), span('unknown-line'))), '');
+  assert.equal(recover(underline(span('mord', ''))), '');
+});
+test('408 幂和下标保持基底分组，未知偏移及孤立上下标不猜测', () => {
+  assert.equal(recover(span('mord', '', [span('mord', '2'), scripts(-3.1, 2.7, span('mord mtight', '32'))])), '2^{32}');
+  assert.equal(recover(span('mord', '', [span('mord', 'x'), scripts(-2.4, 2.7, span('mord mtight', 'i'))])), 'x_{i}');
+  assert.equal(recover(span('mord', '', [span('mord', '', [span('mord', 'a'), span('mbin', '+'), span('mord', 'b')]),
+    scripts(-3.1, 2.7, span('mord mtight', '2'))])), '{a+b}^{2}');
+  assert.equal(recover(scripts(-3.1, 2.7, span('mord mtight', '2'))), '');
+  assert.equal(recover(span('mord', '', [span('mord', '2'), scripts(-2.7, 2.7, span('mord mtight', '32'))])), '');
+});
+
+test('408 常用希腊字母和范围符号保留公式语义', () => {
+  assert.equal(recover(span('mord mathnormal', 'α'), span('mbin', '+'), span('mord mathnormal', 'β')), '\\alpha +\\beta');
+  assert.equal(recover(span('mord', '−'), span('mord', '', [span('mord', '2'), scripts(-3.063, 2.7, span('mord mtight', '20'))]),
+    span('mrel', '∼'), span('mord', '', [span('mord', '2'), scripts(-3.063, 2.7, span('mord mtight', '20'))])), '-2^{20}\\sim 2^{20}');
+  assert.equal(recover(span('mord', 'Σ'), span('mrel', '='), span('mord', 'π')), '\\Sigma =\\pi');
+});
+
+test('408 中文文字下标和转义字符使用 text，不把未知字体当成文字', () => {
+  const chinese = span('mord text mtight', '', [span('mord cjk_fallback mtight', '补')]);
+  assert.equal(recover(span('mord', '', [span('mord mathnormal', 'x'), scripts(-2.55, 2.7, span('mord mtight', '', [chinese]))]),
+    span('mrel', '='), span('mord mathnormal', 'A'), span('mord', '3'), span('mord mathnormal', 'H')), 'x_{\\text{补}}=A3H');
+  assert.equal(recover(span('mord text', '', [span('mord cjk_fallback', '补码'), span('mord', ' A_B%')])), '\\text{补码 A\\_B\\%}');
+  assert.equal(recover(span('mord text', '', [span('mord mathbb', 'R')])), '');
+  assert.equal(recover(span('mord text', '', [span('mfrac', '1/2')])), '');
 });
 
 test("408 普通 HTML 源码换行不会把行内公式拆成多行", () => {
@@ -36,10 +84,13 @@ test("408 普通 HTML 源码换行不会把行内公式拆成多行", () => {
   const convert = vm.runInNewContext("(" + source.slice(start, source.indexOf("var result = Array.from(parsed.body.childNodes)", start)).trim() + ")");
   const text = textContent => ({ nodeType: 3, textContent });
   const formula = span("katex");
-  formula.getAttribute = name => name === "data-daguanyuan-import-image" ? "data:image/png;base64,AQID" : null;
+  formula.getAttribute = name => name === "data-daguanyuan-import-tex" ? "G" : null;
+  formula.querySelector = () => null;
   formula.closest = () => null;
   const paragraph = span("", "", [text("若\n"), formula, text("\n无环，则有限。")]);
   paragraph.tagName = "P";
-  assert.equal(convert(paragraph).trim(), "若 ![公式](data:image/png;base64,AQID) 无环，则有限。");
+  assert.equal(convert(paragraph).trim(), "若 $G$ 无环，则有限。");
   assert.equal(convert(text("x\t\r\n  y\u00a0z")), "x y\u00a0z");
+  const code = span("", "", [text("int x=1")]); code.tagName = "CODE";
+  assert.equal(convert(code), "int x=1", "正文中的变量表达式不应变成红色行内代码");
 });

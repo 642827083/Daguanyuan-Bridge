@@ -39,6 +39,13 @@ test("失败详情完整保留全部题号、阶段和长原因，清除图片�
   assert.doesNotMatch(text, /SECRET|AQID|data:image/);
 });
 
+test('导入详情分别显示新建、更新和跳过，更新失败提示保留原内容', () => {
+  const { report } = runtime();
+  const text = report.textFor({ createdCount: 2, updatedCount: 3, skippedCount: 4, failed: [{ questionId: 5, reason: '保存失败' }] });
+  assert.match(text, /新建 2 道，更新 3 道，跳过 4 道，失败 1 道/);
+  assert.match(text, /更新失败保留原内容/);
+});
+
 test("详情可停留查看、滚动、复制，关闭及再次显示均保留当前布局", () => {
   const { report, controller, pasteboard } = runtime();
   report.show(controller, { failed: [{ questionId: 44, source: "2026年 第44题", reason: "图片解码失败" }] });

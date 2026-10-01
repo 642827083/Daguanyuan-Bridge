@@ -1,4 +1,17 @@
 var __DAGUANYUAN_CARD_LOCATOR_GLOBAL__ = (function () {
+  const MODE_KEY = "cn.marginnote.daguanyuan-bridge.question-tools.card-location-mode";
+
+  function mode() {
+    try {
+      return String(NSUserDefaults.standardUserDefaults().objectForKey(MODE_KEY)) === "locate" ? "locate" : "focus";
+    } catch (ignored) { return "focus"; }
+  }
+
+  function setMode(requested) {
+    if (requested !== "locate" && requested !== "focus") throw new Error("定位卡片方式无效");
+    NSUserDefaults.standardUserDefaults().setObjectForKey(requested, MODE_KEY);
+  }
+
   function value(object, key) {
     const item = object && object[key];
     return typeof item === "function" ? item.call(object) : item;
@@ -177,14 +190,16 @@ var __DAGUANYUAN_CARD_LOCATOR_GLOBAL__ = (function () {
       ensureActive(operation);
       const active = studyFor(operation.addon);
       if (studySetId(active) !== candidate.notebookId) throw new Error("学习集已切换，定位停止");
-      if (!active || typeof active.focusNoteInMindMapById !== "function" || !active.notebookController || typeof active.notebookController.changeFocusToNote !== "function") {
-        throw new Error("当前 MarginNote 版本不支持进入焦点并定位脑图卡片");
+      if (!active || typeof active.focusNoteInMindMapById !== "function" || (operation.mode === "focus" && (!active.notebookController || typeof active.notebookController.changeFocusToNote !== "function"))) {
+        throw new Error(operation.mode === "focus" ? "当前 MarginNote 版本不支持进入焦点并定位脑图卡片" : "当前 MarginNote 版本不支持定位脑图卡片");
       }
       return active;
     }
-    targetStudy().notebookController.changeFocusToNote(checkedNote(operation, candidate));
-    // 切焦点会重建画布，必须在布局完成后重新派发滚动定位。
-    await delay(operation, 0.08);
+    if (operation.mode === "focus") {
+      targetStudy().notebookController.changeFocusToNote(checkedNote(operation, candidate));
+      // 和 CardLink 一样，切焦点后等待画布重建，再派发滚动定位。
+      await delay(operation, 0.08);
+    }
     checkedNote(operation, candidate);
     targetStudy().focusNoteInMindMapById(candidate.noteId);
     await delay(operation, 0.06);
@@ -196,7 +211,7 @@ var __DAGUANYUAN_CARD_LOCATOR_GLOBAL__ = (function () {
   function locate(addon, questionId, provider) {
     if (!addon) return Promise.reject(new Error("插件窗口不可用"));
     if (addon.__daguanyuanCardLocation) return Promise.reject(new Error("正在定位上一张卡片，请稍候"));
-    const operation = { addon, questionId, provider: provider || "math", database: Database.sharedInstance(),
+    const operation = { addon, questionId, provider: provider || "math", mode: mode(), database: Database.sharedInstance(),
       timers: new Set(), waits: new Set(), done: false, selecting: false };
     const result = new Promise(function (resolve, reject) { operation.resolve = resolve; operation.reject = reject; });
     addon.__daguanyuanCardLocation = operation;
@@ -214,5 +229,5 @@ var __DAGUANYUAN_CARD_LOCATOR_GLOBAL__ = (function () {
     if (operation) finish(operation, new Error("已取消定位"));
   }
 
-  return { locate, resume, cancel };
+  return { locate, resume, cancel, mode, setMode };
 })();

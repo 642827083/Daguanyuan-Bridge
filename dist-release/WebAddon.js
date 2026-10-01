@@ -10,6 +10,7 @@ function createDaguanyuanBridgeAddon() {
 
     sceneDidDisconnect: function () {
       if (typeof __DAGUANYUAN_CARD_LOCATOR_GLOBAL__ !== "undefined") __DAGUANYUAN_CARD_LOCATOR_GLOBAL__.cancel(self);
+      if (typeof __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__ !== "undefined") __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.cancelMode(self.panelController);
       self.__daguanyuanFocusNextRememberToken += 1;
       self.__daguanyuanFocusNextPlaceToken += 1;
       __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.remove(self);
@@ -158,6 +159,7 @@ function createDaguanyuanBridgeAddon() {
             questionNumber: 0,
             imported: true,
             provider: imported.provider,
+            year: imported.year,
           });
           return;
         }

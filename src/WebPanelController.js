@@ -44,6 +44,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
   function performClosePanel(controller) {
     if (!controller || !controller.view) return;
+    __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.cancelMode(controller);
     controller.panelVisible = false;
     controller.view.hidden = true;
     controller.view.removeFromSuperview();
@@ -69,12 +70,12 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.settingsButton.frame = { x: tabsX + 160, y: 4, width: 72, height: 30 };
     controller.webView.frame = contentFrame;
     controller.settingsPage.frame = contentFrame;
-    controller.settingsPage.contentSize = { width: contentFrame.width, height: Math.max(contentFrame.height + 1, 1198) };
+    controller.settingsPage.contentSize = { width: contentFrame.width, height: Math.max(contentFrame.height + 1, 1268) };
     __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__.layout(controller, contentFrame);
     controller.focusSettingsSection.frame = { x: 20, y: 18, width: sectionWidth, height: 336 };
     controller.categorySettingsSection.frame = { x: 20, y: 366, width: sectionWidth, height: 336 };
     controller.questionNavigationSettingsSection.frame = { x: 20, y: 714, width: sectionWidth, height: 194 };
-    controller.questionToolsSettingsSection.frame = { x: 20, y: 920, width: sectionWidth, height: 266 };
+    controller.questionToolsSettingsSection.frame = { x: 20, y: 920, width: sectionWidth, height: 336 };
     controller.focusSectionTitle.frame = { x: 20, y: 12, width: Math.max(0, sectionWidth - 40), height: 28 };
     controller.focusDivider.frame = { x: 20, y: 48, width: Math.max(0, sectionWidth - 40), height: 1 };
     controller.focusEnabledTitle.frame = { x: 20, y: 61, width: Math.max(0, sectionWidth - 110), height: 24 };
@@ -125,13 +126,19 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.categoryImportSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 139, width: 51, height: 31 };
     controller.questionToolsTitle.frame = { x: 20, y: 12, width: Math.max(0, sectionWidth - 40), height: 28 };
     controller.questionToolsDivider.frame = { x: 20, y: 48, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.noteAddTitle.frame = { x: 20, y: 131, width: Math.max(0, sectionWidth - 110), height: 24 };
-    controller.noteAddDescription.frame = { x: 20, y: 157, width: Math.max(0, sectionWidth - 110), height: 18 };
-    controller.noteAddSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 139, width: 51, height: 31 };
-    controller.singleImportDivider.frame = { x: 20, y: 188, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.singleImportTitle.frame = { x: 20, y: 201, width: Math.max(0, sectionWidth - 110), height: 24 };
-    controller.singleImportDescription.frame = { x: 20, y: 227, width: Math.max(0, sectionWidth - 110), height: 18 };
-    controller.singleImportSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 209, width: 51, height: 31 };
+    controller.cardLocationModeTitle.frame = { x: 20, y: 131, width: Math.max(0, sectionWidth - 224), height: 24 };
+    controller.cardLocationModeDescription.frame = { x: 20, y: 157, width: Math.max(0, sectionWidth - 224), height: 18 };
+    controller.cardLocationModeValue.frame = { x: Math.max(20, sectionWidth - 192), y: 141.5, width: 132, height: 24 };
+    controller.cardLocationModeChevron.frame = { x: Math.max(20, sectionWidth - 52), y: 135.5, width: 30, height: 36 };
+    controller.cardLocationModeButton.frame = { x: 0, y: 119, width: sectionWidth, height: 69 };
+    controller.noteAddDivider.frame = { x: 20, y: 188, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.noteAddTitle.frame = { x: 20, y: 201, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.noteAddDescription.frame = { x: 20, y: 227, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.noteAddSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 209, width: 51, height: 31 };
+    controller.singleImportDivider.frame = { x: 20, y: 258, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.singleImportTitle.frame = { x: 20, y: 271, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.singleImportDescription.frame = { x: 20, y: 297, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.singleImportSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 279, width: 51, height: 31 };
     controller.resizeHandle.frame = { x: Math.max(0, bounds.width - 30), y: Math.max(0, bounds.height - 30), width: 30, height: 30 };
     controller.resizeGlyph.frame = { x: 0, y: 0, width: 30, height: 30 };
     __DAGUANYUAN_IMPORT_REPORT_GLOBAL__.layout(controller);
@@ -177,6 +184,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
   function setActivePage(controller, page) {
     if (!controller || !controller.webView || !controller.settingsPage || !controller.categoryManagerPage) return;
+    if (page !== "settings") __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.cancelMode(controller);
     controller.activePage = page;
     const nativePage = page === "settings" || page === "category-manager";
     controller.webView.hidden = nativePage;
@@ -256,6 +264,9 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
   function refreshWebsiteLocateSetting(controller) {
     if (controller && controller.websiteLocateSwitch) controller.websiteLocateSwitch.on = websiteLocateCardsVisible();
+    if (controller && controller.cardLocationModeValue) {
+      controller.cardLocationModeValue.text = __DAGUANYUAN_CARD_LOCATOR_GLOBAL__.mode() === "locate" ? "仅定位" : "定位并聚焦";
+    }
   }
 
   function noteAddVisible() {
@@ -529,7 +540,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.categoryImportSwitch.addTargetActionForControlEvents(controller, "toggleCategoryImportDisplay:", 1 << 12);
     controller.questionNavigationSettingsSection.addSubview(controller.categoryImportSwitch);
 
-    controller.questionToolsSettingsSection = new UIView({ x: 20, y: 920, width: DEFAULT_WIDTH - 40, height: 266 });
+    controller.questionToolsSettingsSection = new UIView({ x: 20, y: 920, width: DEFAULT_WIDTH - 40, height: 336 });
     controller.questionToolsSettingsSection.backgroundColor = UIColor.whiteColor();
     controller.questionToolsSettingsSection.layer.cornerRadius = 10;
     controller.questionToolsSettingsSection.layer.borderWidth = 0.5;
@@ -546,6 +557,22 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.questionToolsSettingsSection.addSubview(controller.websiteLocateDescription);
     controller.questionToolsSettingsSection.addSubview(controller.websiteLocateSwitch);
     controller.questionToolsSettingsSection.addSubview(controller.websiteLocateDivider);
+
+    controller.cardLocationModeTitle = label("定位卡片方式", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
+    controller.questionToolsSettingsSection.addSubview(controller.cardLocationModeTitle);
+    controller.cardLocationModeDescription = label("选择定位卡片时的操作", UIFont.systemFontOfSize(12), UIColor.grayColor());
+    controller.questionToolsSettingsSection.addSubview(controller.cardLocationModeDescription);
+    controller.cardLocationModeValue = label("", UIFont.systemFontOfSize(14), UIColor.grayColor());
+    controller.cardLocationModeValue.textAlignment = 2;
+    controller.questionToolsSettingsSection.addSubview(controller.cardLocationModeValue);
+    controller.cardLocationModeChevron = label("›", UIFont.systemFontOfSize(25), UIColor.grayColor());
+    controller.cardLocationModeChevron.textAlignment = 1;
+    controller.questionToolsSettingsSection.addSubview(controller.cardLocationModeChevron);
+    controller.cardLocationModeButton = button("", controller, "chooseCardLocationMode:");
+    controller.questionToolsSettingsSection.addSubview(controller.cardLocationModeButton);
+    controller.noteAddDivider = new UIView({ x: 20, y: 188, width: DEFAULT_WIDTH - 80, height: 1 });
+    controller.noteAddDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
+    controller.questionToolsSettingsSection.addSubview(controller.noteAddDivider);
 
     controller.noteAddTitle = label("显示添加笔记", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
     controller.questionToolsSettingsSection.addSubview(controller.noteAddTitle);
@@ -603,6 +630,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     refreshBindCategorySetting(controller);
     refreshCategoryImportSetting(controller);
     refreshQuestionLocatorSetting(controller);
+    refreshWebsiteLocateSetting(controller);
     refreshNoteAddSetting(controller);
     refreshSingleImportSetting(controller);
     refreshPreviousSetting(controller);
@@ -790,7 +818,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     if (route.provider === "408") {
       if (!/^https:\/\/www\.408os\.cn\/exercise\?/.test(route.url)) throw new Error("408 题目地址无效");
       showPanel(controller);
-      loadURL(controller, route.url, "408os");
+      loadURL(controller, __DAGUANYUAN_408_ROUTES_GLOBAL__.detailURL(route.url, route.questionId, route.year), "408os");
       showMessage(controller, "正在打开导入的 408 题目");
       return;
     }
@@ -855,7 +883,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   function showCategoryImportResult(controller, result, emptyMessage) {
     if (!result.total) { showMessage(controller, emptyMessage); return; }
     if (result.failed.length) { showImportReport(controller, result); return; }
-    showMessage(controller, `导入完成：新建 ${result.createdCount} 道，跳过 ${result.skippedCount} 道，失败 0 道`);
+    showMessage(controller, `导入完成：新建 ${result.createdCount} 道，更新 ${result.updatedCount || 0} 道，跳过 ${result.skippedCount} 道，失败 0 道`);
   }
 
   function handleCategoryImport(controller) {
@@ -875,7 +903,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       showMessage(controller, "正在读取当前 408 分类的全部题目…");
       Promise.resolve().then(function () {
         return __DAGUANYUAN_408_IMPORT_GLOBAL__.importCategory(controller, function (progress) {
-          showMessage(controller, `已处理 ${progress.processed}/${progress.total} 道：新建 ${progress.created}，跳过 ${progress.skipped}，失败 ${progress.failed}`);
+          showMessage(controller, `已处理 ${progress.processed}/${progress.total} 道：新建 ${progress.created}，更新 ${progress.updated || 0}，跳过 ${progress.skipped}，失败 ${progress.failed}`);
         });
       }).then(function (result) {
         if (result.failed.length) console.log(`[Daguanyuan Bridge] 408 导入失败详情：${__DAGUANYUAN_IMPORT_REPORT_GLOBAL__.textFor(result)}`);
@@ -919,7 +947,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       Promise.resolve().then(function () {
         return __DAGUANYUAN_MATH_IMPORT_GLOBAL__.importCategory(controller.addon, categoryId, scope, function (progress) {
           if (progress.phase === "importing") {
-            showMessage(controller, `已处理 ${progress.processed}/${progress.total} 道：新建 ${progress.created}，跳过 ${progress.skipped}，失败 ${progress.failed}`);
+            showMessage(controller, `已处理 ${progress.processed}/${progress.total} 道：新建 ${progress.created}，更新 ${progress.updated || 0}，跳过 ${progress.skipped}，失败 ${progress.failed}`);
           }
         });
       }).then(function (result) {
@@ -1119,6 +1147,22 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
     cancelCardLocationChoice: function () {
       __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.cancel(self);
+    },
+
+    chooseCardLocationMode: function () {
+      const controller = self;
+      try {
+        __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.chooseMode(controller, __DAGUANYUAN_CARD_LOCATOR_GLOBAL__.mode(), function (requested) {
+          try {
+            __DAGUANYUAN_CARD_LOCATOR_GLOBAL__.setMode(requested);
+            refreshWebsiteLocateSetting(controller);
+          } catch (error) { showMessage(controller, String(error && error.message || error)); }
+        });
+      } catch (error) { showMessage(controller, String(error && error.message || error)); }
+    },
+
+    selectCardLocationMode: function (sender) {
+      __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.selectMode(self, Number(sender && sender.tag), sender);
     },
 
     openDaguanyuan: function () {

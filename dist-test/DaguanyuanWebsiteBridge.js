@@ -10,8 +10,12 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
   // 此函数只在网站 WebView 内运行，三个工具共用排列逻辑，避免观察器相互移动按钮。
   function questionToolsPageScript(locateEnabled, noteEnabled, singleEnabled) {
     var state = window.__DAGUANYUAN_QUESTION_TOOLS__;
-    if (!state) {
-      state = { enabled: false, noteEnabled: false, singleEnabled: false, busy: false, noteBusy: false, locateBusy: false, timer: null };
+    if (!state || state.version !== 2) {
+      if (state) {
+        if (state.timer !== null && typeof window.clearTimeout === 'function') window.clearTimeout(state.timer);
+        state.timer = -1;
+      }
+      state = { version: 2, enabled: false, noteEnabled: false, singleEnabled: false, busy: false, noteBusy: false, locateBusy: false, timer: null };
       window.__DAGUANYUAN_QUESTION_TOOLS__ = state;
       window.__DAGUANYUAN_PRACTICE_CARD_BUTTONS__ = state;
       window.__DAGUANYUAN_SINGLE_IMPORT_BUTTONS__ = state;
@@ -26,9 +30,11 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
         var host = window.location.hostname || '';
         var path = window.location.pathname || '';
         var math = /(^|\.)cxyonly\.fans$/i.test(host) && /^\/math\/practice\/\d+(?:\/|$)/.test(path);
+        var search = new URLSearchParams(window.location.search || '');
+        var collection = search.get('mode') === 'collection' && /^[1-9]\d*$/.test(search.get('collectionId') || '');
         var os408 = /^www\.408os\.cn$/i.test(host) && /^\/exercise\/?$/.test(path)
-          && /[?&](?:year=\d{4}|knowledgeId=[1-9]\d*)(?:[&#]|$)/.test(window.location.search || '')
-          && !/[?&](?:mode|collectionId)=/.test(window.location.search || '');
+          && (collection || /[?&](?:year=\d{4}|knowledgeId=[1-9]\d*)(?:[&#]|$)/.test(window.location.search || '')
+            && !search.has('mode') && !search.has('collectionId'));
         var rows = document.querySelectorAll(math ? '[data-learning-question-id], article.question-document[data-question-id]' : '.question-card');
         for (var index = 0; index < rows.length; index += 1) {
           var row = rows[index];
@@ -112,17 +118,20 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
 
   function bindCategoryPageScript(bindEnabled, importEnabled) {
     var state = window.__DAGUANYUAN_BIND_CATEGORY_BUTTON__;
-    if (state && state.version === 4) {
+    if (state && state.version === 5) {
       state.bindEnabled = bindEnabled;
       state.importEnabled = importEnabled;
       state.schedule();
       return true;
     }
     var previous = state;
-    if (previous) previous.timer = -1;
+    if (previous) {
+      if (previous.timer !== null && typeof window.clearTimeout === 'function') window.clearTimeout(previous.timer);
+      previous.timer = -1;
+    }
     var oldToolbar = document.querySelector("[data-daguanyuan-bind-category-wrap]");
     if (oldToolbar && oldToolbar.parentNode) oldToolbar.parentNode.removeChild(oldToolbar);
-    state = { version: 4, bindEnabled: bindEnabled, importEnabled: importEnabled,
+    state = { version: 5, bindEnabled: bindEnabled, importEnabled: importEnabled,
       importBusy: false, timer: null, schedule: null, finishImport: null, contextStyle: null };
     window.__DAGUANYUAN_BIND_CATEGORY_BUTTON__ = state;
     function restoreContextStyle() {
@@ -140,7 +149,8 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
       var path = window.location.pathname || "";
       var math = /(^|\.)cxyonly\.fans$/i.test(host) && /^\/math\/practice\/\d+(?:\/|$)/.test(path);
       var os408 = /^www\.408os\.cn$/i.test(host) && /^\/exercise\/?$/.test(path)
-        && /[?&](?:year=\d{4}|knowledgeId=[1-9]\d*)(?:[&#]|$)/.test(window.location.search || "");
+        && /[?&](?:year=\d{4}|knowledgeId=[1-9]\d*)(?:[&#]|$)/.test(window.location.search || "")
+        && !/[?&](?:mode|collectionId)=/.test(window.location.search || "");
       var canBind = math || os408 && /[?&]year=\d{4}(?:[&#]|$)/.test(window.location.search || "");
       var active = (math || os408) && (state.importEnabled || state.bindEnabled && canBind);
       var toolbar = document.querySelector("[data-daguanyuan-bind-category-wrap]");

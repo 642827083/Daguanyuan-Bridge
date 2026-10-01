@@ -27,5 +27,15 @@ var __DAGUANYUAN_408_ROUTES_GLOBAL__ = (function () {
     return `${baseURL}${baseURL.indexOf("?") >= 0 ? "&" : "?"}questionId=${questionId}`;
   }
 
-  return { yearFromURL, normalizedURL, questionURL };
+  function detailURL(urlString, questionId, sourceYear) {
+    if (!/^https:\/\/www\.408os\.cn\/exercise\?/.test(String(urlString || ""))) throw new Error("408 题目地址无效");
+    const id = Number(questionId);
+    if (!Number.isSafeInteger(id) || id < 1) throw new Error("408 题目 ID 无效");
+    const year = Number(sourceYear) || yearFromURL(urlString);
+    const yearQuery = Number.isSafeInteger(year) && year >= 2009 && year <= 2100 ? `year=${year}&` : "";
+    // 网站的知识点加载分支不处理 questionId，定位时必须使用独立单题入口。
+    return `https://www.408os.cn/exercise?${yearQuery}questionId=${id}`;
+  }
+
+  return { yearFromURL, normalizedURL, questionURL, detailURL };
 })();

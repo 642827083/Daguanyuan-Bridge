@@ -157,7 +157,7 @@ function browser(hostname, pathname, search = "") {
   exerciseHeader.appendChild(exerciseLeft);
   main.appendChild(exerciseHeader);
   const rows = [];
-  const context = {
+  const context = { URL, URLSearchParams,
     window: {
       location: { hostname, pathname, search },
       setTimeout(callback, delay) { timers.push({ callback, delay }); return timers.length; },
@@ -196,6 +196,34 @@ function browser(hostname, pathname, search = "") {
   }
   return { context, body, main, contextBox, categorySelector, exerciseLeft, modeSwitch, rows, element, runSync };
 }
+
+test('408 题本显示三个单题工具，翻题回传当前题号，始终隐藏导入当前题目', () => {
+  for (const query of ['?mode=collection&collectionId=4&collectionName=不会题本', '?mode=collection&collectionId=8&collectionName=不熟题本&year=2026']) {
+    const page = browser('www.408os.cn', '/exercise', query);
+    page.context.window.location.href = 'https://www.408os.cn/exercise' + query;
+    const row = page.element('div', { class: 'question-card' }), metadata = page.element('div', { class: 'header-tags' });
+    const year = page.element('span', { class: 'year-tag' }), number = page.element('span', { class: 'index-tag' });
+    year.textContent = '2025'; number.textContent = '第14题'; metadata.appendChild(year); metadata.appendChild(number); row.appendChild(metadata);
+    page.main.appendChild(row); page.rows.push(row);
+    const bridge = page.context.__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__;
+    vm.runInContext(bridge.practiceScript(true, true), page.context); page.runSync();
+    vm.runInContext(bridge.singleImportScript(true), page.context); page.runSync();
+    const buttons = metadata.children.filter(item => item.tagName === 'BUTTON');
+    assert.deepEqual(buttons.map(item => item.textContent), ['定位卡片', '添加笔记', '导入单题']);
+    year.textContent = '2024'; number.textContent = '第13题';
+    for (const [index, finish] of [[0, 'finishLocate'], [1, 'finishNotePaste'], [2, 'finishImport']]) {
+      buttons[index].handlers.click.call(buttons[index], { preventDefault() {}, stopPropagation() {} });
+      const target = JSON.parse(decodeURIComponent(page.body.children.at(-1).src.split('payload=')[1]));
+      assert.equal(target.year, 2024); assert.equal(target.number, 13); assert.equal(target.url, page.context.window.location.href);
+      page.context.window.__DAGUANYUAN_QUESTION_TOOLS__[finish](); page.runSync();
+    }
+    vm.runInContext(bridge.bindCategoryScript(true, true), page.context); page.runSync();
+    assert.equal(page.body.querySelector('[data-daguanyuan-import-category]'), null);
+    assert.equal(page.body.querySelector('[data-daguanyuan-bind-category-wrap]'), null);
+    vm.runInContext(bridge.singleImportScript(false), page.context); page.runSync();
+    assert.deepEqual(metadata.children.filter(item => item.tagName === 'BUTTON').map(item => item.textContent), ['定位卡片', '添加笔记']);
+  }
+});
 
 test('数学和 408 三个工具统一排列、统一描边样式，开关互不覆盖', () => {
   for (const provider of ['math', '408']) {

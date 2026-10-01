@@ -6,7 +6,7 @@ var __DAGUANYUAN_IMPORT_REPORT_GLOBAL__ = (function () {
   }
 
   function textFor(result) {
-    const lines = [`导入结果：新建 ${result.createdCount || 0} 道，跳过 ${result.skippedCount || 0} 道，失败 ${(result.failed || []).length} 道`];
+    const lines = [`导入结果：新建 ${result.createdCount || 0} 道，更新 ${result.updatedCount || 0} 道，跳过 ${result.skippedCount || 0} 道，失败 ${(result.failed || []).length} 道`];
     if (result.interrupted) lines.push(`导入中断：${safeText(result.interrupted)}`);
     (result.failed || []).forEach(function (failure, index) {
       lines.push("", `${index + 1}. ${safeText(failure.source || "题目 ID " + failure.questionId)}`,
@@ -21,7 +21,7 @@ var __DAGUANYUAN_IMPORT_REPORT_GLOBAL__ = (function () {
         if (details[key] != null) lines.push(`${names[key]}：${safeText(details[key])}`);
       });
     });
-    if ((result.failed || []).length) lines.push("", "失败题目没有计入已导入；再次导入会跳过成功题目，并重试失败题目。", "可点击“复制详情”反馈上述信息。");
+    if ((result.failed || []).length) lines.push("", "失败的新题没有计入已导入；更新失败保留原内容。再次导入会更新变化的题目、跳过相同内容，并重试失败题目。", "可点击“复制详情”反馈上述信息。");
     return lines.join("\n");
   }
 

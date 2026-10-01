@@ -39,15 +39,16 @@ var __DAGUANYUAN_SINGLE_IMPORT_GLOBAL__ = (function () {
     // 在任何异步读取开始前固定父卡片，后续切换选择不会改变导入位置。
     const session = __DAGUANYUAN_MATH_IMPORT_GLOBAL__.preparedSingleSession(controller.addon, target.provider);
     if (target.provider === "408") return __DAGUANYUAN_408_IMPORT_GLOBAL__.importSingle(controller, target, session);
-    const result = { total: 1, createdCount: 0, skippedCount: 0, failed: [] };
-    if (session.hasQuestion(target.id)) { result.skippedCount = 1; return Promise.resolve(result); }
+    const result = { total: 1, createdCount: 0, updatedCount: 0, skippedCount: 0, failed: [] };
     let stage = "读取题目图文";
     let source = "";
     return readMathQuestion(target.id).then(function (question) {
       if (!question || question.id !== target.id) throw new Error("数学题目 ID 与所点击题目不一致");
       source = question.source;
       stage = "MarginNote 建卡";
-      if (session.write(question, { url: target.url.split(/[?#]/)[0] })) result.createdCount = 1;
+      const outcome = session.write(question, { url: target.url.split(/[?#]/)[0] });
+      if (outcome === "updated") result.updatedCount = 1;
+      else if (outcome) result.createdCount = 1;
       else result.skippedCount = 1;
       return result;
     }).catch(function (error) {
