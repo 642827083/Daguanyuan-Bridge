@@ -188,6 +188,7 @@ function browser(hostname, pathname, search = "") {
     Number, String, encodeURIComponent,
   };
   vm.createContext(context);
+  vm.runInContext(readFileSync(new URL('../src/Daguanyuan408Routes.js', import.meta.url), 'utf8'), context);
   vm.runInContext(source, context);
   function runSync() {
     const index = timers.findIndex((item) => item.delay === 80);

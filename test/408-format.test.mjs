@@ -23,6 +23,19 @@ test("408 可可靠还原平面 KaTeX 变量、赋值和集合关系", () => {
   assert.equal(recover(span("mspace"), span("strut"), span("mord mathnormal", "G")), "G");
 });
 
+test('408 第 42 题数列、省略号、下标和连续大小关系还原为 LaTeX', () => {
+  assert.equal(recover(span('mord', '1'), span('mpunct', ','), span('mord', '2'), span('mpunct', ','),
+    span('mord', '3'), span('mpunct', ','), span('minner', '…'), span('mpunct', ','), span('mord mathnormal', 'n')),
+    '1,2,3,\\ldots ,n');
+  assert.equal(recover(span('mord mathnormal', 'i'), span('mrel', '<'), span('mord mathnormal', 'j'),
+    span('mrel', '<'), span('mord mathnormal', 'k')), 'i<j<k');
+  assert.equal(recover(span('mord mathnormal', 'k'), span('mrel', '>'), span('mord mathnormal', 'j')), 'k>j');
+  assert.equal(recover(span('mord', '', [span('mord mathnormal', 'P'), scripts(-2.55, 2.7, span('mord mtight', '1'))]),
+    span('mpunct', ','), span('minner', '…'), span('mpunct', ','),
+    span('mord', '', [span('mord mathnormal', 'P'), scripts(-2.55, 2.7, span('mord mathnormal mtight', 'n'))])),
+    'P_{1},\\ldots ,P_{n}');
+});
+
 test("408 第 27 题四条交集与空集条件还原为 LaTeX", () => {
   for (const [left, right] of [['R(Q)', 'W(P)'], ['R(P)', 'R(Q)'], ['W(P)', 'W(Q)'], ['R(P)', 'W(Q)']]) {
     const tokens = text => Array.from(text).map(character => span(/[()]/.test(character) ? 'mopen' : 'mord mathnormal', character));

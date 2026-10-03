@@ -17,7 +17,9 @@ async function listing(query, options = {}) {
     requests.push({ url, params: config.params });
     if (url.includes('/collection/')) return options.collectionResponse ? options.collectionResponse(config.params.pageNum)
       : { data: { rows: [question], total: 1 } };
-    return url.includes('by-knowledge') ? { rows: [question], total: 1 } : [question];
+    if (url.includes('by-knowledge')) return options.knowledgeResponse ? options.knowledgeResponse(config.params.pageNum)
+      : { rows: [question], total: 1 };
+    return [question];
   } };
   const location = { href: 'https://www.408os.cn/exercise?' + query };
   const context = { console, URL, Map, Set, document: { querySelector() { return { src: entryURL }; } },
@@ -52,6 +54,18 @@ test('408 按知识点 ID 读取完整目录，名称缺失或旧名称也不影
     assert.deepEqual(result.payload.category.path, ['计算机组成原理', '数据的机器表示', '数据类型转换']);
     assert.equal(result.payload.category.title, '数据类型转换');
   }
+});
+
+test('408 知识点导入每一页保留只有真题的范围，保存来源也包含该范围', async () => {
+  const result = await listing('knowledgeId=53&sourcePage=overview', { knowledgeResponse(page) {
+    return { rows: [{ question: { id: 9000 + page, year: 2026, questionIndex: page } }], total: 2 };
+  } });
+  assert.equal(result.error, '');
+  assert.deepEqual(result.payload.ids, [9001, 9002]);
+  assert.equal(new URL(result.payload.category.url).searchParams.get('sourcePage'), 'overview');
+  const pages = result.requests.filter(request => request.url.includes('by-knowledge'));
+  assert.deepEqual(pages.map(request => request.params.pageNum), [1, 2]);
+  assert.ok(pages.every(request => request.params.sourcePage === 'overview'));
 });
 
 test('408 不会与不熟题本按集合分页查询当前题目，年份参数不改变数据来源', async () => {

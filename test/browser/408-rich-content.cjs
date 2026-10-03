@@ -48,6 +48,9 @@ for (const year of [2024, 2025]) formatRows.push({ question: { id: year, year, q
 formatRows.push({ question: { id: 826, year: 2026, questionIndex: 27,
   mdContent: fs.readFileSync(path.join(__dirname, 'fixtures', '408-2026-27.html'), 'utf8'),
 } });
+formatRows.push({ question: { id: 841, year: 2026, questionIndex: 42,
+  mdContent: fs.readFileSync(path.join(__dirname, 'fixtures', '408-2026-42.html'), 'utf8'),
+} });
 const client = String.raw`
 document.querySelector('#run').onclick = async function () {
   const output = document.querySelector('#result');
@@ -68,13 +71,23 @@ document.querySelector('#run').onclick = async function () {
       throw new Error('回归样例超时');
     }
     check(!(await wait()).error, '分类读取成功');
-    for (let index = 0; index < 19; index++) {
+    for (let index = 0; index < 20; index++) {
       state.prepare('rich-test', index);
       const read = await wait();
       if (index === 6) { check(/404/.test(read.error), '坏图明确失败'); continue; }
       if (index === 7) { check(read.error.includes('转换结果为空白'), '空白图不会算作成功'); continue; }
       check(!read.error, '题目 ' + (index + 1) + ' 成功：' + (read.error || ''));
       const question = JSON.parse(state.payload).question;
+      if (index === 19) {
+        check(question.id === 841 && question.source === '2026年 第42题', '第 42 题身份正确');
+        for (const expression of ['1,2,3,\\ldots ,n', '1,2,\\ldots ,n', 'P_{1},P_{2},\\ldots ,P_{n}', 'i<j<k']) {
+          check(question.stem.includes('$' + expression + '$'), '第 42 题数列和关系还原为 LaTeX：' + expression);
+        }
+        check(!question.hasBase64Image && !question.stem.includes('![公式]'), '第 42 题完整转换不使用公式图片');
+        const saved = __DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown(question, location.href, '408');
+        check(saved.startsWith(question.stem + '\n\n') && !saved.includes('data:image'), '第 42 题建卡内容保留 LaTeX');
+        continue;
+      }
       if (index === 18) {
         check(question.id === 826 && question.source === '2026年 第27题', '第 27 题身份正确');
         for (const expression of ['R(Q)\\cap W(P)=\\varnothing', 'R(P)\\cap R(Q)=\\varnothing', 'W(P)\\cap W(Q)=\\varnothing', 'R(P)\\cap W(Q)=\\varnothing']) {

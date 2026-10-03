@@ -1098,6 +1098,27 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     injectSingleImportButtons(controller);
   }
 
+  function injectExerciseQuestion(controller) {
+    const token = Number(controller.exerciseQuestionRequestToken || 0) + 1;
+    controller.exerciseQuestionRequestToken = token;
+    controller.webView.evaluateJavaScript(__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__.exerciseQuestionScript(), function (result, error) {
+      if (error) {
+        showMessage(controller, "题目页面已打开，但自动选题失败");
+        console.log(`[Daguanyuan Bridge] 注入题目选题失败：${error.localizedDescription || error}`);
+      }
+      const key = String(result || "");
+      if (!/^(?:year:)?\d+:\d+$/.test(key) || typeof NSTimer === "undefined" || !NSTimer.scheduledTimerWithTimeInterval) return;
+      NSTimer.scheduledTimerWithTimeInterval(90.5, false, function () {
+        if (controller.exerciseQuestionRequestToken !== token) return;
+        controller.webView.evaluateJavaScript("document.documentElement.getAttribute('data-daguanyuan-408-question-locator') || ''", function (status) {
+          if (controller.exerciseQuestionRequestToken === token && String(status || "") === "failed:" + key) {
+            showMessage(controller, "已打开对应题目范围，但未能自动选中目标题，请手动选择或重新定位");
+          }
+        });
+      });
+    });
+  }
+
   function injectBindCategoryButton(controller) {
     if (!controller || !controller.webView) return;
     controller.webView.evaluateJavaScript(__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__.bindCategoryScript(bindCategoryVisible(), categoryImportVisible()), function (result, error) {
@@ -1457,6 +1478,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       if (webView === self.webView) {
         injectVideoPopupCompatibility(self);
         injectWebsiteButtons(self);
+        injectExerciseQuestion(self);
         self.webView.evaluateJavaScript("String(window.location.href || '')", function (result, error) {
           const address = String(result || "");
           const isLogin = /\/login(?:[/?#]|$)/i.test(address);

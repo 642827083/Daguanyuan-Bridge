@@ -393,6 +393,7 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
       var greek = { "α": "alpha", "β": "beta", "γ": "gamma", "δ": "delta", "ϵ": "epsilon", "ε": "varepsilon", "ζ": "zeta", "η": "eta", "θ": "theta", "ϑ": "vartheta", "ι": "iota", "κ": "kappa", "λ": "lambda", "μ": "mu", "ν": "nu", "ξ": "xi", "π": "pi", "ϖ": "varpi", "ρ": "rho", "ϱ": "varrho", "σ": "sigma", "ς": "varsigma", "τ": "tau", "υ": "upsilon", "ϕ": "phi", "φ": "varphi", "χ": "chi", "ψ": "psi", "ω": "omega", "Γ": "Gamma", "Δ": "Delta", "Θ": "Theta", "Λ": "Lambda", "Ξ": "Xi", "Π": "Pi", "Σ": "Sigma", "Υ": "Upsilon", "Φ": "Phi", "Ψ": "Psi", "Ω": "Omega" };
       Object.keys(greek).forEach(function (character) { symbols[character] = "\\" + greek[character] + " "; });
       symbols["∼"] = "\\sim ";
+      symbols["…"] = "\\ldots ";
       var validFormula = true;
       function textFormula(node) {
         function textRead(part) {
@@ -484,7 +485,7 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
         if (!value || !classes.some(function (name) { return /^(mord|mrel|mbin|mopen|mclose|mpunct|minner|mop)$/.test(name); })) { validFormula = false; return ""; }
         return Array.from(value).map(function (character) {
           if (Object.prototype.hasOwnProperty.call(symbols, character)) return symbols[character];
-          if (/^[a-zA-Z0-9.,()+\-=\/|\[\]:!]$/.test(character)) return character;
+          if (/^[a-zA-Z0-9.,()+\-=\/|\[\]:!<>]$/.test(character)) return character;
           validFormula = false;
           return "";
         }).join("");
