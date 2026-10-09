@@ -1,11 +1,5 @@
 {
   "name": "daguanyuan-bridge",
-  "version": "1.0.5",
-  "private": true,
-  "scripts": {
-    "test": "node --test test/*.test.mjs",
-    "build": "node scripts/build-test.js",
-    "build:release": "node scripts/build-release.js"
-  },
-  "mnaddonFileName": "Daguanyuan Bridge Test"
+  "version": "1.0.6",
+  "private": true
 }

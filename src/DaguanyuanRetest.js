@@ -129,6 +129,55 @@ var __DAGUANYUAN_RETEST_GLOBAL__ = (function () {
     });
   }
 
+  function taggedQuestionId(note, provider) {
+    const comments = nativeItems(nativeMember(note, "comments"));
+    for (let index = 0; index < comments.length; index += 1) {
+      const tag = String(nativeMember(comments[index], "tag") || "");
+      const match = tag.match(/^daguanyuan-question:v1\|(daguanyuan|408os)\|(\d+)\|/);
+      if (match && (!provider || match[1] === provider)) return match[2];
+    }
+    return "";
+  }
+
+  function findNoteById(notebook, noteId) {
+    const expected = String(noteId || "");
+    const roots = nativeItems(nativeMember(notebook, "notes")).concat(nativeItems(nativeMember(notebook, "childNotes")));
+    const stack = roots.slice();
+    const visited = [];
+    while (stack.length) {
+      const note = stack.pop();
+      if (!note || visited.indexOf(note) >= 0) continue;
+      visited.push(note);
+      if (String(nativeMember(note, "noteId") || "") === expected) return note;
+      const children = nativeItems(nativeMember(note, "childNotes"));
+      for (let index = children.length - 1; index >= 0; index -= 1) stack.push(children[index]);
+    }
+    return undefined;
+  }
+
+  function notebookIdentifier(notebook) {
+    return notebookIdentifiers(notebook)[0] || "";
+  }
+
+  function notebookIdentifiers(notebook) {
+    const values = [
+      nativeMember(notebook, "topicId"),
+      nativeMember(notebook, "notebookId"),
+      nativeMember(notebook, "id"),
+    ].map(function (value) { return String(value || ""); }).filter(Boolean);
+    return values.filter(function (value, index) { return values.indexOf(value) === index; });
+  }
+
+  function knownNotebooks(database) {
+    if (!database) return [];
+    const values = ["notebooks", "allNotebooks", "notebookList"];
+    for (let index = 0; index < values.length; index += 1) {
+      const list = nativeItems(nativeMember(database, values[index]));
+      if (list.length) return list;
+    }
+    return [];
+  }
+
   function findQuestionNote(notebook, questionId) {
     const root = findRoot(notebook);
     if (!root) return undefined;
@@ -138,14 +187,12 @@ var __DAGUANYUAN_RETEST_GLOBAL__ = (function () {
       const note = stack.pop();
       if (!note || visited.indexOf(note) >= 0) continue;
       visited.push(note);
-      const title = String(nativeMember(note, "noteTitle") || "");
-      const prefix = `题目 ${questionId}`;
-      const titleMatches = title === prefix || title.indexOf(`${prefix}｜`) === 0;
       const allText = noteText(note);
       const markerMatches = allText.indexOf(`DAGUANYUAN_QUESTION_ID:${questionId}`) >= 0;
       const url = questionURLFromText(allText);
       const children = nativeItems(nativeMember(note, "childNotes"));
-      if (!children.length && (markerMatches || titleMatches) && questionIdFromURL(url) === questionId) return note;
+      const tagMatches = taggedQuestionId(note, "daguanyuan") === questionId;
+      if (!children.length && (tagMatches || (markerMatches && questionIdFromURL(url) === questionId))) return note;
       for (let index = children.length - 1; index >= 0; index -= 1) stack.push(children[index]);
     }
     return undefined;
@@ -158,19 +205,217 @@ var __DAGUANYUAN_RETEST_GLOBAL__ = (function () {
     const studyController = application.studyController(addon && addon.window);
     const notebookController = nativeMember(studyController, "notebookController");
     const notebookId = nativeMember(notebookController, "notebookId");
-    const notebook = notebookId ? Database.sharedInstance().getNotebookById(notebookId) : undefined;
-    if (!notebook) throw new Error("请先打开包含导入题卡的 MarginNote 笔记本");
-    const note = findQuestionNote(notebook, questionId);
-    if (!note) throw new Error(`当前笔记本中未找到题目 ${questionId}，请先导入所在分类`);
+    const database = Database.sharedInstance();
+    let notebook = notebookId && database && typeof database.getNotebookById === "function"
+      ? database.getNotebookById(notebookId) : undefined;
+    let note = notebook ? findQuestionNote(notebook, questionId) : undefined;
+    if (!note && notebook && typeof __DAGUANYUAN_STORAGE_GLOBAL__ !== "undefined") {
+      const cachedNoteId = __DAGUANYUAN_STORAGE_GLOBAL__.noteIdForQuestion("daguanyuan", questionId, String(notebookId || ""));
+      if (cachedNoteId) note = findNoteById(notebook, cachedNoteId);
+    }
+    let cachedAnyNoteId = "";
+    if (!note && typeof __DAGUANYUAN_STORAGE_GLOBAL__ !== "undefined") {
+      cachedAnyNoteId = __DAGUANYUAN_STORAGE_GLOBAL__.noteIdForQuestion("daguanyuan", questionId, "");
+      if (cachedAnyNoteId && notebook) note = findNoteById(notebook, cachedAnyNoteId);
+    }
+    // 错题复测可能从另一个学习集发起，当前学习集找不到时再扫描数据库公开的学习集列表。
+    if (!note) {
+      const candidates = knownNotebooks(database);
+      for (let index = 0; index < candidates.length; index += 1) {
+        const candidate = candidates[index];
+        if (!candidate || notebookIdentifier(candidate) === String(notebookId || "")) continue;
+        const candidateNote = cachedAnyNoteId ? findNoteById(candidate, cachedAnyNoteId) : findQuestionNote(candidate, questionId);
+        if (candidateNote) { notebook = candidate; note = candidateNote; break; }
+      }
+    }
+    if (!notebook || !note) throw new Error(`当前笔记本中未找到题目 ${questionId}，请先导入该题目所在学习集`);
     const noteId = nativeMember(note, "noteId");
     if (!noteId) throw new Error(`题目 ${questionId} 的脑图卡片缺少笔记 ID`);
-    if (!notebookController || typeof notebookController.changeFocusToNote !== "function") {
-      throw new Error("当前 MarginNote 版本不支持切换脑图焦点");
+    if (!studyController || !nativeMember(studyController, "notebookController")) {
+      throw new Error("当前 MarginNote 版本不支持脑图卡片定位");
     }
+    const notebookIds = notebookIdentifiers(notebook);
+    return {
+      questionId,
+      noteId: String(noteId),
+      note,
+      notebookId: notebookIds[0] || String(notebookId || ""),
+      notebookIds,
+    };
+  }
+
+  function currentNotebookIdentifiers(addon) {
+    try {
+      const studyController = Application.sharedInstance().studyController(addon && addon.window);
+      const notebookController = nativeMember(studyController, "notebookController");
+      return notebookIdentifiers(notebookController).concat(notebookIdentifiers(studyController)).filter(function (value, index, values) {
+        return values.indexOf(value) === index;
+      });
+    } catch (ignored) { return []; }
+  }
+
+  function isCurrentTargetNotebook(addon, notebookId, notebookIds) {
+    const targets = (Array.isArray(notebookIds) ? notebookIds : []).concat(String(notebookId || "")).filter(Boolean);
+    if (!targets.length) return true;
+    const current = currentNotebookIdentifiers(addon);
+    return current.some(function (value) { return targets.indexOf(value) >= 0; });
+  }
+
+  function focusRetestQuestionCard(addon, value) {
+    const noteId = String(value || "");
+    if (!noteId) throw new Error("脑图卡片信息不完整");
+    const studyController = Application.sharedInstance().studyController(addon && addon.window);
     if (!studyController || typeof studyController.focusNoteInMindMapById !== "function") {
       throw new Error("当前 MarginNote 版本不支持脑图卡片定位");
     }
-    return { questionId, noteId: String(noteId), note };
+    // 错题复测只使用宿主提供的定位接口，避免直接操作 MindMapView 导致闪退。
+    studyController.focusNoteInMindMapById(noteId);
+    return noteId;
+  }
+
+  function noteIdentifier(note) {
+    return String(nativeMember(note, "noteId") || nativeMember(note, "noteid") || nativeMember(note, "id") || "");
+  }
+
+  function isRetestQuestionCardFocused(addon, value) {
+    const noteId = String(value || "");
+    if (!noteId) return false;
+    try {
+      const studyController = Application.sharedInstance().studyController(addon && addon.window);
+      const notebookController = nativeMember(studyController, "notebookController");
+      const focusId = noteIdentifier(nativeMember(notebookController, "focusNote"));
+      const visibleFocusId = noteIdentifier(nativeMember(notebookController, "visibleFocusNote"));
+      return focusId === noteId || visibleFocusId === noteId;
+    } catch (error) {
+      console.log(`[Daguanyuan Bridge] 读取错题脑图定位状态失败：${error && error.message || error}`);
+      return false;
+    }
+  }
+
+  function clearPendingNavigation(addon, runId) {
+    const pending = addon && addon.__daguanyuanPendingNavigation;
+    if (pending && pending.runId === runId) addon.__daguanyuanPendingNavigation = null;
+  }
+
+  function scheduleNavigationRetry(addon, noteId, notebookId, notebookIds, runId, attempt) {
+    const pending = addon && addon.__daguanyuanPendingNavigation;
+    if (!pending || pending.runId !== runId) return;
+    if (attempt >= 60) {
+      console.log(`[Daguanyuan Bridge] 错题脑图定位超时：${noteId}`);
+      clearPendingNavigation(addon, runId);
+      return;
+    }
+    if (typeof NSTimer === "undefined" || !NSTimer.scheduledTimerWithTimeInterval) return;
+    try {
+      pending.timerScheduled = true;
+      NSTimer.scheduledTimerWithTimeInterval(0.25, false, function () {
+        scheduleNavigation(addon, noteId, notebookId, notebookIds, runId, attempt);
+      });
+    } catch (error) {
+      console.log(`[Daguanyuan Bridge] 错题脑图定位重试失败：${error && error.message || error}`);
+    }
+  }
+
+  function verifyNavigationFocus(addon, noteId, notebookId, notebookIds, runId, attempt) {
+    const pending = addon && addon.__daguanyuanPendingNavigation;
+    if (!pending || pending.runId !== runId) return;
+    if (typeof NSTimer === "undefined" || !NSTimer.scheduledTimerWithTimeInterval) return;
+    try {
+      pending.timerScheduled = true;
+      NSTimer.scheduledTimerWithTimeInterval(0.08, false, function () {
+        const active = addon && addon.__daguanyuanPendingNavigation;
+        if (!active || active.runId !== runId) return;
+        active.timerScheduled = false;
+        if (isRetestQuestionCardFocused(addon, noteId)) {
+          clearPendingNavigation(addon, runId);
+          return;
+        }
+        scheduleNavigationRetry(addon, noteId, notebookId, notebookIds, runId, attempt + 1);
+      });
+    } catch (error) {
+      console.log(`[Daguanyuan Bridge] 错题脑图定位验证失败：${error && error.message || error}`);
+      scheduleNavigationRetry(addon, noteId, notebookId, notebookIds, runId, attempt + 1);
+    }
+  }
+
+  function scheduleNavigation(addon, noteId, notebookId, notebookIds, runId, attempt) {
+    const pending = addon && addon.__daguanyuanPendingNavigation;
+    if (!pending || pending.runId !== runId) return;
+    pending.timerScheduled = false;
+    pending.attempt = attempt;
+    if (isCurrentTargetNotebook(addon, notebookId, notebookIds)) {
+      try {
+        focusRetestQuestionCard(addon, noteId);
+        verifyNavigationFocus(addon, noteId, notebookId, notebookIds, runId, attempt);
+        return;
+      } catch (error) {
+        console.log(`[Daguanyuan Bridge] 错题脑图定位尝试失败：${error && error.message || error}`);
+      }
+    }
+    scheduleNavigationRetry(addon, noteId, notebookId, notebookIds, runId, attempt + 1);
+  }
+
+  function openNotebookForNote(noteId) {
+    const target = `marginnote3app://note/${encodeURIComponent(String(noteId || ""))}`;
+    try {
+      if (typeof NSURL === "undefined" || !NSURL.URLWithString) {
+        console.log("[Daguanyuan Bridge] 当前 MarginNote 版本缺少 NSURL，无法打开目标学习集");
+        return false;
+      }
+      const url = NSURL.URLWithString(encodeURI(target));
+      if (!url) {
+        console.log("[Daguanyuan Bridge] 无法创建目标学习集地址");
+        return false;
+      }
+      const application = Application.sharedInstance();
+      if (application && typeof application.openURL === "function") {
+        application.openURL(url);
+        return true;
+      }
+      console.log("[Daguanyuan Bridge] 当前 MarginNote 版本不支持打开目标学习集");
+    } catch (error) {
+      console.log(`[Daguanyuan Bridge] 打开目标学习集失败：${error && error.message || error}`);
+    }
+    return false;
+  }
+
+  function startQuestionNavigation(addon, result) {
+    if (!addon || !result || !result.noteId) throw new Error("脑图卡片信息不完整");
+    const runId = `${Date.now()}-${Math.random()}`;
+    const notebookIds = Array.isArray(result.notebookIds) ? result.notebookIds.map(String).filter(Boolean) : [];
+    addon.__daguanyuanNavigationRunId = runId;
+    addon.__daguanyuanPendingNavigation = {
+      runId,
+      noteId: String(result.noteId),
+      notebookId: String(result.notebookId || ""),
+      notebookIds,
+      attempt: 0,
+      timerScheduled: false,
+    };
+    if (!isCurrentTargetNotebook(addon, result.notebookId, notebookIds)) openNotebookForNote(result.noteId);
+    scheduleNavigation(addon, String(result.noteId), String(result.notebookId || ""), notebookIds, runId, 0);
+    return runId;
+  }
+
+  function resumePendingNavigation(addon, openedNotebookId) {
+    const pending = addon && addon.__daguanyuanPendingNavigation;
+    if (!pending) return false;
+    const opened = String(openedNotebookId || "");
+    if (!opened || opened !== pending.notebookId) return false;
+    if (typeof NSTimer === "undefined" || !NSTimer.scheduledTimerWithTimeInterval) return false;
+    const runId = `${Date.now()}-${Math.random()}`;
+    pending.runId = runId;
+    pending.timerScheduled = true;
+    try {
+      // 目标学习集打开后重新建立定位请求，废弃切换前遗留的计时器。
+      NSTimer.scheduledTimerWithTimeInterval(0.2, false, function () {
+        scheduleNavigation(addon, pending.noteId, pending.notebookId, pending.notebookIds, runId, pending.attempt || 0);
+      });
+    } catch (error) {
+      console.log(`[Daguanyuan Bridge] 切换学习集后定位失败：${error && error.message || error}`);
+      return false;
+    }
+    return true;
   }
 
   function focusQuestionCard(addon, note, value) {
@@ -199,8 +444,14 @@ var __DAGUANYUAN_RETEST_GLOBAL__ = (function () {
     bridgeScheme: BRIDGE_SCHEME,
     enhancementScript,
     findQuestionNote,
+    findNoteById,
+    isCurrentTargetNotebook,
     focusQuestionCard,
     focusQuestionInMindMap,
+    focusRetestQuestionCard,
+    isRetestQuestionCardFocused,
+    startQuestionNavigation,
+    resumePendingNavigation,
     questionIdFromBridgeURL,
     questionIdFromURL,
     resolveQuestionCard,

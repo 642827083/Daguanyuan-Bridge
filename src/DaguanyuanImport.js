@@ -1,9 +1,9 @@
 var __DAGUANYUAN_PRACTICE_IMPORT_GLOBAL__ = (function () {
   const ROOT_TITLE = "Daguanyuan Bridge";
   const ROOT_MARKER = "DAGUANYUAN_ROOT:1";
-  const CATEGORY_MARKER_PREFIX = "DAGUANYUAN_CATEGORY_ID:";
   const QUESTION_MARKER_PREFIX = "DAGUANYUAN_QUESTION_ID:";
   const URL_MARKER_PREFIX = "DAGUANYUAN_URL:";
+  const HTML_COMMENT_TAG_PREFIX = "daguanyuan-question:v1|";
   const DAGUANYUAN_PRACTICE_ROOT_PATHS = {
     "321": ["高等数学", "（一）极限"],
     "329": ["高等数学", "（一）极限"],
@@ -55,12 +55,6 @@ var __DAGUANYUAN_PRACTICE_IMPORT_GLOBAL__ = (function () {
     }
   }
 
-  function findChildByMarker(parent, marker) {
-    return nativeItems(parent && parent.childNotes).find(function (note) {
-      return hasMarker(note, marker);
-    });
-  }
-
   function findChildByTitle(parent, title) {
     return nativeItems(parent && parent.childNotes).find(function (note) {
       return String(note.noteTitle || "") === title;
@@ -104,37 +98,26 @@ var __DAGUANYUAN_PRACTICE_IMPORT_GLOBAL__ = (function () {
     return root;
   }
 
-  function findLegacyCategory(root, categoryId) {
-    const marker = `${CATEGORY_MARKER_PREFIX}${categoryId}`;
-    return nativeItems(root && root.childNotes).find(function (note) {
-      return String(note.noteTitle || "") === `分类 ${categoryId}` || hasMarker(note, marker);
-    });
-  }
-
   function categoryPath(payload) {
     if (payload.provider === "408os") return payload.categoryPath;
-    const rootPath = DAGUANYUAN_PRACTICE_ROOT_PATHS[payload.practiceId];
-    return rootPath ? rootPath.concat(payload.categoryPath) : payload.categoryPath;
+    const rootPath = DAGUANYUAN_PRACTICE_ROOT_PATHS[payload.practiceId] || [];
+    if (!rootPath.length) return payload.categoryPath;
+    // 网站分类列表从章节下一级开始，分类名“极限”是合法层级，不能按章节别名删除。
+    const incomingPath = Array.isArray(payload.categoryPath) ? payload.categoryPath : [];
+    const chapterTitle = String(rootPath[rootPath.length - 1] || "");
+    const relativePath = incomingPath[0] === chapterTitle ? incomingPath.slice(1) : incomingPath;
+    const alreadyComplete = rootPath.every(function (title, index) {
+      return relativePath[index] === title;
+    });
+    return alreadyComplete ? relativePath : rootPath.concat(relativePath);
   }
 
-  function findOrCreateCategoryPath(root, payload, context, result) {
+  function findOrCreateCategoryPath(root, payload, context) {
     const labels = categoryPath(payload);
     let parent = root;
     for (let index = 0; index < labels.length; index += 1) {
       const title = labels[index];
       let child = findChildByTitle(parent, title);
-      const isLeaf = index === labels.length - 1;
-      if (!child && isLeaf) {
-        const legacy = findLegacyCategory(root, payload.categoryId);
-        if (legacy) {
-          removeMarkerComments(legacy, `${CATEGORY_MARKER_PREFIX}${payload.categoryId}`);
-          legacy.noteTitle = title;
-          if (legacy.parentNote && typeof legacy.removeFromParent === "function") legacy.removeFromParent();
-          parent.addChild(legacy);
-          result.migratedCategoryCount += 1;
-          child = legacy;
-        }
-      }
       if (!child) {
         child = createNote(title, context);
         parent.addChild(child);
@@ -185,39 +168,99 @@ var __DAGUANYUAN_PRACTICE_IMPORT_GLOBAL__ = (function () {
     return body;
   }
 
-  function isLegacyQuestionBody(note) {
-    return nativeItems(note && note.comments).some(function (comment) {
-      const value = String(comment && comment.text || "");
-      return value.indexOf("公式：") >= 0 || value.indexOf("题目：") >= 0 ||
-        value.indexOf("原题链接：") >= 0 || value.indexOf("[查看原题](") >= 0 ||
-        value.indexOf(QUESTION_MARKER_PREFIX) >= 0 || value.indexOf(URL_MARKER_PREFIX) >= 0;
-    });
+  function questionHTMLSize(question) {
+    const input = question && question.htmlSize || {};
+    const width = Math.floor(Number(input.width) || 0);
+    const height = Math.floor(Number(input.height) || 0);
+    return {
+      width: Math.max(720, Math.min(1200, width || 960)),
+      height: Math.max(160, Math.min(3000, height || 320)),
+    };
   }
 
-  function replaceLegacyQuestionBody(note, question) {
+  function isCurrentHTMLQuestionComment(comment) {
+    const tag = String(comment && comment.tag || "");
+    return tag.indexOf(HTML_COMMENT_TAG_PREFIX) === 0;
+  }
+
+  function htmlQuestionId(comment) {
+    const tag = String(comment && comment.tag || "");
+    const current = tag.match(/^daguanyuan-question:v1\|(?:daguanyuan|408os)\|(\d+)\|/);
+    return current ? current[1] : "";
+  }
+
+  function htmlQuestionTag(question, payload) {
+    const pageURL = String(question && question.url || "").trim();
+    const path = categoryPath(payload).join(" > ");
+    return `${HTML_COMMENT_TAG_PREFIX}${payload.provider}|${question.questionId}|${encodeURIComponent(pageURL)}|${encodeURIComponent(path)}`;
+  }
+
+  function appendQuestionContent(note, question, payload) {
+    if (payload.provider === "408os" && question.html && typeof note.appendHtmlComment === "function") {
+      note.appendHtmlComment(
+        question.html,
+        payload.provider === "daguanyuan" ? questionBody(question) : String(question.markdown || question.source || ""),
+        questionHTMLSize(question),
+        htmlQuestionTag(question, payload),
+      );
+      return "html";
+    }
+    note.appendMarkdownComment(questionBody(question));
+    return "markdown";
+  }
+
+  function recordHTMLTagProbe(result, note, question, payload) {
+    if (!question || payload.provider !== "408os" || !question.html) return;
+    const tag = htmlQuestionTag(question, payload);
+    const readable = nativeItems(note && note.comments).some(function (comment) {
+      return String(comment && comment.tag || "") === tag;
+    });
+    if (readable) {
+      result.htmlTagReadableCount += 1;
+      result.metadataReadableCount += 1;
+    } else {
+      result.htmlTagUnreadableCount += 1;
+      result.metadataUnreadableCount += 1;
+    }
+  }
+
+  function replaceQuestionBody(note, question, payload) {
     const comments = nativeItems(note && note.comments);
     for (let index = comments.length - 1; index >= 0; index -= 1) {
-      const value = String(comments[index] && comments[index].text || "");
-      if (value.indexOf("公式：") >= 0 || value.indexOf("题目：") >= 0 ||
-        value.indexOf("原题链接：") >= 0 || value.indexOf("[查看原题](") >= 0 ||
-        value.indexOf(QUESTION_MARKER_PREFIX) >= 0 || value.indexOf(URL_MARKER_PREFIX) >= 0) {
+      const comment = comments[index];
+      const value = String(comment && comment.text || "");
+      if (isCurrentHTMLQuestionComment(comment) || value.indexOf(QUESTION_MARKER_PREFIX) >= 0 || value.indexOf(URL_MARKER_PREFIX) >= 0) {
         note.removeCommentByIndex(index);
       }
     }
     note.noteTitle = questionTitle(question);
-    note.appendMarkdownComment(questionBody(question));
+    appendQuestionContent(note, question, payload);
   }
 
   function findQuestionById(category, questionId) {
     const marker = `${QUESTION_MARKER_PREFIX}${questionId}`;
-    const title = `题目 ${questionId}`;
     return nativeItems(category && category.childNotes).find(function (note) {
-      return hasMarker(note, marker) || String(note.noteTitle || "").indexOf(title) === 0;
+      return hasMarker(note, marker) || nativeItems(note && note.comments).some(function (comment) {
+        return htmlQuestionId(comment) === String(questionId);
+      });
     });
   }
 
-  function migrateLegacyQuestion(note, question) {
-    replaceLegacyQuestionBody(note, question);
+  function normalizedPath(input) {
+    return (Array.isArray(input) ? input : []).map(function (item) {
+      return String(item || "").trim();
+    }).filter(Boolean);
+  }
+
+  function normalizedRenderState(input) {
+    const value = input && typeof input === "object" ? input : {};
+    return {
+      expectedQuestionCount: Math.max(0, Math.floor(Number(value.expectedQuestionCount) || 0)),
+      completeQuestionCount: Math.max(0, Math.floor(Number(value.completeQuestionCount) || 0)),
+      pendingImageCount: Math.max(0, Math.floor(Number(value.pendingImageCount) || 0)),
+      brokenImageCount: Math.max(0, Math.floor(Number(value.brokenImageCount) || 0)),
+      pendingFormulaCount: Math.max(0, Math.floor(Number(value.pendingFormulaCount) || 0)),
+    };
   }
 
   function validatePayload(payload) {
@@ -250,40 +293,53 @@ var __DAGUANYUAN_PRACTICE_IMPORT_GLOBAL__ = (function () {
         stemText: String(item.stemText || "").trim(),
         tex: String(item.tex || "").trim(),
         markdown: String(item.markdown || "").trim(),
+        html: String(item.html || "").trim(),
+        htmlSize: item && item.htmlSize && typeof item.htmlSize === "object" ? item.htmlSize : {},
         url: rawURL || fallbackURL,
       };
     });
     if (!questions.length) throw new Error("当前页面没有可导入题目");
-    const categoryPath = (Array.isArray(input.categoryPath) ? input.categoryPath : []).map(function (item) {
-      return String(item || "").trim();
-    }).filter(Boolean);
+    const categoryPath = normalizedPath(input.categoryPath);
     if (!categoryPath.length) throw new Error("未读取到当前三级分类");
+    const fullCategoryPath = normalizedPath(input.fullCategoryPath);
     const unavailableQuestionCount = Math.max(0, Math.floor(Number(input.unavailableQuestionCount) || 0));
     return {
       provider,
       practiceId,
       categoryId,
       categoryPath,
+      fullCategoryPath,
       unavailableQuestionCount,
+      renderState: normalizedRenderState(input.renderState),
+      url: pageURL,
       questions,
     };
   }
 
   function importCurrentPractice(addon, payload) {
     const context = currentNotebookContext(addon);
-    const result = { createdCount: 0, updatedCount: 0, skippedCount: 0, migratedCategoryCount: 0 };
+    const result = {
+      createdCount: 0,
+      updatedCount: 0,
+      skippedCount: 0,
+      htmlTagReadableCount: 0,
+      htmlTagUnreadableCount: 0,
+      metadataReadableCount: 0,
+      metadataUnreadableCount: 0,
+      mappedCount: 0,
+      categoryPath: categoryPath(payload),
+    };
+    const mappingEntries = [];
     UndoManager.sharedInstance().undoGrouping("导入大观园练习题", context.topicId, function () {
       const root = findOrCreateRoot(context);
-      const category = findOrCreateCategoryPath(root, payload, context, result);
+      const category = findOrCreateCategoryPath(root, payload, context);
       payload.questions.forEach(function (question) {
         const existing = findQuestionById(category, question.questionId);
-        if (existing && hasMarker(existing, `${QUESTION_MARKER_PREFIX}${question.questionId}`)) {
-          migrateLegacyQuestion(existing, question);
-          result.updatedCount += 1;
-          return;
-        }
-        if (existing && isLegacyQuestionBody(existing)) {
-          replaceLegacyQuestionBody(existing, question);
+        if (existing && (hasMarker(existing, `${QUESTION_MARKER_PREFIX}${question.questionId}`) ||
+          nativeItems(existing.comments).some(function (comment) { return htmlQuestionId(comment) === question.questionId; }))) {
+          replaceQuestionBody(existing, question, payload);
+          recordHTMLTagProbe(result, existing, question, payload);
+          mappingEntries.push({ note: existing, question });
           result.updatedCount += 1;
           return;
         }
@@ -292,11 +348,27 @@ var __DAGUANYUAN_PRACTICE_IMPORT_GLOBAL__ = (function () {
           return;
         }
         const note = createNote(questionTitle(question), context);
-        note.appendMarkdownComment(questionBody(question));
+        appendQuestionContent(note, question, payload);
         category.addChild(note);
+        recordHTMLTagProbe(result, note, question, payload);
+        mappingEntries.push({ note, question });
         result.createdCount += 1;
       });
     });
+    if (typeof __DAGUANYUAN_STORAGE_GLOBAL__ !== "undefined") {
+      result.mappedCount = __DAGUANYUAN_STORAGE_GLOBAL__.saveQuestionMappings(mappingEntries.map(function (entry) {
+        const noteId = entry.note && (typeof entry.note.noteId === "function" ? entry.note.noteId() : entry.note.noteId);
+        return {
+          noteId: String(noteId || ""),
+          provider: payload.provider,
+          questionId: entry.question.questionId,
+          url: entry.question.url,
+          categoryPath: categoryPath(payload),
+          notebookId: String(context.notebook && (context.notebook.topicId || context.notebook.notebookId) || ""),
+          updatedAt: new Date().toISOString(),
+        };
+      }));
+    }
     Application.sharedInstance().refreshAfterDBChanged(context.topicId);
     return result;
   }

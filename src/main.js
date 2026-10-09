@@ -1,4 +1,5 @@
 JSB.require("DaguanyuanPageCollector");
+JSB.require("DaguanyuanStorage");
 JSB.require("DaguanyuanImport");
 JSB.require("DaguanyuanSelection");
 JSB.require("DaguanyuanRetest");
