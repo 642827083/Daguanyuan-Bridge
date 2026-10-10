@@ -30,6 +30,7 @@ if (version !== packageLock.version || version !== packageLock.packages[""].vers
 
 if (fs.existsSync(stageDir)) fs.rmSync(stageDir, { recursive: true, force: true });
 if (fs.existsSync(zipPath)) fs.rmSync(zipPath, { force: true });
+require('./build-web').buildWeb();
 copyDirectory(srcDir, stageDir);
 
 const manifestPath = path.join(stageDir, "mnaddon.json");

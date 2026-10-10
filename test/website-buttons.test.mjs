@@ -176,8 +176,9 @@ function browser(hostname, pathname, search = "") {
       querySelectorAll(selector) {
         if (selector === "[data-learning-question-id], article.question-document[data-question-id]" || selector === '.question-card') return rows;
         const found = [];
+        const attribute = selector.match(/^\[([^\]]+)\]$/);
         function visit(node) {
-          if (selector === '[data-daguanyuan-single-import]' && node.getAttribute('data-daguanyuan-single-import') !== null) found.push(node);
+          if (attribute && node.getAttribute(attribute[1]) !== null) found.push(node);
           node.children.forEach(visit);
         }
         visit(body);
@@ -404,35 +405,20 @@ test("添加笔记按钮紧邻定位卡片且两个开关独立", () => {
   assert.ok(row.querySelector("[data-daguanyuan-practice-locate-card]"));
 });
 
-test("数学与 408 的分类页显示网页内绑定按钮，设置关闭后移除", () => {
-  for (const [host, path, search] of [
-    ["cxyonly.fans", "/math/practice/855", "?resumeCategoryId=1035"],
-    ["www.408os.cn", "/exercise", "?year=2026"],
-  ]) {
-    const page = browser(host, path, search);
+test("数学和 408 设置开关刷新右下角绑定按钮，页顶不重复显示绑定", () => {
+  for (const [host, path, search] of [["cxyonly.fans", "/math/practice/855", ""], ["www.408os.cn", "/exercise", "?year=2026"]]) {
+    const page = browser(host, path, search), states = [];
+    page.context.window.__DAGUANYUAN_IMPORT_UI__ = { refresh() { states.push(page.context.window.__DAGUANYUAN_BIND_CATEGORY_BUTTON__.bindEnabled); } };
     const bridge = page.context.__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__;
-    vm.runInContext(bridge.bindCategoryScript(true), page.context);
-    page.runSync();
-    const toolbar = page.main.querySelector("[data-daguanyuan-bind-category-wrap]");
-    assert.equal(toolbar?.children[0].textContent, "绑定当前分类");
-    if (host.includes("cxyonly")) {
-      assert.equal(toolbar.parentNode, page.contextBox);
-      assert.equal(toolbar.previousElementSibling, page.categorySelector);
-    } else {
-      assert.equal(toolbar.parentNode, page.exerciseLeft);
-      assert.equal(toolbar.previousElementSibling, page.modeSwitch);
-    }
-    const button = toolbar.children[0];
-    button.handlers.click.call(button, { preventDefault() {}, stopPropagation() {} });
-    assert.equal(page.body.children.at(-1).src, "daguanyuanbridge://bind-category");
-    vm.runInContext(bridge.bindCategoryScript(false), page.context);
-    page.runSync();
+    vm.runInContext(bridge.bindCategoryScript(true), page.context); page.runSync();
     assert.equal(page.main.querySelector("[data-daguanyuan-bind-category-wrap]"), null);
-    if (host.includes("cxyonly")) assert.equal(page.contextBox.style.display, undefined);
+    assert.equal(states.at(-1), true);
+    vm.runInContext(bridge.bindCategoryScript(false), page.context); page.runSync();
+    assert.equal(states.at(-1), false);
   }
 });
 
-test("旧版页顶绑定按钮升级后显示在分类下拉框右侧", () => {
+test("旧版页顶绑定按钮升级后移除，不在页顶重新创建", () => {
   const page = browser("cxyonly.fans", "/math/practice/855");
   const toolbar = page.element("div", { "data-daguanyuan-bind-category-wrap": "" });
   toolbar.appendChild(page.element("button"));
@@ -442,21 +428,19 @@ test("旧版页顶绑定按钮升级后显示在分类下拉框右侧", () => {
   vm.runInContext(page.context.__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__.bindCategoryScript(true), page.context);
   page.runSync();
   const current = page.main.querySelector("[data-daguanyuan-bind-category-wrap]");
-  assert.notEqual(current, toolbar);
-  assert.equal(current.parentNode, page.contextBox);
-  assert.equal(current.previousElementSibling, page.categorySelector);
+  assert.equal(current, null);
+  assert.equal(toolbar.parentNode, null);
   assert.equal(oldState.timer, -1);
 });
 
-test("数学分类导入按钮在绑定按钮右侧，两个开关独立", () => {
+test("数学页顶保留整类导入按钮，与右下角绑定开关独立", () => {
   const page = browser("cxyonly.fans", "/math/practice/1035");
   const bridge = page.context.__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__;
   vm.runInContext(bridge.bindCategoryScript(true, true), page.context);
   page.runSync();
   let toolbar = page.main.querySelector("[data-daguanyuan-bind-category-wrap]");
-  assert.deepEqual(toolbar.children.map((item) => item.textContent), ["绑定当前分类", "导入当前题目"]);
-  assert.equal(toolbar.children[0].style.cssText, toolbar.children[1].style.cssText);
-  const importButton = toolbar.children[1];
+  assert.deepEqual(toolbar.children.map((item) => item.textContent), ["导入当前题目"]);
+  const importButton = toolbar.children[0];
   importButton.handlers.click.call(importButton, { preventDefault() {}, stopPropagation() {} });
   assert.equal(page.body.children.at(-1).src, "daguanyuanbridge://import-category");
   assert.equal(importButton.disabled, true);
@@ -470,11 +454,12 @@ test("数学分类导入按钮在绑定按钮右侧，两个开关独立", () =>
   assert.deepEqual(toolbar.children.map((item) => item.textContent), ["导入当前题目"]);
   vm.runInContext(bridge.bindCategoryScript(true, false), page.context);
   page.runSync();
-  assert.deepEqual(toolbar.children.map((item) => item.textContent), ["绑定当前分类"]);
+  assert.equal(page.main.querySelector("[data-daguanyuan-bind-category-wrap]"), null);
 });
 
 test("分类导入在侧栏收起时读取网站保存的严选范围", () => {
   const context = {
+    URLSearchParams,
     window: {
       location: { href: "https://www.cxyonly.fans/math/practice/345" },
       localStorage: { getItem(key) { assert.equal(key, "daguan:question-bank-scope"); return "core"; } },
@@ -503,11 +488,10 @@ test("408 年份页在模式图标右侧显示导入按钮，样式与数学一�
   vm.runInContext(bridge.bindCategoryScript(true, true), page.context);
   page.runSync();
   const toolbar = page.main.querySelector("[data-daguanyuan-bind-category-wrap]");
-  assert.deepEqual(toolbar.children.map((item) => item.textContent), ["绑定当前分类", "导入当前题目"]);
+  assert.deepEqual(toolbar.children.map((item) => item.textContent), ["导入当前题目"]);
   assert.equal(toolbar.previousElementSibling, page.modeSwitch);
   assert.equal(toolbar.parentNode, page.exerciseLeft);
-  assert.equal(toolbar.children[0].style.cssText, toolbar.children[1].style.cssText);
-  const button = toolbar.children[1];
+  const button = toolbar.children[0];
   button.handlers.click.call(button, { preventDefault() {}, stopPropagation() {} });
   assert.equal(page.body.children.at(-1).src, "daguanyuanbridge://import-category");
   assert.equal(button.disabled, true);

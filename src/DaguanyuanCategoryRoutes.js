@@ -139,8 +139,9 @@ var __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = (function () {
   function categoryIdFromURL(urlString) {
     const value = String(urlString || "");
     const resumed = value.match(/[?&]resumeCategoryId=(\d+)/i);
-    const routed = value.match(/\/math\/practice\/(\d+)/i);
-    const categoryId = Number(resumed && resumed[1] || routed && routed[1] || 0);
+    const routed = value.match(/\/math\/practice\/(?:categories\/)?(\d+)/i);
+    const selected = value.match(/[?&]categoryId=(\d+)(?:[&#]|$)/i);
+    const categoryId = Number(resumed && resumed[1] || routed && routed[1] || selected && selected[1] || 0);
     return Number.isSafeInteger(categoryId) && categoryId > 0 && recordsById[categoryId] ? categoryId : 0;
   }
 

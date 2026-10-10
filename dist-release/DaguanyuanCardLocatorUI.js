@@ -107,10 +107,14 @@ var __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__ = (function () {
     if (!choice || !Number.isSafeInteger(index) || index < 0 || index > 2) return;
     if (sender && choice.buttons[index] !== sender) return;
     cancelMode(controller);
-    if (index < 2) choice.onSelect(index === 0 ? "locate" : "focus");
+    if (index < 2) choice.onSelect(choice.values[index]);
   }
 
   function chooseMode(controller, current, onSelect) {
+    chooseOption(controller, "定位卡片方式", ["locate", "focus"], ["仅定位", "定位并聚焦"], current, "selectCardLocationMode:", onSelect);
+  }
+
+  function chooseOption(controller, heading, values, labels, current, selector, onSelect) {
     if (!controller || !controller.containerView) throw new Error("定位方式选择窗口不可用，请重新打开插件面板");
     if (controller.cardLocationChoice) throw new Error("请先完成当前题卡选择");
     cancelMode(controller);
@@ -120,12 +124,12 @@ var __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__ = (function () {
     sheet.backgroundColor = UIColor.whiteColor();
     sheet.layer.cornerRadius = 12;
     const title = new UILabel({ x: 0, y: 0, width: 100, height: 30 });
-    title.text = "定位卡片方式";
+    title.text = heading;
     title.font = UIFont.boldSystemFontOfSize(17);
     title.textColor = UIColor.darkGrayColor();
     sheet.addSubview(title);
-    const buttons = ["仅定位", "定位并聚焦", "取消"].map(function (text, index) {
-      const row = button(text + (index < 2 && (index === 0 ? "locate" : "focus") === current ? "（当前）" : ""), controller, "selectCardLocationMode:");
+    const buttons = labels.concat(["取消"]).map(function (text, index) {
+      const row = button(text + (index < 2 && values[index] === current ? "（当前）" : ""), controller, selector);
       row.tag = index;
       row.backgroundColor = UIColor.colorWithRedGreenBlueAlpha(0.94, 0.97, 1, 1);
       row.layer.cornerRadius = 8;
@@ -133,10 +137,10 @@ var __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__ = (function () {
       return row;
     });
     overlay.addSubview(sheet);
-    controller.cardLocationModeChoice = { overlay, sheet, title, buttons, onSelect };
+    controller.cardLocationModeChoice = { overlay, sheet, title, buttons, values, onSelect };
     controller.containerView.addSubview(overlay);
     layout(controller);
   }
 
-  return { choose, layout, select, cancel, chooseMode, selectMode, cancelMode };
+  return { choose, layout, select, cancel, chooseMode, chooseOption, selectMode, cancelMode };
 })();

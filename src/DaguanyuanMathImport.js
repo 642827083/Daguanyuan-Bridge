@@ -1,8 +1,6 @@
 var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
   const ROOT_TITLE = "Daguanyuan Bridge";
   const ROOT_MARKER = "DAGUANYUAN_ROOT:1";
-  const QUESTION_PREFIX = "DAGUANYUAN_QUESTION_ID:";
-  const URL_PREFIX = "DAGUANYUAN_URL:";
 
   function nativeItems(list) {
     if (!list) return [];
@@ -38,36 +36,62 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
 
   function linkedQuestion(note) {
     const body = commentBody(note);
+    let route = typeof __DAGUANYUAN_SOURCE_LINK_GLOBAL__ !== 'undefined' ? __DAGUANYUAN_SOURCE_LINK_GLOBAL__.fromComment(body) : null;
     const os408 = body.match(/<!--\s*DAGUANYUAN_408_QUESTION_ID:(\d+)\s*-->/);
     if (os408) {
       const id = Number(os408[1]);
-      const address = body.match(/<!--\s*DAGUANYUAN_408_URL:(https:\/\/www\.408os\.cn\/exercise\?[^\s<>]+)\s*-->/);
+      if (route && (route.provider !== '408' || route.questionId !== id)) route = null;
       const sourceYear = String(value(note, "noteTitle") || "").match(/^\s*(\d{4})年\s+第\d+题/);
       return Number.isSafeInteger(id) && id > 0
-        ? { id, provider: "408", url: address ? address[1] : "", noteId: noteId(note), year: sourceYear ? Number(sourceYear[1]) : undefined } : null;
+        ? { id, provider: "408", url: route ? route.url : "", noteId: noteId(note), year: route && route.year || (sourceYear ? Number(sourceYear[1]) : undefined) } : null;
     }
     const idMatch = body.match(/<!--\s*DAGUANYUAN_QUESTION_ID:(\d+)\s*-->/);
     if (!idMatch) return null;
     const id = Number(idMatch[1]);
     if (!Number.isSafeInteger(id) || id < 1) return null;
-    const urlMatch = body.match(/<!--\s*DAGUANYUAN_URL:(https:\/\/(?:www\.)?cxyonly\.fans\/math\/[^\s<>]+)\s*-->/);
-    return { id, url: urlMatch ? urlMatch[1] : "", noteId: noteId(note) };
+    if (route && (route.provider !== 'math' || route.questionId !== id)) route = null;
+    return { id, url: route ? route.url : "", noteId: noteId(note) };
   }
 
-  function notebookContext(addon, requireDocument) {
+  function notebookContext(addon) {
     const application = Application.sharedInstance();
     const study = application.studyController(addon && addon.window);
     const notebookController = study && study.notebookController;
     const notebookId = notebookController && value(notebookController, "notebookId");
     const database = Database.sharedInstance();
     const notebook = notebookId && database.getNotebookById(notebookId);
-    const topicId = notebook && value(notebook, "topicId");
-    const documentController = study && study.readerController && study.readerController.currentDocumentController;
-    const document = documentController && documentController.document;
-    if (!notebook || !topicId || (requireDocument && !document)) {
-      throw new Error("请先打开一个包含当前文档的 MarginNote 笔记本");
+    const topicId = notebook && (value(notebook, "topicId") || value(notebook, "notebookId")) || notebookId;
+    if (!notebook || !topicId) {
+      throw new Error("请先打开要导入题目的 MarginNote 学习集");
     }
-    return { application, study, notebookController, database, notebook, document, topicId };
+    return { application, study, notebookController, database, notebook, topicId, notebookId: String(notebookId) };
+  }
+
+  function targetTitle(context) {
+    return String(value(context.notebook, "title") || "").trim()
+      || String(value(context.notebook, "name") || "").trim() || "当前学习集";
+  }
+
+  function assertCurrentContext(addon, context) {
+    const study = context.application.studyController(addon && addon.window);
+    if (String(study && value(study.notebookController, "notebookId")) !== context.notebookId) {
+      const error = new Error("目标学习集已切换，请重新确认后导入");
+      error.stopImport = true;
+      throw error;
+    }
+  }
+
+  function selectQuestions(questions, selection) {
+    if (selection === true) return questions.slice();
+    if (selection === false) return [];
+    if (!Array.isArray(selection) || !selection.length) throw new Error('请至少选择一道题目');
+    const allowed = new Set(questions.map(function (q) { return q.id; }));
+    const selected = new Set();
+    selection.forEach(function (id) {
+      if (!Number.isSafeInteger(id) || !allowed.has(id) || selected.has(id)) throw new Error('所选题目不属于本次列表或重复，请重新选择');
+      selected.add(id);
+    });
+    return questions.filter(function (q) { return selected.has(q.id); });
   }
 
   function indexForContext(context, provider) {
@@ -89,36 +113,10 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
     return { byQuestion, byNote };
   }
 
-  function importedQuestionIds(addon) {
-    return Object.keys(indexForContext(notebookContext(addon, false)).byQuestion).map(Number).sort(function (left, right) {
+  function importedQuestionIds(addon, provider) {
+    return Object.keys(indexForContext(notebookContext(addon), provider).byQuestion).map(Number).sort(function (left, right) {
       return left - right;
     });
-  }
-
-  function questionForNote(note) {
-    const link = linkedQuestion(note);
-    if (!link) return null;
-    if (link.provider === "408" || commentBody(note).indexOf(marker("DAGUANYUAN_SINGLE_IMPORT:1")) >= 0) return link;
-    const path = [];
-    const visited = {};
-    let parent = value(note, "parentNote");
-    while (parent && path.length < 20) {
-      const id = noteId(parent);
-      if (id && visited[id]) break;
-      if (id) visited[id] = true;
-      const title = String(value(parent, "noteTitle") || "").trim();
-      if (title === ROOT_TITLE) break;
-      if (title) path.unshift(title);
-      parent = value(parent, "parentNote");
-    }
-    if (!path.length) return link;
-    try {
-      const route = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resolve(path);
-      if (route.status === "resolved" && route.matchedSegments === path.length) {
-        link.url = questionURL(route.categoryId, link.id);
-      }
-    } catch (error) { console.log(`[Daguanyuan Bridge] 读取卡片当前分类失败：${error && error.message || error}`); }
-    return link;
   }
 
   function focusQuestion(addon, questionId, provider) {
@@ -127,8 +125,15 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
   }
 
   function createNote(title, context) {
-    const note = context.document ? Note.createWithTitleNotebookDocument(title, context.notebook, context.document)
-      : context.database.createNoteWithTitleTopicid(title, context.topicId);
+    let note;
+    // 题卡属于学习集，不依赖阅读器，也不关联当前打开的文档。
+    if (context.database && typeof context.database.createNoteWithTitleTopicid === "function") {
+      note = context.database.createNoteWithTitleTopicid(title, context.topicId);
+    } else if (typeof Database.createNoteWithTitleTopicid === "function") {
+      note = Database.createNoteWithTitleTopicid(title, context.topicId);
+    } else {
+      throw new Error("当前 MarginNote 版本无法在学习集中创建卡片");
+    }
     if (!note) throw new Error("MarginNote 未能创建脑图卡片");
     return note;
   }
@@ -214,6 +219,32 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
     return ["408"].concat(path.map(function (part) { return part.trim(); }));
   }
 
+  function legacy408Question(context, path, id, ancestors) {
+    const candidates = [], seen = new Set();
+    (ancestors || []).forEach(function (ancestor) {
+      if (!ancestor || !Number.isSafeInteger(ancestor.id) || ancestor.id < 1 || !Array.isArray(ancestor.path)) return;
+      const oldPath = ['408'].concat(ancestor.path);
+      if (oldPath.length >= path.length || !oldPath.every(function (part, index) { return part === path[index]; })) return;
+      const note = findQuestionAtPath(context, oldPath, id, '408');
+      if (!note || commentBody(note).indexOf(marker('DAGUANYUAN_SINGLE_IMPORT:1')) >= 0) return;
+      const link = linkedQuestion(note), source = link && link.url.match(/[?&]knowledgeId=(\d+)(?:&|$)/);
+      // 只复用由对应父分类导入的旧卡，不整理年份卷、单题或其他目录里的同号卡片。
+      if (!source || Number(source[1]) !== ancestor.id || seen.has(noteId(note))) return;
+      seen.add(noteId(note)); candidates.push(note);
+    });
+    if (candidates.length > 1) throw new Error('旧父分类下有多张相同题卡，请先整理后重试');
+    return candidates[0] || null;
+  }
+
+  function moveImportedQuestion(parent, note) {
+    const editor = typeof MNNote !== 'undefined' && typeof MNNote.new === 'function' ? MNNote.new(noteId(parent)) : null;
+    if (editor && typeof editor.addChild === 'function') editor.addChild(note);
+    else if (typeof parent.addChild === 'function') parent.addChild(note);
+    else throw new Error('当前 MarginNote 无法调整题卡分类');
+    const current = liveNote(note);
+    if (!current || noteId(value(current, 'parentNote')) !== noteId(parent)) throw new Error('题卡分类调整未完成');
+  }
+
   function questionURL(categoryId, questionId) {
     const route = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resultForCategoryId(categoryId);
     const categoryURL = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.urlFor(route);
@@ -270,10 +301,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
       const separator = /^ {0,3}(`{3,}|~{3,})[^\n]*\n/.test(option) ? "\n\n" : " ";
       return normalizeQuestionContent(`${"ABCD"[index]}.${separator}${option}`);
     }).filter(Boolean);
-    return [stem].concat(options).concat([
-        marker(`${provider === "408" ? "DAGUANYUAN_408_QUESTION_ID:" : QUESTION_PREFIX}${question.id}`),
-        marker(`${provider === "408" ? "DAGUANYUAN_408_URL:" : URL_PREFIX}${url}`),
-    ]).join("\n\n");
+    return [stem].concat(options).join("\n\n");
   }
 
   function titleFor(question) {
@@ -316,126 +344,79 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
     }
   }
 
-  // 两路校验值用于识别导入内容是否变化，原文和保存图片后的内容分别记录。
-  function contentStamp(text) {
-    let first = 2166136261;
-    let second = 5381;
-    for (let index = 0; index < text.length; index += 1) {
-      const code = text.charCodeAt(index);
-      first = Math.imul(first ^ code, 16777619);
-      second = Math.imul(second, 33) ^ code;
-    }
-    return text.length + ":" + (first >>> 0).toString(16) + ":" + (second >>> 0).toString(16);
-  }
+  function importedComment(note, id, provider, role) { return __DAGUANYUAN_CARD_COMMENTS_GLOBAL__.read(note, id, provider, role); }
 
-  function stampedContent(raw, rendered, suffix) {
-    return rendered + "\n\n" + marker("DAGUANYUAN_SOURCE_STAMP:" + contentStamp(raw))
-      + "\n\n" + marker("DAGUANYUAN_RENDERED_STAMP:" + contentStamp(rendered)) + suffix;
-  }
-
-  function commentEditor(note) {
-    const editor = typeof MNNote !== "undefined" && MNNote && typeof MNNote.new === "function" && MNNote.new(noteId(note));
-    if (!editor || ["appendMarkdownComment", "removeCommentByIndex", "sortCommentsByNewIndices"].some(function (key) {
-      return typeof editor[key] !== "function";
-    })) throw new Error("更新题卡需要 MN Utils 的评论接口，请安装并启用最新版 MN Utils");
-    return editor;
-  }
-
-  function importedComment(note, id, provider) {
-    const prefix = provider === "408" ? "DAGUANYUAN_408_" : "DAGUANYUAN_";
-    const comments = nativeItems(note.comments);
-    const matches = comments.map(function (comment, index) { return { text: commentText(comment), index: index }; })
-      .filter(function (item) { return item.text.indexOf(marker(prefix + "QUESTION_ID:" + id)) >= 0; });
-    if (matches.length !== 1) throw new Error("题卡的导入内容标记缺失或重复，原内容已保留");
-    const item = matches[0];
-    const end = new RegExp("<!--\\s*" + prefix + "URL:[^<>]+\\s*-->").exec(item.text);
-    if (!end) throw new Error("题卡的来源标记缺失，原内容已保留");
-    const offset = end.index + end[0].length;
-    const tail = item.text.slice(offset);
-    const stamps = /^\n\n<!-- DAGUANYUAN_SOURCE_STAMP:([\da-f:]+) -->\n\n<!-- DAGUANYUAN_RENDERED_STAMP:([\da-f:]+) -->/.exec(tail);
-    return { index: item.index, prefix: item.text.slice(0, offset), suffix: stamps ? tail.slice(stamps[0].length) : tail,
-      sourceStamp: stamps && stamps[1], renderedStamp: stamps && stamps[2] };
-  }
-
-  function initializeQuestion(note, question, markdown, suffix) {
-    if (!question.hasBase64Image) { note.appendMarkdownComment(stampedContent(markdown, markdown, suffix)); return; }
-    const editor = commentEditor(note);
-    editor.appendMarkdownComment(markdown);
+  function initializeQuestion(note, question, markdown, suffix, url, provider, role) {
+    note.appendMarkdownComment(markdown);
     saveQuestionImages(note, question);
-    const rendered = commentText(nativeItems(note.comments)[0]);
-    const finalText = stampedContent(markdown, rendered, suffix);
-    editor.appendMarkdownComment(finalText);
-    editor.removeCommentByIndex(0);
-    if (nativeItems(note.comments).length !== 1 || commentText(nativeItems(note.comments)[0]) !== finalText) {
-      throw new Error("题卡图片内容保存失败");
-    }
+    note.appendMarkdownComment(__DAGUANYUAN_CARD_COMMENTS_GLOBAL__.metadata(question, url, provider, role) + suffix);
+    if (nativeItems(note.comments).length !== 2) throw new Error('题卡评论保存失败');
   }
 
-  function updateQuestion(note, question, markdown, provider) {
-    const original = importedComment(note, question.id, provider);
-    if (original.prefix === markdown || original.sourceStamp === contentStamp(markdown)
-      && original.renderedStamp === contentStamp(original.prefix)) return false;
-    const editor = commentEditor(note);
-    const before = nativeItems(note.comments);
-    if (/data:image\/[^\s)]+;base64,/i.test(commentBody(note))) {
-      throw new Error("原卡片含未保存的图片数据，请先保存后重试；原内容已保留");
-    }
-    let finalText = "";
-    try {
-      // 图片先保存到原卡片的临时评论中；旧题干与独立笔记一直保留到全部步骤成功。
-      editor.appendMarkdownComment(markdown);
-      if (nativeItems(note.comments).length !== before.length + 1) throw new Error("题卡评论追加失败，原内容已保留");
-      saveQuestionImages(note, question);
-      const rendered = commentText(nativeItems(note.comments)[before.length]);
-      finalText = stampedContent(markdown, rendered, original.suffix);
-      editor.appendMarkdownComment(finalText);
-      if (nativeItems(note.comments).length !== before.length + 2) throw new Error("题卡评论追加失败，原内容已保留");
-      editor.removeCommentByIndex(before.length);
-      const order = before.map(function (_, index) { return index; });
-      order.splice(original.index, 0, before.length);
-      editor.sortCommentsByNewIndices(order);
-      const sorted = nativeItems(note.comments);
-      if (commentText(sorted[original.index]) !== finalText || sorted.length !== before.length + 1
-        || commentText(sorted[original.index + 1]) !== commentText(before[original.index])) {
-        throw new Error("题卡评论排序失败，原内容已保留");
-      }
-      editor.removeCommentByIndex(original.index + 1);
-      if (nativeItems(note.comments).length !== before.length) throw new Error("旧题目评论移除失败，原内容已保留");
-      return "updated";
-    } catch (error) {
-      // 只移除本次追加的评论，不重建旧评论，保持原笔记与手写对象。
-      const current = nativeItems(note.comments);
-      const oldTexts = before.map(commentText);
-      const questionMarker = marker((provider === "408" ? "DAGUANYUAN_408_" : "DAGUANYUAN_") + "QUESTION_ID:" + question.id);
-      for (let index = current.length - 1; index >= 0; index -= 1) {
-        const text = commentText(current[index]);
-        if (text.indexOf(questionMarker) >= 0 && oldTexts.indexOf(text) < 0) editor.removeCommentByIndex(index);
-      }
-      const restored = nativeItems(note.comments);
-      const oldText = oldTexts[original.index];
-      if (!restored.some(function (item) { return commentText(item) === oldText; })) {
-        editor.appendMarkdownComment(oldText);
-        const order = restored.map(function (_, index) { return index; });
-        order.splice(original.index, 0, restored.length);
-        editor.sortCommentsByNewIndices(order);
-      }
-      error.stage = error.stage || "MarginNote 更新题卡";
-      throw error;
-    }
+  function answerChild(note, id, provider) {
+    const identity = marker((provider === '408' ? 'DAGUANYUAN_408_' : 'DAGUANYUAN_') + 'ANSWER_ID:' + id);
+    const matches = nativeItems(note.childNotes).map(liveNote).filter(function (child) {
+      return child && noteId(value(child, 'parentNote')) === noteId(note) && commentBody(child).indexOf(identity) >= 0;
+    });
+    if (matches.length > 1) throw new Error('题目下有多张相同的答案子卡，请先整理后重试');
+    return matches[0] || null;
   }
 
-  function preparedSingleSession(addon, provider) {
+  function answerMarkdown(question) {
+    const parts = [];
+    [{ key: 'answer', title: '答案' }, { key: 'explanation', title: '解析' }].forEach(function (part) {
+      const header = '### ' + part.title + '\n\n';
+      const text = normalizeQuestionContent(question[part.key] || '').trim();
+      if (text) parts.push(header + text);
+    });
+    if (!parts.length) throw new Error('网站暂无可读取的答案或解析，请选择仅导入题目');
+    return parts.join('\n\n');
+  }
+
+  function imagePart(question, markdown) {
+    return Object.assign({}, question, { hasBase64Image: /data:image\/[^\s)]+;base64,/i.test(markdown) });
+  }
+
+  function writeQuestionParts(context, note, question, url, provider, content, isNew, suffix) {
+    // 已有题目和答案不覆盖；只为缺少答案子卡的题目补建答案。
+    const answer = content === 'questionAnswer' ? answerChild(note, question.id, provider) : null;
+    if (!isNew && (content !== 'questionAnswer' || answer)) return false;
+    if (!isNew) importedComment(note, question.id, provider);
+    const answerText = content === 'questionAnswer' ? answerMarkdown(question) : '';
+    if (isNew) {
+      const markdown = questionMarkdown(question, url, provider);
+      initializeQuestion(note, imagePart(question, markdown), markdown, suffix || '', url, provider);
+    }
+    if (answerText) {
+      const created = createNote('答案与解析', context);
+      try {
+        initializeQuestion(created, imagePart(question, answerText), answerText, '', url, provider, 'ANSWER');
+        moveImportedQuestion(note, created);
+        // 与疾风劲草一致，新建答案子卡时默认折叠题目分支。
+        note.mindmapBranchClose = 1;
+      } catch (error) {
+        context.database.deleteBookNoteTree(noteId(created));
+        throw error;
+      }
+    }
+    return isNew ? true : 'answerAdded';
+  }
+
+  function preparedSingleSession(addon, provider, position) {
     if (provider !== "math" && provider !== "408") throw new Error("题目来源无效");
-    const context = notebookContext(addon, false);
-    const parent = value(context.notebookController, "focusNote");
-    const parentId = noteId(parent);
+    position = position || "child";
+    if (position !== "child" && position !== "sibling") throw new Error("导入单题位置无效");
+    const context = notebookContext(addon);
+    const selected = value(context.notebookController, "focusNote");
+    const selectedId = noteId(selected);
     const notebookId = String(value(context.notebookController, "notebookId"));
-    if (!parentId) throw new Error("请先在 MarginNote 中选中一张父卡片");
-    if (String(value(parent, "notebookId") || "") !== notebookId) {
+    if (!selectedId) throw new Error(position === "child" ? "请先在 MarginNote 中选中一张父卡片" : "请先在 MarginNote 中选中一张卡片");
+    if (String(value(selected, "notebookId") || "") !== notebookId) {
       throw new Error("所选卡片不属于当前笔记本");
     }
-    const parentDocument = value(parent, "docMd5");
-    context.document = parentDocument && context.database.getDocumentById(parentDocument) || context.document;
+    const parent = position === "child" ? selected : value(selected, "parentNote");
+    const parentId = noteId(parent);
+    if (!parentId) throw new Error("所选卡片没有父节点，无法导入为同级节点，请改用子节点");
     function currentParent() {
       const current = context.database.getNoteById(parentId);
       const study = context.application.studyController(addon && addon.window);
@@ -443,8 +424,20 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
       if (!current || String(value(current, "notebookId")) !== notebookId || String(activeNotebookId) !== notebookId) {
         throw new Error("原父卡片已删除或笔记本已切换，请重新选择后导入");
       }
+      if (position === "sibling") {
+        const anchor = context.database.getNoteById(selectedId);
+        if (!anchor || String(value(anchor, "notebookId")) !== notebookId) throw new Error("原所选卡片已删除或移出笔记本，请重新选择后导入");
+        if (noteId(value(anchor, "parentNote")) !== parentId) throw new Error("原所选卡片的父节点已变化，请重新选择后导入");
+        const siblings = nativeItems(value(current, "childNotes"));
+        const index = siblings.findIndex(function (child) { return noteId(child) === selectedId; });
+        if (index < 0) throw new Error("原所选卡片不在同级列表中，请重新选择后导入");
+        if (typeof current.addChild !== "function" || (index + 1 < siblings.length && typeof current.insertChildBefore !== "function")) {
+          throw new Error("当前 MarginNote 版本不支持在所选卡片之后插入题卡");
+        }
+      }
       return current;
     }
+    currentParent();
     function findQuestion(id) {
       const selectedParent = currentParent();
       const matches = nativeItems(selectedParent.childNotes).map(function (child) {
@@ -458,53 +451,89 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
       return matches[0] || null;
     }
     return {
+      targetTitle: targetTitle(context),
       hasQuestion: function (id) { return Boolean(findQuestion(id)); },
+      shouldSkip: function (id) { return Boolean(findQuestion(id)); },
       write: function (question, category) {
         const id = __DAGUANYUAN_MATH_API_GLOBAL__.positiveInteger(question && question.id, "题目 ID");
         const existing = findQuestion(id);
+        if (existing) return false;
         if (provider === "408" && (!category || !/^https:\/\/www\.408os\.cn\/exercise\?/.test(category.url))) throw new Error("408 题目页面信息无效");
         const url = provider === "408" ? `${category.url}&questionId=${id}`
-          : category && /^https:\/\/(?:www\.)?cxyonly\.fans\/math\/practice\/\d+\/?$/.test(category.url)
+          : category && /^https:\/\/(?:www\.)?cxyonly\.fans\/math\/practice\/(?:categories\/)?\d+\/?$/.test(category.url)
             ? `${category.url}?questionId=${id}` : questionURL(question.categoryId, id);
         const markdown = questionMarkdown(question, url, provider);
         let note;
-        let outcome = true;
         UndoManager.sharedInstance().undoGrouping("导入单题", context.topicId, function () {
-          if (existing) { outcome = updateQuestion(existing, question, markdown, provider); return; }
           try {
             const selectedParent = currentParent();
             note = createNote(titleFor(question), context);
-            initializeQuestion(note, question, markdown, "\n\n" + marker("DAGUANYUAN_SINGLE_IMPORT:1"));
-            selectedParent.addChild(note);
+            initializeQuestion(note, question, markdown, "\n\n" + marker("DAGUANYUAN_SINGLE_IMPORT:1"), url, provider);
+            if (position === "sibling") {
+              const siblings = nativeItems(value(selectedParent, "childNotes"));
+              const index = siblings.findIndex(function (child) { return noteId(child) === selectedId; });
+              const next = siblings[index + 1];
+              if (next) selectedParent.insertChildBefore(note, next);
+              else selectedParent.addChild(note);
+              const updated = nativeItems(value(selectedParent, "childNotes"));
+              if (noteId(value(note, "parentNote")) !== parentId || noteId(updated[index + 1]) !== noteId(note)) {
+                throw new Error("题卡未能插入所选卡片之后，请重试");
+              }
+            } else selectedParent.addChild(note);
           } catch (error) {
             if (note && noteId(note)) context.database.deleteBookNoteTree(noteId(note));
             throw error;
           }
         });
         context.application.refreshAfterDBChanged(context.topicId);
-        return outcome;
+        return true;
       },
     };
   }
 
   function prepared408Session(addon) {
-    const context = notebookContext(addon, true);
+    const context = notebookContext(addon);
     return {
+      targetTitle: targetTitle(context),
+      check: function () { assertCurrentContext(addon, context); },
       hasQuestion: function (id, category) { return hasQuestionAtPath(context, pathFor408(category), id, "408"); },
-      write: function (question, category) {
+      shouldSkip: function (id, category, content) {
+        assertCurrentContext(addon, context);
+        const path = pathFor408(category), existing = findQuestionAtPath(context, path, id, '408');
+        if (!existing) return false;
+        return content !== 'questionAnswer' || Boolean(answerChild(existing, id, '408'));
+      },
+      write: function (question, category, content, legacyCategories) {
+        assertCurrentContext(addon, context);
         const id = __DAGUANYUAN_MATH_API_GLOBAL__.positiveInteger(question && question.id, "题目 ID");
         const categoryPath = pathFor408(category);
         const existing = findQuestionAtPath(context, categoryPath, id, "408");
+        const legacy = existing ? null : legacy408Question(context, categoryPath, id, legacyCategories);
         const url = `${category.url}&questionId=${id}`;
+        if (existing && (content !== 'questionAnswer' || answerChild(existing, id, '408'))) return false;
+        if (!existing && !legacy) questionMarkdown(question, url, '408');
+        if (!existing && !legacy && content === 'questionAnswer') answerMarkdown(question);
         let note;
         let outcome = true;
         UndoManager.sharedInstance().undoGrouping("导入 408 题目", context.topicId, function () {
-          if (existing) { outcome = updateQuestion(existing, question, questionMarkdown(question, url, "408"), "408"); return; }
+          if (existing) { outcome = writeQuestionParts(context, existing, question, url, '408', content, false); return; }
+          if (legacy) {
+            const originalParent = value(legacy, 'parentNote');
+            const parent = findOrCreatePath(findRoot(context), categoryPath, context);
+            try {
+              moveImportedQuestion(parent, legacy);
+              outcome = writeQuestionParts(context, legacy, question, url, '408', content, false);
+            } catch (error) {
+              try { moveImportedQuestion(originalParent, legacy); }
+              catch (restoreError) { error.message += '；恢复原分类失败，请撤销本次操作：' + String(restoreError.message || restoreError); error.stopImport = true; }
+              throw error;
+            }
+            return;
+          }
           try {
-            const markdown = questionMarkdown(question, url, "408");
             const parent = findOrCreatePath(findRoot(context), categoryPath, context);
             note = createNote(titleFor(question), context);
-            initializeQuestion(note, question, markdown, "");
+            writeQuestionParts(context, note, question, url, '408', content, true);
             parent.addChild(note);
           } catch (error) {
             if (note && noteId(note)) context.database.deleteBookNoteTree(noteId(note));
@@ -517,33 +546,62 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
     };
   }
 
-  function importQuestions(addon, rawIds, onProgress, categoryIdsByQuestion, existingContext) {
+  function importQuestions(addon, rawIds, onProgress, categoryIdsByQuestion, existingContext, check, content) {
     const ids = normalizeIds(rawIds);
-    const context = existingContext || notebookContext(addon, true);
-    const result = { createdCount: 0, updatedCount: 0, skippedCount: 0, failed: [] };
-    const pending = ids;
+    const context = existingContext || notebookContext(addon);
+    const readImage = typeof __DAGUANYUAN_MATH_IMAGES_GLOBAL__ !== 'undefined' ? __DAGUANYUAN_MATH_IMAGES_GLOBAL__.reader(addon.panelController, check) : undefined;
+    const result = { createdCount: 0, answerAddedCount: 0, skippedCount: 0, failed: [] };
+    // 列表已给出分类时先查重，已有题卡无需再次请求题干、答案或图片。
+    const pending = ids.filter(function (id) {
+      try {
+        assertCurrentContext(addon, context);
+        const categoryId = categoryIdsByQuestion && categoryIdsByQuestion[id];
+        if (!categoryId) return true;
+        const route = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resultForCategoryId(categoryId);
+        if (route.status !== 'resolved') return true;
+        const existing = findQuestionAtPath(context, route.path, id, 'math');
+        if (existing && (content !== 'questionAnswer' || answerChild(existing, id, 'math'))) {
+          result.skippedCount += 1; return false;
+        }
+        return true;
+      } catch (error) {
+        if (error.stopImport) throw error;
+        result.failed.push({ questionId: id, reason: String(error.message || error) }); return false;
+      }
+    });
     const report = typeof onProgress === "function" ? onProgress : function () {};
     const readyById = {};
+    const checkedCount = ids.length - pending.length;
     let fetched = 0;
+    let stoppedError;
+    function checkRequest() {
+      if (stoppedError) throw stoppedError;
+      if (check) check();
+    }
     function fetchWave(offset) {
+      if (check) check();
       if (offset >= pending.length) return Promise.resolve();
       return Promise.all(pending.slice(offset, offset + 3).map(function (id) {
-        return __DAGUANYUAN_MATH_API_GLOBAL__.questionDetail(id).then(function (question) {
+        return __DAGUANYUAN_MATH_API_GLOBAL__.questionDetail(id, content, readImage, checkRequest).then(function (question) {
           readyById[id] = question;
         }).catch(function (error) {
+          if (error.stopImport) { stoppedError = error; throw error; }
           result.failed.push({ questionId: id, reason: String(error && error.message || error) });
         }).then(function () {
           fetched += 1;
-          report({ phase: "fetching", processed: fetched, total: pending.length, created: 0, skipped: result.skippedCount, failed: result.failed.length });
+          report({ phase: "fetching", processed: checkedCount + fetched, total: ids.length, created: 0, skipped: result.skippedCount, failed: result.failed.length });
         });
       })).then(function () { return fetchWave(offset + 3); });
     }
-    report({ phase: "fetching", processed: 0, total: pending.length, created: 0, skipped: result.skippedCount, failed: 0 });
+    report({ phase: "fetching", processed: checkedCount, total: ids.length, created: 0, skipped: result.skippedCount, failed: result.failed.length });
     return fetchWave(0).then(function () {
+      if (check) check();
       const ready = pending.map(function (id) { return readyById[id]; }).filter(Boolean);
       let written = 0;
       let root;
       for (let offset = 0; offset < ready.length; offset += 10) {
+        if (check) check();
+        assertCurrentContext(addon, context);
         const batch = ready.slice(offset, offset + 10);
         UndoManager.sharedInstance().undoGrouping("导入大观园数学题目", context.topicId, function () {
           batch.forEach(function (question) {
@@ -554,17 +612,18 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
               const route = routeForQuestion(question, selectedCategoryId);
               if (route.status !== "resolved") throw new Error("题目分类未收录，请先更新分类数据");
               const url = questionURL(route.categoryId, question.id);
-              const markdown = questionMarkdown(question, url);
               const existing = findQuestionAtPath(context, route.path, question.id, "math");
+              if (!existing) questionMarkdown(question, url, 'math');
+              if (!existing && content === 'questionAnswer') answerMarkdown(question);
               if (existing) {
-                if (updateQuestion(existing, question, markdown, "math") === "updated") result.updatedCount += 1;
+                if (writeQuestionParts(context, existing, question, url, 'math', content, false) === 'answerAdded') result.answerAddedCount += 1;
                 else result.skippedCount += 1;
                 return;
               }
               if (!root) root = findRoot(context);
               const parent = findOrCreatePath(root, route.path, context);
               note = createNote(titleFor(question), context);
-              initializeQuestion(note, question, markdown, "");
+              writeQuestionParts(context, note, question, url, 'math', content, true);
               parent.addChild(note);
               result.createdCount += 1;
             } catch (error) {
@@ -574,28 +633,33 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
             }
             written += 1;
             report({ phase: "writing", processed: written, total: ready.length, created: result.createdCount,
-              updated: result.updatedCount, skipped: result.skippedCount, failed: result.failed.length });
+              answerAdded: result.answerAddedCount, skipped: result.skippedCount, failed: result.failed.length });
           });
         });
         context.application.refreshAfterDBChanged(context.topicId);
       }
       return result;
+    }).catch(function (error) {
+      error.importResult = result;
+      throw error;
     });
   }
 
-  function importCategory(addon, rawCategoryId, rawScope, onProgress) {
+  function importCategory(addon, rawCategoryId, rawScope, onProgress, beforeImport) {
     const categoryId = __DAGUANYUAN_MATH_API_GLOBAL__.positiveInteger(rawCategoryId, "分类 ID");
     const scope = __DAGUANYUAN_MATH_API_GLOBAL__.questionScope(rawScope);
     const route = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resultForCategoryId(categoryId);
     if (route.status !== "resolved") throw new Error("当前分类不在本地分类数据中，请先更新分类数据");
-    const context = notebookContext(addon, true);
+    const context = notebookContext(addon);
     const report = typeof onProgress === "function" ? onProgress : function () {};
-    const result = { categoryId, categoryPath: route.path, scope, total: 0, createdCount: 0, updatedCount: 0, skippedCount: 0, failed: [] };
+    const result = { categoryId, categoryPath: route.path, scope, total: 0, createdCount: 0, answerAddedCount: 0, skippedCount: 0, failed: [] };
     const seen = {};
+    let questions = [];
     let page = 1;
     let pageCount = 0;
     function nextPage() {
-      if (pageCount && page > pageCount) return Promise.resolve(result);
+      if (beforeImport && beforeImport.check) beforeImport.check();
+      if (pageCount && page > pageCount) return Promise.resolve();
       return __DAGUANYUAN_MATH_API_GLOBAL__.questionPage(categoryId, page, scope).then(function (listing) {
         if (page === 1) {
           result.total = listing.total;
@@ -605,31 +669,70 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
         }
         if (!pageCount) return result;
         if (!listing.questions.length) throw new Error(`第 ${page} 页未返回题目，已停止导入`);
-        const ids = [];
-        const categories = {};
+        const countBefore = questions.length;
         listing.questions.forEach(function (question) {
           if (seen[question.id]) return;
           seen[question.id] = true;
-          ids.push(question.id);
-          categories[question.id] = categoryId;
+          questions.push(question);
         });
-        if (!ids.length) throw new Error(`第 ${page} 页题目与之前页面重复，已停止导入`);
-        return importQuestions(addon, ids, null, categories, context).then(function (batch) {
-          result.createdCount += batch.createdCount;
-          result.updatedCount += batch.updatedCount;
-          result.skippedCount += batch.skippedCount;
-          Array.prototype.push.apply(result.failed, batch.failed);
-          report({ phase: "importing", processed: Math.min(page * listing.pageSize, result.total), total: result.total,
-            created: result.createdCount, updated: result.updatedCount, skipped: result.skippedCount, failed: result.failed.length });
-          page += 1;
-          return nextPage();
-        });
+        if (questions.length === countBefore) throw new Error(`第 ${page} 页题目与之前页面重复，已停止导入`);
+        page += 1;
+        return nextPage();
       });
     }
-    return nextPage().catch(function (error) {
-      throw new Error(`导入中断：已新建 ${result.createdCount} 道、更新 ${result.updatedCount} 道、跳过 ${result.skippedCount} 道、失败 ${result.failed.length} 道。${error && error.message || error}`);
+    return nextPage().then(function () {
+      if (questions.length !== result.total) throw new Error("分类题目数量已变化，请刷新后重新导入");
+      if (!result.total) return false;
+      assertCurrentContext(addon, context);
+      return typeof beforeImport === "function" ? beforeImport({
+        source: "大观园数学 / " + route.path.join(" / ") + " / " + { complete: "完整", core: "严选", exam: "真题" }[scope],
+        target: targetTitle(context),
+        questions: questions.map(function (question) { return { id: question.id, title: question.source || "题目 " + question.id, summary: question.stem || "" }; }),
+      }) : true;
+    }).then(function (accepted) {
+      if (accepted === false) { result.cancelled = result.total > 0; return result; }
+      questions = selectQuestions(questions, accepted);
+      result.total = questions.length;
+      if (beforeImport && beforeImport.check) beforeImport.check();
+      assertCurrentContext(addon, context);
+      function writePage(offset) {
+        if (offset >= questions.length) return Promise.resolve(result);
+        const ids = questions.slice(offset, offset + 20).map(function (question) { return question.id; });
+        const categories = {};
+        ids.forEach(function (id) { categories[id] = categoryId; });
+        return importQuestions(addon, ids, function (progress) {
+          if (progress.phase !== "fetching") return;
+          report({ phase: "fetching", processed: offset + progress.processed, total: result.total,
+            created: result.createdCount, answerAdded: result.answerAddedCount, skipped: result.skippedCount, failed: result.failed.length + progress.failed });
+        }, categories, context, beforeImport && beforeImport.check, beforeImport && beforeImport.content).then(function (batch) {
+          result.createdCount += batch.createdCount;
+          result.answerAddedCount += batch.answerAddedCount;
+          result.skippedCount += batch.skippedCount;
+          Array.prototype.push.apply(result.failed, batch.failed);
+          report({ phase: "importing", processed: Math.min(offset + ids.length, result.total), total: result.total,
+            created: result.createdCount, answerAdded: result.answerAddedCount, skipped: result.skippedCount, failed: result.failed.length });
+          return writePage(offset + ids.length);
+        });
+      }
+      return writePage(0);
+    }).catch(function (error) {
+      const failure = new Error(`导入中断：已新建 ${result.createdCount} 道、补答案 ${result.answerAddedCount} 道、跳过 ${result.skippedCount} 道、失败 ${result.failed.length} 道。${error && error.message || error}`);
+      failure.importResult = result;
+      throw failure;
     });
   }
 
-  return { importedQuestionIds, questionForNote, focusQuestion, importCategory, linkedQuestion, questionMarkdown, prepared408Session, preparedSingleSession };
+  function preparedMathSession(addon) {
+    const context = notebookContext(addon);
+    requireImportUtils();
+    return {
+      targetTitle: targetTitle(context),
+      check: function () { assertCurrentContext(addon, context); },
+      importQuestions: function (ids, categories, content, onProgress, check) {
+        return importQuestions(addon, ids, onProgress, categories, context, check, content);
+      },
+    };
+  }
+
+  return { importedQuestionIds, focusQuestion, importCategory, linkedQuestion, questionMarkdown, prepared408Session, preparedSingleSession, preparedMathSession, selectQuestions };
 })();

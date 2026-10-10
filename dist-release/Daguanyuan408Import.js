@@ -2,8 +2,8 @@ var __DAGUANYUAN_408_IMPORT_GLOBAL__ = (function () {
   const PREFIX = "window.__DAGUANYUAN_408_IMPORT_PAGE__";
   const CHUNK_LENGTH = 65536;
 
-  function pageScript(token, target) {
-    return __DAGUANYUAN_408_PAGE_GLOBAL__.pageScript(token, target);
+  function pageScript(token, target, workspaceListing) {
+    return __DAGUANYUAN_408_PAGE_GLOBAL__.pageScript(token, target, workspaceListing);
   }
   function boundedCallback(seconds, message, start, stopImport) {
     return new Promise(function (resolve, reject) {
@@ -33,7 +33,7 @@ var __DAGUANYUAN_408_IMPORT_GLOBAL__ = (function () {
   function evaluate(controller, script) {
     return boundedCallback(15, "408 网页调用超时，请刷新后重试", function (finish) {
         controller.webView.evaluateJavaScript(script, function (result, error) {
-          if (error) finish(null, new Error(String(typeof error.localizedDescription === "function" ? error.localizedDescription() : error.localizedDescription || error)));
+          if (error && !(typeof NSNull !== 'undefined' && error instanceof NSNull)) finish(null, new Error(String(typeof error.localizedDescription === "function" ? error.localizedDescription() : error.localizedDescription || error)));
           else finish(result);
         });
     }, true);
@@ -131,29 +131,48 @@ var __DAGUANYUAN_408_IMPORT_GLOBAL__ = (function () {
     }
     return poll();
   }
-  function importCategory(controller, onProgress, single) {
+  function importCategory(controller, onProgress, single, beforeImport, page) {
+    if (page && (page.provider !== '408' || !/^https:\/\/www\.408os\.cn\/exercise(?:\?|$)/.test(page.url || '')
+      || !Array.isArray(page.questions) || !page.questions.length || page.questions.length > 10000)) throw new Error('当前 408 页面题目列表无效');
     const session = single ? single.session : __DAGUANYUAN_MATH_IMPORT_GLOBAL__.prepared408Session(controller.addon);
     const token = `${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
     const key = JSON.stringify(token);
-    const result = { total: 0, createdCount: 0, updatedCount: 0, skippedCount: 0, failed: [] };
+    const result = { total: 0, createdCount: 0, answerAddedCount: 0, skippedCount: 0, failed: [] };
     const report = typeof onProgress === "function" ? onProgress : function () {};
     function cleanup() {
       return evaluate(controller, PREFIX + "&&" + PREFIX + ".cancel(" + key + ")").catch(function () {});
     }
-    return evaluate(controller, pageScript(token, single && single.target)).then(function (accepted) {
+    const script = page ? 'String(window.location.href)===' + JSON.stringify(page.url) + '&&' + pageScript(token, null, 'page') : pageScript(token, single && single.target);
+    return evaluate(controller, script).then(function (accepted) {
       if (String(accepted) !== "true") throw new Error("请先进入 408 知识点分类或年份真题页");
       return readPayload(controller, token);
     }).then(function (listing) {
       if (!listing || !Array.isArray(listing.ids) || !listing.category) throw new Error("408 分类信息读取失败");
       if (single && listing.ids.length !== 1) throw new Error("408 单题读取结果无效，已停止导入");
       result.total = listing.ids.length;
+      let selected = listing.ids.map(function (id, index) { return { id, index }; });
+      if (page) {
+        const seen = new Set();
+        selected = page.questions.map(function (question) {
+          const index = listing.ids.indexOf(question.id);
+          if (!Number.isSafeInteger(question.id) || question.id < 1 || index < 0 || seen.has(question.id)) throw new Error('当前 408 页面题目与列表不一致，请刷新后重试');
+          seen.add(question.id); return { id: question.id, index: index };
+        });
+        result.total = selected.length;
+      }
       function next(index) {
-        if (index >= listing.ids.length) return result;
-        const id = listing.ids[index];
+        if (beforeImport && beforeImport.check) beforeImport.check();
+        if (index >= selected.length) return result;
+        const id = selected[index].id;
         let source = listing.sources && listing.sources[id] || "";
         let stage = "读取题目与传输";
         let diagnostics;
-        const operation = evaluate(controller, "String(" + PREFIX + "&&" + PREFIX + ".prepare(" + key + "," + index + "))").then(function (accepted) {
+        const content = beforeImport && beforeImport.content === 'questionAnswer' ? 'questionAnswer' : 'question';
+        const operation = Promise.resolve().then(function () {
+          if (session.shouldSkip && session.shouldSkip(id, listing.category, content)) {
+            result.skippedCount += 1; return;
+          }
+          return evaluate(controller, "String(" + PREFIX + "&&" + PREFIX + ".prepare(" + key + "," + selected[index].index + "," + JSON.stringify(content) + "))").then(function (accepted) {
             if (String(accepted) !== "true") throw new Error("当前 408 分类已切换，导入停止");
             return readPayload(controller, token);
           }).then(function (payload) {
@@ -161,31 +180,43 @@ var __DAGUANYUAN_408_IMPORT_GLOBAL__ = (function () {
             source = payload.question.source || source;
             diagnostics = payload.diagnostics;
             stage = "MarginNote 建卡";
-            const outcome = session.write(payload.question, listing.category);
-            if (outcome === "updated") result.updatedCount += 1;
+            if (beforeImport && beforeImport.check) beforeImport.check();
+            const outcome = session.write(payload.question, listing.category, content);
+            if (outcome === 'answerAdded') result.answerAddedCount += 1;
             else if (outcome) result.createdCount += 1;
             else result.skippedCount += 1;
           });
+        });
         return operation.catch(function (error) {
           if (error.stopImport || /分类已切换|连接已断开/.test(String(error.message))) throw error;
           result.failed.push({ questionId: id, source: error.source || source, stage: error.stage || stage,
             diagnostics: error.diagnostics || diagnostics, reason: String(error && error.message || error) });
         }).then(function () {
-          report({ processed: index + 1, total: result.total, created: result.createdCount, updated: result.updatedCount, skipped: result.skippedCount, failed: result.failed.length });
+          report({ processed: index + 1, total: result.total, created: result.createdCount, answerAdded: result.answerAddedCount, skipped: result.skippedCount, failed: result.failed.length });
           return next(index + 1);
         });
       }
-      return next(0);
+      if (!result.total) return result;
+      return Promise.resolve(typeof beforeImport === "function" ? beforeImport({
+        source: page ? '408 / 当前页面' : "408 / " + (listing.category.path || [listing.category.title]).join(" / "),
+        target: session.targetTitle,
+        questions: page ? page.questions : listing.ids.map(function (id) { return { id: id, title: listing.sources && listing.sources[id] || "题目 " + id, summary: listing.summaries && listing.summaries[id] || '' }; }),
+      }) : true).then(function (accepted) {
+        if (accepted === false) { result.cancelled = true; return result; }
+        selected = __DAGUANYUAN_MATH_IMPORT_GLOBAL__.selectQuestions(selected, accepted);
+        result.total = selected.length;
+        return next(0);
+      });
     }).then(function (value) { return cleanup().then(function () { return value; }); }, function (error) {
       return cleanup().then(function () {
-        const failure = new Error(`408 导入中断：已新建 ${result.createdCount} 道、更新 ${result.updatedCount} 道、跳过 ${result.skippedCount} 道、失败 ${result.failed.length} 道。${error && error.message || error}`);
+        const failure = new Error(`408 导入中断：已新建 ${result.createdCount} 道、补答案 ${result.answerAddedCount} 道、跳过 ${result.skippedCount} 道、失败 ${result.failed.length} 道。${error && error.message || error}`);
         failure.importResult = result;
         throw failure;
       });
     });
   }
-  function importSingle(controller, target, session) {
-    return importCategory(controller, null, { target: target, session: session });
+  function importSingle(controller, target, session, beforeImport, onProgress) {
+    return importCategory(controller, onProgress, { target: target, session: session }, beforeImport);
   }
   function resolveQuestion(controller, target) {
     const token = `lookup-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
@@ -202,5 +233,30 @@ var __DAGUANYUAN_408_IMPORT_GLOBAL__ = (function () {
       return cleanup().then(function () { throw error; });
     });
   }
-  return { pageScript, importCategory, importSingle, resolveQuestion };
+  function prepareWorkspace(controller, includePreviews) {
+    const token = `${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+    const key = JSON.stringify(token);
+    return evaluate(controller, pageScript(token, null, includePreviews !== false)).then(function (accepted) {
+      if (String(accepted) !== 'true') throw new Error('无法读取 408 题目，请先在导航栏的 408 页登录并确认题目可以正常打开，再返回导入页重试');
+      return readPayload(controller, token);
+    }).then(function (listing) {
+      if (!listing || !listing.category || !Array.isArray(listing.ids)) throw new Error('408 题目列表格式无效');
+      return {
+        listing,
+        readQuestion: function (id, content) {
+          const index = listing.ids.indexOf(id);
+          if (index < 0) throw new Error('所选 408 题目已不在原分类中，请重新读取');
+          return evaluate(controller, 'String(' + PREFIX + '.prepare(' + key + ',' + index + ',' + JSON.stringify(content) + '))').then(function (accepted) {
+            if (String(accepted) !== 'true') throw new Error('408 题目连接已中断');
+            return readPayload(controller, token);
+          }).then(function (payload) {
+            if (!payload.question || payload.question.id !== id) throw new Error('408 题目 ID 与选择不一致');
+            return payload.question;
+          });
+        },
+        close: function () { return evaluate(controller, PREFIX + '&&' + PREFIX + '.cancel(' + key + ')').catch(function () {}); },
+      };
+    });
+  }
+  return { pageScript, importCategory, importSingle, resolveQuestion, prepareWorkspace };
 })();

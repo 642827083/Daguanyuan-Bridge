@@ -6,7 +6,7 @@ var __DAGUANYUAN_IMPORT_REPORT_GLOBAL__ = (function () {
   }
 
   function textFor(result) {
-    const lines = [`导入结果：新建 ${result.createdCount || 0} 道，更新 ${result.updatedCount || 0} 道，跳过 ${result.skippedCount || 0} 道，失败 ${(result.failed || []).length} 道`];
+    const lines = [`导入结果：新建 ${result.createdCount || 0} 道，补答案 ${result.answerAddedCount || 0} 道，跳过 ${result.skippedCount || 0} 道，失败 ${(result.failed || []).length} 道`];
     if (result.interrupted) lines.push(`导入中断：${safeText(result.interrupted)}`);
     (result.failed || []).forEach(function (failure, index) {
       lines.push("", `${index + 1}. ${safeText(failure.source || "题目 ID " + failure.questionId)}`,
@@ -21,7 +21,7 @@ var __DAGUANYUAN_IMPORT_REPORT_GLOBAL__ = (function () {
         if (details[key] != null) lines.push(`${names[key]}：${safeText(details[key])}`);
       });
     });
-    if ((result.failed || []).length) lines.push("", "失败的新题没有计入已导入；更新失败保留原内容。再次导入会更新变化的题目、跳过相同内容，并重试失败题目。", "可点击“复制详情”反馈上述信息。");
+    if ((result.failed || []).length) lines.push("", "再次导入会跳过已有题目，缺少答案子卡时可补建答案，并重试失败题目。补答案失败保留原题内容。", "可点击“复制详情”反馈上述信息。");
     return lines.join("\n");
   }
 
@@ -37,7 +37,9 @@ var __DAGUANYUAN_IMPORT_REPORT_GLOBAL__ = (function () {
   function layout(controller) {
     if (!controller.importReportView) return;
     const bounds = controller.view.bounds;
-    controller.importReportView.frame = { x: 12, y: 50, width: Math.max(0, bounds.width - 24), height: Math.max(0, bounds.height - 62) };
+    // 导入页的备用原生详情也限定在右栏，宽度与网页的筛选列断点一致。
+    const filterWidth = controller.activePage === 'import' ? bounds.width <= 540 ? 185 : bounds.width <= 760 ? 230 : 300 : 0;
+    controller.importReportView.frame = { x: filterWidth + 12, y: 50, width: Math.max(0, bounds.width - filterWidth - 24), height: Math.max(0, bounds.height - 62) };
     const width = controller.importReportView.frame.width;
     const height = controller.importReportView.frame.height;
     controller.importReportTitle.frame = { x: 16, y: 12, width: Math.max(0, width - 216), height: 30 };

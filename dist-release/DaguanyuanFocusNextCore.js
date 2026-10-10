@@ -217,8 +217,8 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
     return categorySource(addon, navigationNote(addon));
   }
 
-  function currentQuestionContext(addon) {
-    const note = navigationNote(addon);
+  function currentQuestionContext(addon, note) {
+    note = note || navigationNote(addon);
     const progress = siblingProgress(note);
     if (!progress) throw new Error("无法确定当前卡片在所属题型中的序号");
     return {
@@ -399,6 +399,7 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
 
   return {
     currentFocus,
+    navigationNote,
     rememberFocus,
     siblingProgress,
     parentTitle,

@@ -21,6 +21,7 @@ function runtime() {
     UIColor: { whiteColor() { return color; }, darkGrayColor() { return color; }, lightGrayColor() { return color; }, colorWithRedGreenBlueAlpha() { return color; } },
     UIPasteboard: { generalPasteboard() { return pasteboard; } },
   };
+  context.__DAGUANYUAN_IMPORT_SELECTION_GLOBAL__ = { begin() {}, confirmation() { return () => Promise.resolve(true); }, progress() {}, inject() { return Promise.resolve(); }, show() { return Promise.reject(Error('网页结果不可用')); } };
   vm.createContext(context);
   vm.runInContext(source, context);
   return { context, report: context.__DAGUANYUAN_IMPORT_REPORT_GLOBAL__, pasteboard, controller: { view: { bounds: { width: 560, height: 420 } }, containerView: new View({}) } };
@@ -39,11 +40,11 @@ test("失败详情完整保留全部题号、阶段和长原因，清除图片�
   assert.doesNotMatch(text, /SECRET|AQID|data:image/);
 });
 
-test('导入详情分别显示新建、更新和跳过，更新失败提示保留原内容', () => {
+test('导入详情分别显示新建、补答案和跳过，补答案失败提示保留原内容', () => {
   const { report } = runtime();
-  const text = report.textFor({ createdCount: 2, updatedCount: 3, skippedCount: 4, failed: [{ questionId: 5, reason: '保存失败' }] });
-  assert.match(text, /新建 2 道，更新 3 道，跳过 4 道，失败 1 道/);
-  assert.match(text, /更新失败保留原内容/);
+  const text = report.textFor({ createdCount: 2, answerAddedCount: 3, skippedCount: 4, failed: [{ questionId: 5, reason: '保存失败' }] });
+  assert.match(text, /新建 2 道，补答案 3 道，跳过 4 道，失败 1 道/);
+  assert.match(text, /补答案失败保留原题内容/);
 });
 
 test("详情可停留查看、滚动、复制，关闭及再次显示均保留当前布局", () => {
@@ -150,4 +151,55 @@ test("失败详情控件抛错时仍结束导入、恢复网页按钮，并保�
   assert.equal(finished.length, 1);
   assert.match(controller.lastCategoryImportReportText, /图片保存失败/);
   assert.ok(messages.some((text) => text.includes("图片保存失败")));
+});
+
+test('数学和408只有选题入口打开网页确认，原导入当前题目立即导入并沿用原生提示', async () => {
+  for (const provider of ['math', '408']) for (const selected of [false, true]) {
+    const { context, controller } = runtime();
+    let methods, beforeImport, starts = 0, shown = 0;
+    const messages = [];
+    const ui = {
+      begin(target) { starts++; return target.importTask = { token: 'selected-test', dismissed: false, ready: Promise.resolve() }; },
+      confirmation() { const confirm = () => Promise.resolve([81]); confirm.check = () => {}; return confirm; },
+      progress() {}, inject() { return Promise.resolve(); },
+      show() { shown++; return Promise.resolve(); },
+      evaluate(target, script) { return Promise.resolve(script.includes('pageSnapshot') ? JSON.stringify({ provider, questions: [{ id: 81 }] }) : 'ok'); },
+    };
+    context.__DAGUANYUAN_IMPORT_SELECTION_GLOBAL__ = ui;
+    context.JSB = { defineClass(name, value) { methods = value; return {}; } };
+    context.console = { log() {} };
+    context.NSUserDefaults = { standardUserDefaults() { return { objectForKey() { return true; } }; } };
+    context.Application = { sharedInstance() { return { showHUD(text) { messages.push(text); } }; } };
+    context.__DAGUANYUAN_VIDEO_BROWSER_GLOBAL__ = { handles() { return false; } };
+    context.__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = { importContextScript() { return 'import-context'; } };
+    context.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = { categoryIdFromURL() { return 1; } };
+    context.__DAGUANYUAN_MATH_API_GLOBAL__ = { questionScope() { return 'core'; } };
+    const result = { total: 1, createdCount: 1, skippedCount: 0, failed: [] };
+    context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__ = { async importCategory(addon, id, scope, progress, confirm) { beforeImport = confirm; if (confirm) await confirm({}); return result; } };
+    context.__DAGUANYUAN_MATH_SELECTION_GLOBAL__ = { async importPage(addon, page, progress, confirm) { beforeImport = confirm; await confirm({}); return result; } };
+    context.__DAGUANYUAN_408_IMPORT_GLOBAL__ = { async importCategory(target, progress, single, confirm) { beforeImport = confirm; if (confirm) await confirm({}); return result; } };
+    controller.webView = { evaluateJavaScript(script, callback) { callback(script === 'import-context' ? JSON.stringify({ url: 'https://www.cxyonly.fans/math/practice/1', scope: 'core' }) : true); } };
+    controller.addon = { window: {} }; controller.currentContentPage = provider;
+    controller.importTask = { dismissed: true };
+    context.self = controller;
+    vm.runInContext(readFileSync(new URL('../src/WebBridgeCommands.js', import.meta.url), 'utf8'), context);
+    vm.runInContext(readFileSync(new URL('../src/WebPanelController.js', import.meta.url), 'utf8'), context);
+    const address = selected ? 'daguanyuanbridge://ui?payload=' + encodeURIComponent(JSON.stringify({ requestId: 'test', command: 'openQuestionImport', payload: { scope: 'selected' } })) : 'daguanyuanbridge://import-category';
+    methods.webViewShouldStartLoadWithRequestNavigationType(controller.webView, { URL: { absoluteString: address } });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(starts, selected ? 1 : 0); assert.equal(shown, selected ? 1 : 0);
+    assert.equal(typeof beforeImport, selected ? 'function' : 'undefined');
+    assert.equal(controller.categoryImportBusy, false);
+    if (!selected) assert.ok(messages.some(text => text.includes('导入完成：新建 1 道')));
+  }
+});
+
+test('原生导入详情在导入页只占右栏，宽窄窗口均不遮住左侧筛选',()=>{
+  const {report,controller}=runtime(); controller.activePage='import';
+  for(const [width,filter] of [[960,300],[760,230],[560,230],[540,185],[420,185]]) {
+    controller.view.bounds={width,height:680}; report.show(controller,{createdCount:1,failed:[]});
+    assert.ok(controller.importReportView.frame.x>=filter);
+    assert.ok(controller.importReportView.frame.x+controller.importReportView.frame.width<=width);
+  }
+  controller.activePage='math'; report.layout(controller); assert.equal(controller.importReportView.frame.x,12);
 });

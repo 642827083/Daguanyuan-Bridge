@@ -1,6 +1,6 @@
 var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
   // 此函数只在网站 WebView 中执行，浏览器对象不会用于插件原生环境。
-  function pageReceiver(token, target) {
+  function pageReceiver(token, target, workspaceListing) {
     var startURL = new URL(window.location.href);
     if (startURL.hostname !== "www.408os.cn" || !/^\/exercise\/?$/.test(startURL.pathname)) return false;
     var knowledgeId = Number(startURL.searchParams.get("knowledgeId"));
@@ -10,7 +10,7 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
       && Number.isSafeInteger(collectionId) && collectionId > 0;
     if (!(Number.isSafeInteger(knowledgeId) && knowledgeId > 0)
       && !(Number.isSafeInteger(year) && year >= 2009 && year <= 2100) && !collectionMode) return false;
-    if ((startURL.searchParams.has("mode") || startURL.searchParams.has("collectionId")) && !(target && collectionMode)) {
+    if ((startURL.searchParams.has("mode") || startURL.searchParams.has("collectionId")) && !((target || workspaceListing === 'page') && collectionMode)) {
       throw new Error("请先进入 408 知识点分类或年份真题页");
     }
     startURL.hash = "";
@@ -711,22 +711,97 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
       }
       state.rows = rows;
       var sources = {};
+      var summaries = {};
       rows.forEach(function (row) { sources[row.question.id] = sourceFor(row.question); });
-      ready({ category: category, ids: ids, sources: sources });
+      rows.forEach(function (row) {
+        // 只取文字摘要，不下载静态题图，也不改变随后实际导入的题干。
+        var question = row.question;
+        try {
+          var html = String(question.mdContent || '');
+          if (question.contentJson && structuredRenderer) {
+            var rendered = structuredRenderer(question.contentJson);
+            html = rendered && rendered.question && rendered.question.content || '';
+          }
+          if (html.startsWith('/static/')) html = '';
+          summaries[question.id] = new DOMParser().parseFromString(html, 'text/html').body.textContent.replace(/\s+/g, ' ').trim().slice(0, 180);
+        } catch (ignored) { summaries[question.id] = ''; }
+      });
+      var payload = { category: category, ids: ids, sources: sources, summaries: summaries };
+      if (workspaceListing === true) {
+        payload.previews = {};
+        payload.metadata = {};
+        for (var offset = 0; offset < rows.length; offset += 4) {
+          if (!valid()) throw new Error('408 来源已切换，请重新读取');
+          await Promise.all(rows.slice(offset, offset + 4).map(async function (row) {
+            var question = row.question;
+            var type = Number(question.questionType);
+            payload.metadata[question.id] = { year: Number(question.year), number: Number(question.questionIndex),
+              questionType: (type > 0 ? type === 1 : Number(question.questionIndex) <= 40) ? 'choice' : 'subjective' };
+            try {
+              var html = String(question.mdContent || '');
+              var baseURL = category.url;
+              if (question.contentJson && structuredRenderer) {
+                var rendered = structuredRenderer(question.contentJson);
+                var parsedQuestion = rendered && rendered.question;
+                html = parsedQuestion && parsedQuestion.content || '';
+                (parsedQuestion && parsedQuestion.options || []).forEach(function (option) { html += '<p>' + option.label + '. ' + option.content + '</p>'; });
+              } else if (html.startsWith('/static/')) {
+                baseURL = new URL(html, category.url).href;
+                html = await (await fetchResource(baseURL)).text();
+                if (html.trim().startsWith('{')) {
+                  if (!staticDecoder) throw new Error('网站静态图文解码模块不可用');
+                  html = await staticDecoder(html, baseURL);
+                  if (!html || html.trim().startsWith('{')) throw new Error('网站静态图文预览无法读取');
+                }
+              }
+              var doc = new DOMParser().parseFromString(html, 'text/html');
+              Array.from(doc.querySelectorAll('script,style')).forEach(function (node) { node.remove(); });
+              Array.from(doc.querySelectorAll('.katex')).forEach(function (node) {
+                var annotation = node.querySelector('annotation[encoding="application/x-tex"]');
+                var tex = annotation && annotation.textContent || simpleFormula(node);
+                if (tex) node.replaceWith(doc.createTextNode('$' + tex + '$'));
+              });
+              var images = Array.from(doc.querySelectorAll('img')).map(function (img) {
+                var url = new URL(img.getAttribute('src') || img.getAttribute('data-src') || '', baseURL);
+                return url.protocol === 'https:' ? url.href : '';
+              }).filter(Boolean);
+              payload.previews[question.id] = { stem: doc.body.textContent.trim(), images: images };
+            } catch (error) {
+              payload.previews[question.id] = { stem: summaries[question.id] || '此题图文预览暂时无法读取，导入时会重新读取完整题干。', images: [] };
+            }
+          }));
+        }
+      }
+      ready(payload);
     }
     function sourceFor(question) {
       return (question.year ? question.year + "年 " : "") + (question.questionIndex ? "第" + question.questionIndex + "题" : "题目 " + question.id);
     }
-    async function prepareQuestion(index) {
+    async function answerMarkdown(raw, baseURL) {
+      var html = String(raw || '');
+      if (!html) return '';
+      if (html.startsWith('/static/')) {
+        baseURL = new URL(html, category.url).href;
+        html = await (await fetchResource(baseURL)).text();
+        if (html.trim().startsWith('{')) {
+          if (!staticDecoder) throw new Error('408 静态答案加载模块不可用，请刷新后重试');
+          html = await staticDecoder(html, baseURL);
+          if (!html || html.trim().startsWith('{')) throw new Error('408 静态答案内容无法读取');
+        }
+      }
+      return markdown(html, baseURL);
+    }
+    async function prepareQuestion(index, content) {
       var question = state.rows[index] && state.rows[index].question;
       if (!question) throw new Error("408 题目不存在");
       state.stage = "读取题目内容";
       state.source = sourceFor(question);
       var parsed;
+      var structured;
       var baseURL = category.url;
       if (question.contentJson) {
         if (!structuredRenderer) throw new Error("408 结构化题目模块不可用，请刷新后重试");
-        var structured = structuredRenderer(question.contentJson);
+        structured = structuredRenderer(question.contentJson);
         parsed = structured && structured.question;
         if (!parsed || typeof parsed.content !== "string" || !Array.isArray(parsed.options)) throw new Error("408 结构化题目格式无效");
       } else {
@@ -765,8 +840,16 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
         optionTexts[position] = await markdown(option.content, baseURL);
       }
       var source = sourceFor(question);
-      var result = { id: Number(question.id), source: source, stem: stem, options: optionTexts,
-        hasBase64Image: /data:image\/[^\s)]+;base64,/i.test([stem].concat(optionTexts).join("\n")) };
+      var result = { id: Number(question.id), source: source, stem: stem, options: optionTexts };
+      if (content === 'questionAnswer') {
+        state.stage = '读取答案与解析';
+        result.answer = await answerMarkdown(question.answerText || question.answer || '', category.url);
+        result.explanation = await answerMarkdown(structured && structured.analysis || question.analysisText || '', category.url);
+        if (question.answerImageUrl) result.answer += '\n\n' + await markdown('<img src="' + String(question.answerImageUrl).replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '">', category.url);
+        if (question.analysisImageUrl) result.explanation += '\n\n' + await markdown('<img src="' + String(question.analysisImageUrl).replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '">', category.url);
+        if (!result.answer.trim() && !result.explanation.trim()) throw new Error('网站暂无可读取的答案或解析，请选择仅导入题目');
+      }
+      result.hasBase64Image = /data:image\/[^\s)]+;base64,/i.test([stem].concat(optionTexts, [result.answer || '', result.explanation || '']).join("\n"));
       if (JSON.stringify(result).length > 32 * 1024 * 1024) throw new Error("此题图片总量过大，请单独处理");
       state.stage = "传输题目";
       return { question: result, diagnostics: state.diagnostics };
@@ -806,15 +889,16 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
       if (key !== token || !valid() || !state.ready) throw new Error("408 题目传输已中断");
       return state.payload.slice(offset, offset + 65536);
     };
-    state.prepare = function (key, index) {
+    state.prepare = function (key, index, content) {
       if (key !== token || !valid()) return false;
+      if (content && content !== 'question' && content !== 'questionAnswer') throw new Error('导入内容选项无效');
       clearResources();
       state.payload = "";
       state.error = "";
       state.ready = false;
       state.diagnostics = {};
       var sequence = ++state.sequence;
-      timed(prepareQuestion(index), "408 题目读取或图片转换超时").then(function (result) {
+      timed(prepareQuestion(index, content), "408 题目读取或图片转换超时").then(function (result) {
         if (sequence === state.sequence) ready(result);
       }, function (error) { if (sequence === state.sequence) fail(error); });
       return true;
@@ -832,8 +916,8 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
     return true;
   }
 
-  function pageScript(token, target) {
-    return "String((" + pageReceiver.toString() + ")(" + JSON.stringify(token) + "," + JSON.stringify(target || null) + "))";
+  function pageScript(token, target, workspaceListing) {
+    return "String((" + pageReceiver.toString() + ")(" + JSON.stringify(token) + "," + JSON.stringify(target || null) + (workspaceListing ? ',' + JSON.stringify(workspaceListing) : '') + "))";
   }
   return { pageScript };
 })();

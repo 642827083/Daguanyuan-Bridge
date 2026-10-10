@@ -531,6 +531,6 @@ test("插件图标使用带透明通道的 48 像素 PNG", () => {
 test("插件入口不再传递旧导入页资源路径", () => {
   assert.match(mainSource, /JSB\.newAddon = function \(\)/);
   assert.match(addonSource, /createController\(self\)/);
-  assert.doesNotMatch(mainSource + addonSource + panelSource, /mainPath|web-dist/);
+  assert.doesNotMatch(mainSource + addonSource + panelSource, /mainPath/);
   assert.doesNotMatch(mainSource + addonSource + panelSource, /focus-next-icon\.png/);
 });

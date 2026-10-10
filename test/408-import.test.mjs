@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const mathSource = readFileSync(new URL("../src/DaguanyuanMathImport.js", import.meta.url), "utf8");
+const mathSource = readFileSync(new URL("../src/DaguanyuanCardComments.js", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../src/DaguanyuanMathImport.js", import.meta.url), "utf8");
 const locatorSource = readFileSync(new URL("../src/DaguanyuanCardLocator.js", import.meta.url), "utf8");
 const source = readFileSync(new URL("../src/Daguanyuan408Import.js", import.meta.url), "utf8");
 const pageSource = readFileSync(new URL("../src/Daguanyuan408Page.js", import.meta.url), "utf8");
@@ -26,18 +26,20 @@ function runtime(questions, options = {}) {
   const context = {
     console,
     MNUtil: { getNoteById(id) { return notes.get(id); } },
+    NSNull: class {},
     MNNote: { new(id) { return notes.get(id); } },
     __DAGUANYUAN_MATH_API_GLOBAL__: { positiveInteger(value) {
       if (!Number.isSafeInteger(Number(value)) || Number(value) < 1) throw new Error("题目 ID 无效");
       return Number(value);
     } },
     Application: { sharedInstance() { return {
-      studyController() { return { notebookController: { notebookId: "notebook-1" }, readerController: { currentDocumentController: { document: {} } } }; },
+      studyController() { return { notebookController: { notebookId: "notebook-1" }, readerController: options.noDocument ? null : { currentDocumentController: { document: {} } } }; },
       refreshAfterDBChanged() {},
     }; } },
     Database: { sharedInstance() { return {
       getNotebookById() { return notebook; },
       getNoteById(id) { return notes.get(id); },
+      createNoteWithTitleTopicid(title, topic) { assert.equal(topic, 'topic-1'); return context.Note.createWithTitleNotebookDocument(title); },
       allNotebooks() { return [notebook]; },
       deleteBookNoteTree(id) {
         const note = notes.get(id);
@@ -52,7 +54,7 @@ function runtime(questions, options = {}) {
         noteId: `note-${++serial}`, noteTitle: title, comments: [], childNotes: [], parentNote: null,
         appendMarkdownComment(text) { this.comments.push({ text }); },
       removeCommentByIndex(index) { this.comments.splice(index, 1); },
-      sortCommentsByNewIndices(indices) { this.comments = indices.map(index => this.comments[index]); },
+      sortCommentsByNewIndices(indices) { const before = this.comments.slice(); indices.forEach((position, old) => { this.comments[position] = before[old]; }); },
         addChild(child) {
           notebook.notes = notebook.notes.filter((item) => item !== child);
           child.parentNote = this;
@@ -91,6 +93,7 @@ function runtime(questions, options = {}) {
     } },
   };
   vm.createContext(context);
+  vm.runInContext(readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8'), context);
   vm.runInContext(mathSource, context);
   vm.runInContext(locatorSource, context);
   vm.runInContext(pageSource, context);
@@ -117,16 +120,16 @@ function runtime(questions, options = {}) {
   context.window = { __DAGUANYUAN_408_IMPORT_PAGE__: page };
   const controller = { addon: { window: {} }, webView: { evaluateJavaScript(script, callback) {
     scripts.push(script);
-    const stall = options.stall === "start" && script.startsWith("String((function pageReceiver")
+    const stall = options.stall === "start" && script.includes("String((function pageReceiver")
       || options.stall === "read" && script.includes(".read(")
       || options.stall === "chunk" && script.includes(".chunk(")
       || options.stall === "cancel" && script.includes(".cancel(");
     if (stall) { lateCallbacks.push(() => callback("true")); return; }
-    if (script.startsWith("String((function pageReceiver")) {
+    if (script.includes("String((function pageReceiver")) {
       payload = JSON.stringify({ category, ids: questions.map((question) => question.id) });
-      callback(options.foreignPage ? "false" : "true");
+      callback(options.foreignPage ? "false" : "true", options.nullError ? new context.NSNull() : null);
     } else {
-      try { callback(vm.runInContext(script, context)); } catch (error) { callback(null, error); }
+      try { callback(vm.runInContext(script, context), options.nullError ? new context.NSNull() : null); } catch (error) { callback(null, error); }
     }
   } } };
   return { context, controller, notes, notebook, deleted, scripts, page, options, lateCallbacks,
@@ -134,9 +137,84 @@ function runtime(questions, options = {}) {
     importer: context.__DAGUANYUAN_408_IMPORT_GLOBAL__, writer: context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__ };
 }
 
+test('408 独立导入页保留列表连接，只转换指定成员，关闭后清理连接', async () => {
+  const run = runtime([{ id: 81, stem: '第一题' }, { id: 82, stem: '第二题' }]);
+  const prepared = await run.importer.prepareWorkspace(run.controller);
+  assert.deepEqual(Array.from(prepared.listing.ids), [81, 82]);
+  assert.equal(run.scripts.some(s => s.includes('.prepare(')), false);
+  assert.throws(() => prepared.readQuestion(999, 'question'), /不在原分类/);
+  assert.equal((await prepared.readQuestion(82, 'question')).id, 82);
+  assert.deepEqual(run.scripts.filter(s => s.includes('.prepare(')).map(s => Number(s.match(/,(\d+),/)[1])), [1]);
+  await prepared.close(); assert.equal(run.cancelled, true);
+});
+
+test('408 网页回调的原生空错误值不阻断独立读取，未登录时提示入口', async () => {
+  const run = runtime([{ id: 81, stem: '题干' }], { nullError: true });
+  const prepared = await run.importer.prepareWorkspace(run.controller);
+  assert.equal((await prepared.readQuestion(81, 'question')).id, 81); await prepared.close();
+  const blocked = runtime([{ id: 81, stem: '题干' }], { foreignPage: true });
+  await assert.rejects(blocked.importer.prepareWorkspace(blocked.controller), /导航栏的 408 页登录/);
+});
+
+test('408 分类确认准确数量后才转换题图；取消清理网页传输且不写卡', async () => {
+  const run = runtime([{ id: 81, source: '2026年 第1题', stem: '题干' }, { id: 82, stem: '题干2' }]);
+  let confirm;
+  const operation = run.importer.importCategory(run.controller, null, null, plan => {
+    assert.equal(plan.questions.length, 2);
+    assert.match(plan.source, /浮点数/);
+    assert.equal(plan.target, '当前学习集');
+    return new Promise(resolve => { confirm = resolve; });
+  });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(run.notes.size, 0);
+  assert.equal(run.scripts.some(script => script.includes('.prepare(')), false);
+  confirm(false);
+  assert.equal((await operation).cancelled, true);
+  assert.equal(run.notes.size, 0);
+  assert.equal(run.cancelled, true);
+});
+
+test('408 选题只转换和写入所选题，保留原卷索引并按原顺序导入', async () => {
+  const run = runtime([81, 82, 83].map(id => ({ id, source: '来源' + id, stem: '题干' + id })));
+  const result = await run.importer.importCategory(run.controller, null, null, () => [83, 81]);
+  assert.equal(result.total, 2); assert.equal(result.createdCount, 2);
+  const prepared = run.scripts.filter(s => s.includes('.prepare(')).map(s => Number(s.match(/,(\d+),/)[1]));
+  assert.deepEqual(prepared, [0, 2]);
+  const cards = [...run.notes.values()].map(n => run.writer.linkedQuestion(n)?.id).filter(Boolean);
+  assert.deepEqual(cards, [81, 83]);
+});
+
+test('408 选题内容传给网页转换器与写入器，旧整类导入仍只写题目', async () => {
+  for (const content of ['question', 'questionAnswer']) {
+    const run = runtime([{ id: 81, stem: '题干', answer: 'C', explanation: '解析' }]);
+    const confirm = () => [81]; confirm.content = content;
+    const result = await run.importer.importCategory(run.controller, null, null, confirm);
+    assert.equal(result.createdCount, 1);
+    assert.ok(run.scripts.some(script => script.includes('.prepare(') && script.includes(JSON.stringify(content))));
+    const card = [...run.notes.values()].find(n => run.writer.linkedQuestion(n)?.id === 81);
+    if (content === 'questionAnswer') {
+      assert.equal(card.childNotes[0].noteTitle, '答案与解析');
+      assert.match(card.childNotes[0].comments[0].text, /### 答案\n\nC[\s\S]+### 解析\n\n解析/);
+      assert.doesNotMatch(card.comments[0].text, /### 答案|### 解析/);
+    }
+    else assert.doesNotMatch(card.comments[0].text, /### 答案|### 解析/);
+  }
+});
+
+test('408 运行中停止不处理剩余题，已写入计数保留在中断报告', async () => {
+  const run = runtime([81, 82, 83].map(id => ({ id, stem: '题干' + id })));
+  let stopped = false;
+  const confirm = () => [81, 83];
+  confirm.check = () => { if (stopped) { const error = Error('已停止'); error.stopImport = true; throw error; } };
+  await assert.rejects(run.importer.importCategory(run.controller, () => { stopped = true; }, null, confirm), error => {
+    assert.equal(error.importResult.createdCount, 1); assert.equal(error.importResult.total, 2); return true;
+  });
+  assert.equal(run.scripts.filter(s => s.includes('.prepare(')).length, 1);
+});
+
 test("408 导入整类所有题目，来源与数学 ID 独立，重复导入跳过", async () => {
   const questions = Array.from({ length: 48 }, (_, i) => ({ id: i + 1, source: `2009年 第${i + 1}题`, stem: `题干 ${i + 1}`, options: ["选项甲", "选项乙"] }));
-  const run = runtime(questions);
+  const run = runtime(questions, { noDocument: true });
   const mathNote = run.context.Note.createWithTitleNotebookDocument("数学题");
   mathNote.appendMarkdownComment("<!-- DAGUANYUAN_QUESTION_ID:1 -->");
   const result = await run.importer.importCategory(run.controller);
@@ -150,8 +228,9 @@ test("408 导入整类所有题目，来源与数学 ID 独立，重复导入跳
   assert.equal(topic.parentNote.parentNote.parentNote.noteTitle, "408");
   const text = topic.childNotes[0].comments[0].text;
   assert.match(text, /A\. 选项甲\n\nB\. 选项乙/);
-  assert.match(text, /DAGUANYUAN_408_QUESTION_ID:1/);
-  const link = run.writer.questionForNote(topic.childNotes[0]);
+  assert.doesNotMatch(text, /DAGUANYUAN_/);
+  assert.match(topic.childNotes[0].comments[1].text, /DAGUANYUAN_408_QUESTION_ID:1/);
+  const link = run.writer.linkedQuestion(topic.childNotes[0]);
   assert.equal(link.provider, "408");
   assert.equal(link.year, 2009);
   assert.match(link.url, /knowledgeId=52.*questionId=1/);
@@ -185,8 +264,10 @@ test('408 整类导入只对目标分类查重，单题、其他分类和删除�
   assert.equal(first.createdCount, 1);
   assert.equal(first.skippedCount, 0);
   const target = [...run.notes.values()].find(note => note.noteTitle === category.title);
+  const prepareCount = run.scripts.filter(script => script.includes('.prepare(')).length;
   const again = await run.importer.importCategory(run.controller);
   assert.equal(again.skippedCount, 1);
+  assert.equal(run.scripts.filter(script => script.includes('.prepare(')).length, prepareCount);
   const deletedNote = target.childNotes[0];
   run.notes.delete(deletedNote.noteId);
   const retry = await run.importer.importCategory(run.controller);
@@ -243,7 +324,7 @@ test("带大图片的 408 题目分块读取并保存为卡片媒体", async () 
   const run = runtime([{ id: 13, stem: `题干 ![图](data:image/png;base64,${"A".repeat(180000)})`, options: ["甲"], hasBase64Image: true }]);
   const result = await run.importer.importCategory(run.controller);
   assert.equal(result.createdCount, 1);
-  const note = [...run.notes.values()].find((note) => /DAGUANYUAN_408_QUESTION_ID/.test(note.comments[0]?.text));
+  const note = [...run.notes.values()].find((note) => /DAGUANYUAN_408_QUESTION_ID/.test(note.comments[1]?.text));
   assert.match(note.comments[0].text, /marginnote-media:\/\/saved-image/);
   assert.doesNotMatch(note.comments[0].text, /data:image/);
   assert.ok(run.scripts.filter((script) => script.includes(".chunk(")).length >= 4);
@@ -332,19 +413,37 @@ test("跨域图片请求不回调时记录超时失败并结束，清理调用�
   }
 });
 
-test("408 卡片定位保留 provider，防止进入数学定位流程", () => {
+test("408 分类定位使用绑定分类与题目序号，防止进入数学定位流程", () => {
   let opened;
   const context = {
     JSB: { defineClass(name, methods) { return methods; } },
-    __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__: { currentFocus() { return {}; } },
-    __DAGUANYUAN_MATH_IMPORT_GLOBAL__: { questionForNote() { return { id: 13, provider: "408", url: category.url + "&questionId=13" }; } },
-    __DAGUANYUAN_WEB_PANEL_GLOBAL__: { openDaguanyuanQuestion(controller, route) { opened = route; } },
+    __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__: { navigationNote() { return {}; }, currentQuestionContext() { return { source: {}, progress: { index: 3 } }; } },
+    __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__: { binding408ForSource() { return { targetURL: category.url }; } },
+    __DAGUANYUAN_WEB_PANEL_GLOBAL__: { open408Question(controller, url, index) { opened = { url, index }; } },
     console,
   };
   vm.createContext(context);
   vm.runInContext(addonSource, context);
   context.self = { panelController: {} };
   context.createDaguanyuanBridgeAddon().locateQuestion();
-  assert.equal(opened.provider, "408");
-  assert.equal(opened.questionId, 13);
+  assert.equal(opened.url, category.url);
+  assert.equal(opened.index, 3);
+});
+
+
+test('408 当前页范围限制在网页题目内，按网页顺序写入并保持真实列表索引', async () => {
+  const run = runtime([81, 82, 83, 84].map(id => ({ id, source: '来源' + id, stem: '题干' + id })));
+  const page = { provider: '408', url: 'https://www.408os.cn/exercise?year=2010', questions: [{ id: 83, title: '网页第一题' }, { id: 81, title: '网页第二题' }] };
+  let plan;
+  const result = await run.importer.importCategory(run.controller, null, null, value => { plan = value; return [81, 83]; }, page);
+  assert.deepEqual(Array.from(plan.questions, q => q.id), [83, 81]); assert.equal(result.total, 2);
+  const prepared = run.scripts.filter(s => s.includes('.prepare(')).map(s => Number(s.match(/,(\d+),/)[1]));
+  assert.deepEqual(prepared, [2, 0]);
+  assert.deepEqual([...run.notes.values()].map(n => run.writer.linkedQuestion(n)?.id).filter(Boolean), [83, 81]);
+});
+test('408 网页题目不在真实列表中时停止，不静默扩大导入范围', async () => {
+  const run = runtime([{ id: 81, stem: '题干' }]);
+  await assert.rejects(run.importer.importCategory(run.controller, null, null, () => true,
+    { provider: '408', url: 'https://www.408os.cn/exercise?year=2010', questions: [{ id: 999 }] }), /不一致/);
+  assert.equal(run.notes.size, 0); assert.equal(run.scripts.some(s => s.includes('.prepare(')), false);
 });

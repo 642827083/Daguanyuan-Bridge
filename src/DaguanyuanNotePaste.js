@@ -28,11 +28,11 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
   }
 
   function pageReceiver() {
-    if (window.__DAGUANYUAN_NOTE_PASTE__ && window.__DAGUANYUAN_NOTE_PASTE__.version === 2) return true;
+    if (window.__DAGUANYUAN_NOTE_PASTE__ && window.__DAGUANYUAN_NOTE_PASTE__.version === 6) return true;
     var current = null;
     function validPage() {
       return /(^|\.)cxyonly\.fans$/i.test(window.location.hostname || "")
-        && (/^\/math\/practice\/\d+(?:\/|$)/.test(window.location.pathname || "")
+        && (/^\/math\/(?:practice(?:\/(?:categories\/)?[1-9]\d*)?|questions\/[1-9]\d*|paper)\/?$/.test(window.location.pathname || "")
           || /^\/math\/retest(?:\/|$)/.test(window.location.pathname || ""));
     }
     function questionRow(id) {
@@ -54,6 +54,33 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
     function buttonFor(row) {
       return row.querySelector("[data-daguanyuan-practice-add-note], [data-daguanyuan-retest-add-note]");
     }
+    function visible(node) {
+      for (var ancestor = node; ancestor; ancestor = ancestor.parentElement) {
+        if (ancestor.hasAttribute && (ancestor.hasAttribute('hidden') || ancestor.hasAttribute('inert'))) return false;
+        if (typeof window.getComputedStyle === 'function') {
+          var style = window.getComputedStyle(ancestor);
+          if (style.display === 'none' || style.visibility === 'hidden') return false;
+        }
+      }
+      return true;
+    }
+    function externalNoteButton(row) {
+      if (typeof document.querySelector !== 'function') return null;
+      // 专注模式的工具栏位于题卡外，仅在页面明确只有当前题目时使用，避免串题。
+      var rows = document.querySelectorAll('[data-learning-question-id]');
+      var active = [];
+      for (var index = 0; index < rows.length; index += 1) if (visible(rows[index])) active.push(rows[index]);
+      if (active.length !== 1 || active[0] !== row) return null;
+      var button = document.querySelector('[aria-label="当前题目工具"] button[aria-controls="focus-tool-panel-note"]');
+      return button && !button.disabled && visible(button) ? button : null;
+    }
+    function stillCurrent(token) {
+      if (!current || current.token !== token) return false;
+      if (!validPage() || current.url !== String(window.location.href || '') || questionRow(current.id) !== current.row || !visible(current.row)) {
+        finish(token, 'question-changed'); return false;
+      }
+      return true;
+    }
     function noteDialog() {
       var dialogs = document.querySelectorAll('[role="dialog"][data-kind="dialog"]');
       for (var index = 0; index < dialogs.length; index += 1) {
@@ -64,7 +91,7 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
     }
     function finish(token, status) {
       if (!current || current.token !== token) return;
-      var button = buttonFor(questionRow(current.id) || document);
+      var button = current.button;
       if (button) { button.disabled = false; button.textContent = "添加笔记"; }
       current = null;
       sendResult(token, status);
@@ -74,7 +101,7 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
       var row = questionRow(id);
       var button = buttonFor(row);
       if (!button) return false;
-      current = { id: id, token: token, mimeType: mimeType, fileName: fileName, chunks: [] };
+      current = { id: id, token: token, mimeType: mimeType, fileName: fileName, chunks: [], row: row, button: button, url: String(window.location.href || '') };
       button.disabled = true;
       button.textContent = "添加中…";
       return true;
@@ -88,18 +115,26 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
       var attempts = 0;
       var noteOpened = false;
       var moreOpened = false;
+      var editRequested = false;
       function check() {
-        if (!current || current.token !== token || !validPage()) return;
-        var row = questionRow(current.id);
-        if (!row) { finish(token, "missing"); return; }
+        if (!stillCurrent(token)) return;
+        var row = current.row;
         var scope = row;
-        var wrapper = scope.querySelector('[data-note-rich-editor="true"]');
+        var wrapper = scope.querySelector('[data-note-rich-editor="true"], [data-note-markdown-editor="true"]');
         if (!wrapper && noteOpened) {
-          scope = noteDialog();
-          wrapper = scope && scope.querySelector('[data-note-rich-editor="true"]');
+          scope = current.editorId && typeof document.getElementById === 'function' && document.getElementById(current.editorId) || noteDialog();
+          wrapper = scope && scope.querySelector('[data-note-rich-editor="true"], [data-note-markdown-editor="true"]');
         }
         var editor = wrapper && wrapper.querySelector('[data-note-editor="true"]');
-        if (wrapper && editor) { callback(scope, wrapper, editor); return; }
+        if (wrapper && editor && visible(wrapper)) {
+          var preview = wrapper.getAttribute && wrapper.getAttribute('data-note-preview') === 'true';
+          var readOnly = editor.getAttribute && editor.getAttribute('contenteditable') === 'false';
+          if (!preview && !readOnly && visible(editor) && !editor.disabled) { callback(scope, wrapper, editor); return; }
+          if (!editRequested) {
+            var edit = wrapper.querySelector('button[aria-label="返回编辑"]');
+            if (edit && !edit.disabled) { edit.click(); editRequested = true; }
+          }
+        }
         if (!noteOpened) {
           var buttons = row.querySelectorAll("button");
           var noteButton = null;
@@ -107,15 +142,21 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
           for (var index = 0; index < buttons.length; index += 1) {
             if (buttons[index].hasAttribute("data-daguanyuan-practice-add-note")
               || buttons[index].hasAttribute("data-daguanyuan-retest-add-note")) continue;
-            var label = String(buttons[index].textContent || "").trim();
-            if (label === "查看笔记" || label === "添加笔记") { noteButton = buttons[index]; break; }
+            if (!visible(buttons[index])) continue;
+            var label = String(buttons[index].getAttribute && buttons[index].getAttribute('aria-label') || buttons[index].textContent || "").trim();
+            if (label === "查看笔记" || label === "添加笔记" || label === "笔记" || label === "隐藏笔记") { noteButton = buttons[index]; break; }
             if (label === "更多操作") moreButton = buttons[index];
           }
-          if (noteButton) { noteButton.click(); noteOpened = true; }
+          noteButton = externalNoteButton(row) || noteButton;
+          if (noteButton && !noteButton.disabled) {
+            current.editorId = noteButton.getAttribute && noteButton.getAttribute('aria-controls');
+            if (!noteButton.getAttribute || noteButton.getAttribute('aria-expanded') !== 'true') noteButton.click();
+            noteOpened = true;
+          }
           else if (!moreOpened && moreButton) { moreButton.click(); moreOpened = true; }
         }
         attempts += 1;
-        if (attempts > 60) { finish(token, "missing"); return; }
+        if (attempts > 60) { finish(token, "editor-missing"); return; }
         window.setTimeout(check, 150);
       }
       check();
@@ -133,26 +174,41 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
       transfer.chunks = [];
       openEditor(token, function (scope, wrapper, editor) {
         try {
+          var markdown = String(editor.tagName || '').toLowerCase() === 'textarea';
+          function attachments() {
+            // Markdown 上传后会新增网站附件路径，不以预览图片或旧的保存状态判断成功。
+            return String(editor.value || '').match(/\/v1\/user\/note-attachments\/[^)\s#]+/g) || [];
+          }
+          var beforeAttachments = markdown ? attachments() : [];
           var before = wrapper.querySelectorAll("img[data-attachment-id]").length;
           editor.focus();
-          var range = document.createRange();
-          range.selectNodeContents(editor.lastChild || editor);
-          range.collapse(false);
-          var selection = window.getSelection();
-          if (selection) { selection.removeAllRanges(); selection.addRange(range); }
+          if (markdown) editor.setSelectionRange(editor.value.length, editor.value.length);
+          else {
+            var range = document.createRange();
+            range.selectNodeContents(editor.lastChild || editor);
+            range.collapse(false);
+            var selection = window.getSelection();
+            if (selection) { selection.removeAllRanges(); selection.addRange(range); }
+          }
           window.setTimeout(function () {
-            if (!current || current.token !== token) return;
+            if (!stillCurrent(token)) return;
+            if (!visible(wrapper) || current.editorId && typeof document.getElementById === 'function' && document.getElementById(current.editorId) !== scope) {
+              finish(token, 'editor-missing'); return;
+            }
             try {
               var event = new Event("paste", { bubbles: true, cancelable: true });
               Object.defineProperty(event, "clipboardData", { value: { files: [file], items: [], getData: function () { return ""; } } });
-              wrapper.dispatchEvent(event);
+              (markdown ? editor : wrapper).dispatchEvent(event);
               var started = Date.now();
               function watch() {
-                if (!current || current.token !== token || !validPage()) return;
+                if (!stillCurrent(token)) return;
                 var imageCount = wrapper.querySelectorAll("img[data-attachment-id]").length;
-                var status = scope.querySelector('[aria-label="富文本题目笔记"] [data-state]');
+                var status = scope.querySelector('[data-note-save-feedback] [data-state], [aria-label="富文本题目笔记"] [data-state]');
+                var uploadError = wrapper.querySelector('[role="status"][data-tone="error"]');
+                if (uploadError) { finish(token, "upload"); return; }
+                var added = markdown ? attachments().some(function (id) { return beforeAttachments.indexOf(id) < 0; }) : imageCount > before;
                 if (status && status.getAttribute("data-state") === "error") { finish(token, "save"); return; }
-                if (imageCount > before && status && status.getAttribute("data-state") === "saved") {
+                if (added && status && status.getAttribute("data-state") === "saved") {
                   finish(token, "saved"); return;
                 }
                 if (Date.now() - started > 45000) { finish(token, "timeout"); return; }
@@ -167,12 +223,12 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
     }
     function cancel(token) {
       if (!current || current.token !== token) return false;
-      var button = buttonFor(questionRow(current.id) || document);
+      var button = current.button;
       if (button) { button.disabled = false; button.textContent = "添加笔记"; }
       current = null;
       return true;
     }
-    window.__DAGUANYUAN_NOTE_PASTE__ = { version: 2, prepare: prepare, append: append, commit: commit, cancel: cancel };
+    window.__DAGUANYUAN_NOTE_PASTE__ = { version: 6, prepare: prepare, append: append, commit: commit, cancel: cancel };
     return true;
   }
 
@@ -202,13 +258,13 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
     const prefix = "window.__DAGUANYUAN_NOTE_PASTE__";
     controller.notePasteOperation = { id, token };
     return evaluate(controller, "String(window.location.href || '')").then(function (url) {
-      if (!/^https:\/\/(?:www\.)?cxyonly\.fans\/math\/(?:practice\/\d+|retest(?:\/|$))/.test(String(url || ""))) {
+      if (!/^https:\/\/(?:www\.)?cxyonly\.fans\/math\/(?:practice(?:\/(?:categories\/)?[1-9]\d*)?|questions\/[1-9]\d*|retest|paper)\/?(?:[?#][^\s<>]*)?$/.test(String(url || ""))) {
         throw new Error("请先打开大观园数学题目页或错题复测页");
       }
       image = clipboardImage();
       return evaluate(controller, "(" + pageReceiver.toString() + ")();");
     }).then(function () {
-      return evaluate(controller, "String(!!(" + prefix + " && " + prefix + ".version === 2))");
+      return evaluate(controller, "String(!!(" + prefix + " && " + prefix + ".version === 6))");
     }).then(function (ready) {
       if (!accepted(ready)) throw new Error("无法连接题目笔记编辑器");
       return evaluate(controller, "String(" + prefix + ".prepare(" + [id, token, image.mimeType, image.fileName].map(JSON.stringify).join(",") + "))");
@@ -246,8 +302,13 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
     if (!controller.notePasteOperation || controller.notePasteOperation.token !== token) return null;
     controller.notePasteOperation = null;
     if (status === "saved") return "图片已添加到题目笔记";
+    if (status === "upload") return "网站图片上传失败，请查看题目笔记后重试，原有笔记已保留";
     if (status === "save") return "网站未能保存图片，请查看题目笔记";
     if (status === "timeout") return "尚未确认图片保存，请查看题目笔记";
+    if (status === "editor-missing") return "未能打开当前题目的笔记编辑器，请先点击网站的“笔记”后重试";
+    if (status === "question-changed") return "当前题目已切换，已停止添加图片；如已开始上传，请查看原题笔记确认";
+    if (status === "paste") return "图片未能粘贴到笔记编辑器，请打开笔记的编辑模式后重试";
+    if (status === "decode") return "图片数据无法读取，请重新复制图片后重试";
     if (status === "changed") return "408 当前题目已切换，图片未继续添加";
     if (status === "permission") return "当前 408 账号尚未开放笔记图片功能";
     if (status === "limit") return "图片超出 408 网站的数量或大小限制，请查看网站提示";

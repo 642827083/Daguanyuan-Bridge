@@ -322,6 +322,7 @@ test("普通题卡按已绑定分类和同级序号打开数学页面", () => {
       defineClass(name, methods) { return methods; },
     },
     __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__: {
+      navigationNote() { return {}; },
       currentQuestionContext() {
         return {
           source: { notebookId: "notebook", parentNoteId: "parent", sourcePath: ["0/0"] },
@@ -366,6 +367,7 @@ test("408 绑定优先按父节点下的卡片序号定位，不调用数学题�
   const context = {
     JSB: { defineClass(name, methods) { return methods; } },
     __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__: {
+      navigationNote() { return {}; },
       currentQuestionContext() {
         return { source: { notebookId: "notebook", parentNoteId: "year-2026" }, progress: { index: 5, total: 47 } };
       },

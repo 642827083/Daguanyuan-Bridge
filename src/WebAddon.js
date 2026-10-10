@@ -5,10 +5,19 @@ function createDaguanyuanBridgeAddon() {
       self.__daguanyuanFocusNextRememberToken = 0;
       self.__daguanyuanFocusNextPlaceToken = 0;
       self.panelController = __DAGUANYUAN_WEB_PANEL_GLOBAL__.createController(self);
+      if (typeof __DAGUANYUAN_MASTERY_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_MASTERY_UI_GLOBAL__.register(self);
+      if (typeof __DAGUANYUAN_SOURCE_LINK_GLOBAL__ !== 'undefined' && !__DAGUANYUAN_SOURCE_LINK_GLOBAL__.register(self)) {
+        __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.showMessage(self, '查看原题需要 MN Utils，请安装并启用最新版 MN Utils');
+      }
       console.log("[Daguanyuan Bridge] 插件已初始化");
     },
 
     sceneDidDisconnect: function () {
+      if (typeof __DAGUANYUAN_MASTERY_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_MASTERY_UI_GLOBAL__.unregister(self);
+      if (typeof __DAGUANYUAN_MASTERY_SYNC_GLOBAL__ !== 'undefined') __DAGUANYUAN_MASTERY_SYNC_GLOBAL__.cancel(self);
+      if (typeof __DAGUANYUAN_SOURCE_LINK_GLOBAL__ !== 'undefined') __DAGUANYUAN_SOURCE_LINK_GLOBAL__.unregister(self);
+      if (typeof __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__ !== 'undefined') __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__.close(self.panelController);
+      if (self.panelController && typeof __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__ !== "undefined") __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__.close(self.panelController);
       if (typeof __DAGUANYUAN_CARD_LOCATOR_GLOBAL__ !== "undefined") __DAGUANYUAN_CARD_LOCATOR_GLOBAL__.cancel(self);
       if (typeof __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__ !== "undefined") __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.cancelMode(self.panelController);
       self.__daguanyuanFocusNextRememberToken += 1;
@@ -22,6 +31,8 @@ function createDaguanyuanBridgeAddon() {
     },
 
     notebookWillOpen: function () {
+      if (typeof __DAGUANYUAN_MASTERY_UI_GLOBAL__ !== 'undefined') { __DAGUANYUAN_MASTERY_UI_GLOBAL__.hide(self); __DAGUANYUAN_MASTERY_UI_GLOBAL__.register(self); }
+      if (typeof __DAGUANYUAN_SOURCE_LINK_GLOBAL__ !== 'undefined') __DAGUANYUAN_SOURCE_LINK_GLOBAL__.register(self);
       self.panelController.addon = self;
       self.panelController.addonWindow = self.window;
       if (typeof __DAGUANYUAN_CARD_LOCATOR_GLOBAL__ !== "undefined") __DAGUANYUAN_CARD_LOCATOR_GLOBAL__.resume(self);
@@ -36,6 +47,21 @@ function createDaguanyuanBridgeAddon() {
         __DAGUANYUAN_WEB_PANEL_GLOBAL__.showPanel(self.panelController);
       }
     },
+
+    onSourceLink: function (sender) {
+      try { __DAGUANYUAN_SOURCE_LINK_GLOBAL__.receive(self, sender); }
+      catch (error) { __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.showMessage(self, String(error && error.message || error)); }
+    },
+
+    notebookWillClose: function () {
+      if (typeof __DAGUANYUAN_MASTERY_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_MASTERY_UI_GLOBAL__.hide(self);
+      if (typeof __DAGUANYUAN_MASTERY_SYNC_GLOBAL__ !== 'undefined') __DAGUANYUAN_MASTERY_SYNC_GLOBAL__.cancel(self);
+    },
+
+    onMasteryCard: function (sender) { __DAGUANYUAN_MASTERY_UI_GLOBAL__.show(self, sender); },
+    onMasteryCardClose: function () { __DAGUANYUAN_MASTERY_UI_GLOBAL__.close(self); },
+    onMasteryPress: function (sender) { __DAGUANYUAN_MASTERY_UI_GLOBAL__.press(self, sender); },
+    onMasteryClick: function (sender) { __DAGUANYUAN_MASTERY_UI_GLOBAL__.click(self, sender); },
 
     queryAddonCommandStatus: function () {
       const checked = __DAGUANYUAN_WEB_PANEL_GLOBAL__.isPanelVisible(self.panelController);
@@ -127,7 +153,7 @@ function createDaguanyuanBridgeAddon() {
               : "未找到对应的大观园分类";
           __DAGUANYUAN_WEB_PANEL_GLOBAL__.prepareCategoryBinding(
             self.panelController,
-            `${reason}，请进入正确分类后点击“绑定当前分类”`
+            `${reason}，请进入正确分类后点击“绑定分类”`
           );
           return;
         }
@@ -148,22 +174,8 @@ function createDaguanyuanBridgeAddon() {
         return;
       }
       try {
-        const focused = typeof __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.currentFocus === "function"
-          ? __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.currentFocus(self) : undefined;
-        const imported = typeof __DAGUANYUAN_MATH_IMPORT_GLOBAL__ !== "undefined" && focused
-          ? __DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionForNote(focused) : null;
-        if (imported && imported.url) {
-          __DAGUANYUAN_WEB_PANEL_GLOBAL__.openDaguanyuanQuestion(self.panelController, {
-            url: imported.url,
-            questionId: imported.id,
-            questionNumber: 0,
-            imported: true,
-            provider: imported.provider,
-            year: imported.year,
-          });
-          return;
-        }
-        const context = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.currentQuestionContext(self);
+        const focused = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.navigationNote(self);
+        const context = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.currentQuestionContext(self, focused);
         const source = context.source;
         const binding408 = __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__.binding408ForSource(source);
         if (binding408) {
@@ -182,7 +194,7 @@ function createDaguanyuanBridgeAddon() {
               : "未找到对应的大观园分类";
           __DAGUANYUAN_WEB_PANEL_GLOBAL__.prepareCategoryBinding(
             self.panelController,
-            `${reason}，请进入正确分类后点击“绑定当前分类”`
+            `${reason}，请进入正确分类后点击“绑定分类”`
           );
           return;
         }

@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
 const apiSource = readFileSync(new URL("../src/DaguanyuanMathApi.js", import.meta.url), "utf8");
-const importSource = readFileSync(new URL("../src/DaguanyuanMathImport.js", import.meta.url), "utf8");
+const importSource = readFileSync(new URL("../src/DaguanyuanCardComments.js", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../src/DaguanyuanMathImport.js", import.meta.url), "utf8");
 const locatorSource = readFileSync(new URL("../src/DaguanyuanCardLocator.js", import.meta.url), "utf8");
 const retestSource = readFileSync(new URL("../src/DaguanyuanRetestBridge.js", import.meta.url), "utf8");
 const addonSource = readFileSync(new URL("../src/WebAddon.js", import.meta.url), "utf8");
@@ -27,6 +27,27 @@ test("数学接口只保留题目内容，不导入答案", () => {
   assert.equal(parsed.options[0], "选项 A");
   assert.equal(JSON.stringify(parsed).includes("秘密答案"), false);
   assert.equal(JSON.stringify(parsed).includes("秘密解析"), false);
+});
+
+test('数学仅在选择题目加答案时读取答案解析并下载其中的图片', async () => {
+  for (const content of ['question', 'questionAnswer']) {
+    const hash = 'a'.repeat(64), requests = [];
+    const context = {
+      NSURL: { URLWithString(url) { return url; } },
+      NSMutableURLRequest: { requestWithURL(url) { return { url, setHTTPMethod() {}, setTimeoutInterval() {}, setAllHTTPHeaderFields() {} }; } },
+      NSOperationQueue: { mainQueue() { return {}; } },
+      NSJSONSerialization: { JSONObjectWithDataOptions(data) { return data.question; } },
+      NSURLConnection: { sendAsynchronousRequestQueueCompletionHandler(request, queue, completion) {
+        requests.push(request.url);
+        if (request.url.endsWith(hash)) completion({ statusCode: 200, allHeaderFields: { 'Content-Type': 'image/png' } }, { length: 12, base64Encoding: 'iVBORw0KGgo=' }, null);
+        else completion({ statusCode: 200 }, { length: 100, question: { id: 123, category_id: 1, stem: '题干', correct_answer: 'C', answer_explanation: '解析 ![图](asset://sha256/' + hash + ')' } }, null);
+      } },
+    };
+    vm.createContext(context); vm.runInContext(apiSource, context);
+    const question = await context.__DAGUANYUAN_MATH_API_GLOBAL__.questionDetail(123, content);
+    if (content === 'question') { assert.equal(question.answer, undefined); assert.equal(question.explanation, undefined); assert.equal(requests.length, 1); }
+    else { assert.equal(question.answer, 'C'); assert.match(question.explanation, /data:image\/png;base64/); assert.equal(question.hasBase64Image, true); assert.equal(requests.length, 2); }
+  }
 });
 
 test("原生网络回调的 NSNull 错误值不阻止题目列表显示", async () => {
@@ -164,6 +185,7 @@ test("按直接分类跨页导入完整层级，失败可重试且重复题目�
     Database: { sharedInstance() { return {
       getNotebookById() { return notebook; },
       getNoteById(id) { return notes[id]; },
+      createNoteWithTitleTopicid(title, topic) { assert.equal(topic, 'topic-1'); return createNote(title); },
       deleteBookNoteTree(id) { delete notes[id]; },
     }; } },
     Note: { createWithTitleNotebookDocument(title) { return createNote(title); } },
@@ -201,6 +223,7 @@ test("按直接分类跨页导入完整层级，失败可重试且重复题目�
     },
   };
   vm.createContext(context);
+  vm.runInContext(readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8'), context);
   vm.runInContext(importSource, context);
   vm.runInContext(locatorSource, context);
   const importer = context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__;
@@ -218,8 +241,8 @@ test("按直接分类跨页导入完整层级，失败可重试且重复题目�
   const year = root.childNotes[0].childNotes[0].childNotes[0];
   assert.deepEqual(year.childNotes.map((card) => card.noteTitle),
     all.slice(0, 21).map((id) => `2026数二（${id - 7979}）`));
-  assert.match(year.childNotes[2].comments[0].text, /practice\/1035\?questionId=7982/);
-  assert.equal(importer.questionForNote(year.childNotes[2]).url.includes("practice/1035"), true);
+  assert.match(context.__DAGUANYUAN_SOURCE_LINK_GLOBAL__.fromComment(year.childNotes[2].comments[1].text).url, /practice\/1035\?questionId=7982/);
+  assert.equal(importer.linkedQuestion(year.childNotes[2]).url.includes("practice/1035"), true);
   failLast = false;
   const second = await importer.importCategory(addon, 1035, "core");
   assert.equal(second.createdCount, 1);
@@ -327,6 +350,7 @@ test("错题复测待复测题和未来计划都显示定位按钮并回传题�
 test("新导入题卡使用默认字号", () => {
   const context = {};
   vm.createContext(context);
+  vm.runInContext(readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8'), context);
   vm.runInContext(importSource, context);
   const markdown = context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown(
     { id: 3356, stem: "题干", options: ["选项一", "选项二"] },
@@ -339,6 +363,7 @@ test("新导入题卡使用默认字号", () => {
 test("408 建卡整理格式时保留代码块缩进、连续空行和美元符号", () => {
   const context = {};
   vm.createContext(context);
+  vm.runInContext(readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8'), context);
   vm.runInContext(importSource, context);
   const code = '```\nwhile (x) {\n  x--;\n\n\n  price = "$ value $";  \n}\n```';
   const markdown = context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown({
@@ -347,12 +372,13 @@ test("408 建卡整理格式时保留代码块缩进、连续空行和美元符�
   assert.equal(markdown.split(code).length, 4);
   assert.ok(markdown.includes('B.\n\n' + code));
   assert.ok(markdown.includes('若 $G$ 无环。'));
-  assert.ok(markdown.includes('DAGUANYUAN_408_QUESTION_ID:806'));
+  assert.doesNotMatch(markdown, /DAGUANYUAN_/);
 });
 
 test("新题卡规范网站公式边界空格并保留公式内部内容", () => {
   const context = {};
   vm.createContext(context);
+  vm.runInContext(readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8'), context);
   vm.runInContext(importSource, context);
   const markdown = context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown({
     id: 3382,
@@ -370,6 +396,7 @@ test("新题卡规范网站公式边界空格并保留公式内部内容", () =>
 test("分段公式选项让双美元符号独占行，避免显示 cases 原文", () => {
   const context = {};
   vm.createContext(context);
+  vm.runInContext(readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8'), context);
   vm.runInContext(importSource, context);
   const markdown = context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown({
     id: 3359,
@@ -386,30 +413,30 @@ $$`, String.raw`文字 $$\begin{cases}x, & x\le 0\end{cases}$$ 结束`],
   assert.match(markdown, /B\. 文字\n\n\$\$\n\\begin\{cases\}x/);
   assert.match(markdown, /\n\$\$\n\n结束/);
   assert.doesNotMatch(markdown, /A\. \$\$|B\. 文字 \$\$/);
-  assert.match(markdown, /<\!-- DAGUANYUAN_QUESTION_ID:3359 -->/);
+  assert.doesNotMatch(markdown, /DAGUANYUAN_/);
 });
 
-test("导入卡片点击定位题目时按保存的 ID 打开大观园", () => {
+test("导入卡片的定位按钮按分类与序号打开，不读取导入模块", () => {
   let opened;
   const context = {
     JSB: { defineClass(name, methods) { return methods; } },
-    __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__: { currentFocus() { return { noteId: "card-1" }; } },
-    __DAGUANYUAN_MATH_IMPORT_GLOBAL__: { questionForNote() {
-      return { id: 3356, url: "https://www.cxyonly.fans/math/practice/321?resumeCategoryId=331&questionId=3356" };
-    } },
+    __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__: { navigationNote() { return { noteId: "card-1" }; }, currentQuestionContext() { return { source: {}, progress: { index: 2 } }; } },
+    __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__: { binding408ForSource() { return null; }, bindingForSource() { return { targetCategoryId: 331 }; } },
+    __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__: { resultForCategoryId() { return { status: 'resolved', categoryId: 331 }; }, questionRouteFor(result, index) { return { url: 'https://www.cxyonly.fans/math/practice/321?resumeCategoryId=331', questionNumber: index }; } },
     __DAGUANYUAN_WEB_PANEL_GLOBAL__: { openDaguanyuanQuestion(controller, route) { opened = route; } },
     console,
   };
+  Object.defineProperty(context, '__DAGUANYUAN_MATH_IMPORT_GLOBAL__', { get() { throw new Error('定位按钮不应读取导入模块'); } });
   vm.createContext(context);
   vm.runInContext(addonSource, context);
   context.self = { panelController: {} };
   context.createDaguanyuanBridgeAddon().locateQuestion();
-  assert.equal(opened.questionId, 3356);
-  assert.equal(opened.questionNumber, 0);
-  assert.equal(opened.imported, true);
+  assert.equal(opened.questionId, undefined);
+  assert.equal(opened.questionNumber, 2);
+  assert.equal(opened.imported, undefined);
 });
 
-test("导入卡片定位会选择网站完整题库范围", () => {
+test("查看原题的精确定位会选择网站完整题库范围", () => {
   const context = { JSB: { defineClass(name, methods) { return methods; } }, console };
   vm.createContext(context);
   vm.runInContext(panelSource, context);

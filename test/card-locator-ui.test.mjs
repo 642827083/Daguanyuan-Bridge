@@ -77,7 +77,7 @@ test('设置入口位于定位开关下方，保存后即时显示，切页和�
   context.Application = { sharedInstance() { return { showHUD() {} }; } };
   context.__DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__ = { setup(controller) { controller.categoryManagerPage = new View({ width: 800, height: 600 }); }, layout() {} };
   context.__DAGUANYUAN_IMPORT_REPORT_GLOBAL__ = { layout() {} };
-  for (const name of ['DaguanyuanFocusNextCore', 'DaguanyuanCardLocator', 'WebPanelController']) {
+  for (const name of ['DaguanyuanFocusNextCore', 'DaguanyuanCardLocator', 'DaguanyuanSingleImport', 'WebPanelController']) {
     vm.runInContext(fs.readFileSync(new URL(`../src/${name}.js`, import.meta.url), 'utf8'), context);
   }
   const panel = { addon: { window: {} } }; context.self = panel; methods.viewDidLoad(); methods.openSettings();
@@ -86,6 +86,19 @@ test('设置入口位于定位开关下方，保存后即时显示，切页和�
   assert.ok(panel.cardLocationModeButton.frame.y > panel.websiteLocateSwitch.frame.y + panel.websiteLocateSwitch.frame.height);
   assert.ok(panel.noteAddTitle.frame.y > panel.cardLocationModeButton.frame.y + panel.cardLocationModeButton.frame.height);
   assert.ok(panel.settingsPage.contentSize.height >= panel.questionToolsSettingsSection.frame.y + panel.questionToolsSettingsSection.frame.height);
+  assert.equal(panel.singleImportPositionValue.text, '子节点');
+  assert.equal(panel.singleImportPositionTitle.superview, panel.questionToolsSettingsSection);
+  assert.ok(panel.singleImportPositionButton.frame.y > panel.singleImportSwitch.frame.y + panel.singleImportSwitch.frame.height);
+  methods.chooseSingleImportPosition(); let positionMenu = panel.cardLocationModeChoice;
+  assert.equal(positionMenu.title.text, '导入单题位置');
+  assert.equal(positionMenu.buttons[0].title, '所选卡片的子节点（当前）');
+  assert.equal(positionMenu.buttons[1].selector, 'selectSingleImportPosition:');
+  methods.selectSingleImportPosition(positionMenu.buttons[1]);
+  assert.equal(panel.singleImportPositionValue.text, '同级节点');
+  assert.equal(stored.get('cn.marginnote.daguanyuan-bridge.question-tools.single-import-position'), 'sibling');
+  methods.chooseSingleImportPosition(); positionMenu = panel.cardLocationModeChoice;
+  methods.selectSingleImportPosition(positionMenu.buttons[2]);
+  assert.equal(panel.singleImportPositionValue.text, '同级节点');
   methods.chooseCardLocationMode(); let menu = panel.cardLocationModeChoice;
   methods.selectCardLocationMode(menu.buttons[0]); assert.equal(panel.cardLocationModeValue.text, '仅定位');
   assert.equal(stored.get('cn.marginnote.daguanyuan-bridge.question-tools.card-location-mode'), 'locate');
@@ -93,6 +106,7 @@ test('设置入口位于定位开关下方，保存后即时显示，切页和�
   assert.equal(context.__DAGUANYUAN_CARD_LOCATOR_GLOBAL__.mode(), 'locate');
   methods.chooseCardLocationMode(); methods.openDaguanyuan(); assert.equal(panel.cardLocationModeChoice, null);
   methods.openSettings(); assert.equal(panel.cardLocationModeValue.text, '仅定位');
+  assert.equal(panel.singleImportPositionValue.text, '同级节点');
   methods.chooseCardLocationMode(); methods.closePanel(); assert.equal(panel.cardLocationModeChoice, null);
   ui.cancelMode(panel);
 });

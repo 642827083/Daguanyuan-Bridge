@@ -27,6 +27,7 @@ function copyDirectory(source, destination) {
 if (fs.existsSync(stageDir)) fs.rmSync(stageDir, { recursive: true, force: true });
 if (fs.existsSync(outputPath)) fs.rmSync(outputPath, { force: true });
 if (fs.existsSync(zipPath)) fs.rmSync(zipPath, { force: true });
+require('./build-web').buildWeb();
 copyDirectory(srcDir, stageDir);
 
 if (!fs.existsSync(path.join(stageDir, "icon.png"))) {

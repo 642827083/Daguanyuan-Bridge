@@ -44,7 +44,10 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
   function performClosePanel(controller) {
     if (!controller || !controller.view) return;
+    if (controller.importWorkspaceTask) __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__.close(controller);
+    if (controller.importTask) __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__.close(controller);
     __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.cancelMode(controller);
+    if (typeof __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__.cancel(controller);
     controller.panelVisible = false;
     controller.view.hidden = true;
     controller.view.removeFromSuperview();
@@ -59,7 +62,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   function layout(controller) {
     const bounds = controller.view.bounds;
     const contentFrame = { x: 0, y: TITLE_HEIGHT, width: bounds.width, height: Math.max(0, bounds.height - TITLE_HEIGHT) };
-    const tabsWidth = 232;
+    const tabsWidth = 312;
     const tabsX = Math.max(44, (bounds.width - tabsWidth) / 2);
     const sectionWidth = Math.max(0, bounds.width - 40);
     controller.containerView.frame = bounds;
@@ -67,15 +70,18 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.closeButton.frame = { x: Math.max(0, bounds.width - 40), y: 2, width: 34, height: 34 };
     controller.homeButton.frame = { x: tabsX, y: 4, width: 68, height: 30 };
     controller.os408Button.frame = { x: tabsX + 80, y: 4, width: 68, height: 30 };
-    controller.settingsButton.frame = { x: tabsX + 160, y: 4, width: 72, height: 30 };
+    controller.importButton.frame = { x: tabsX + 160, y: 4, width: 68, height: 30 };
+    controller.settingsButton.frame = { x: tabsX + 240, y: 4, width: 72, height: 30 };
     controller.webView.frame = contentFrame;
+    controller.importWebView.frame = contentFrame;
     controller.settingsPage.frame = contentFrame;
-    controller.settingsPage.contentSize = { width: contentFrame.width, height: Math.max(contentFrame.height + 1, 1268) };
+    controller.settingsPage.contentSize = { width: contentFrame.width, height: Math.max(contentFrame.height + 1, 1544) };
     __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__.layout(controller, contentFrame);
     controller.focusSettingsSection.frame = { x: 20, y: 18, width: sectionWidth, height: 336 };
     controller.categorySettingsSection.frame = { x: 20, y: 366, width: sectionWidth, height: 336 };
     controller.questionNavigationSettingsSection.frame = { x: 20, y: 714, width: sectionWidth, height: 194 };
-    controller.questionToolsSettingsSection.frame = { x: 20, y: 920, width: sectionWidth, height: 336 };
+    controller.questionToolsSettingsSection.frame = { x: 20, y: 920, width: sectionWidth, height: 406 };
+    if (typeof __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.layout(controller, sectionWidth);
     controller.focusSectionTitle.frame = { x: 20, y: 12, width: Math.max(0, sectionWidth - 40), height: 28 };
     controller.focusDivider.frame = { x: 20, y: 48, width: Math.max(0, sectionWidth - 40), height: 1 };
     controller.focusEnabledTitle.frame = { x: 20, y: 61, width: Math.max(0, sectionWidth - 110), height: 24 };
@@ -139,6 +145,13 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.singleImportTitle.frame = { x: 20, y: 271, width: Math.max(0, sectionWidth - 110), height: 24 };
     controller.singleImportDescription.frame = { x: 20, y: 297, width: Math.max(0, sectionWidth - 110), height: 18 };
     controller.singleImportSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 279, width: 51, height: 31 };
+    controller.singleImportPositionDivider.frame = { x: 20, y: 328, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.singleImportPositionTitle.frame = { x: 20, y: 341, width: Math.max(0, sectionWidth - 252), height: 24 };
+    controller.singleImportPositionDescription.frame = { x: 20, y: 367, width: Math.max(0, sectionWidth - 252), height: 18 };
+    controller.singleImportPositionValue.frame = { x: Math.max(20, sectionWidth - 224), y: 351.5, width: 164, height: 24 };
+    controller.singleImportPositionChevron.frame = { x: Math.max(20, sectionWidth - 52), y: 345.5, width: 30, height: 36 };
+    controller.singleImportPositionButton.frame = { x: 0, y: 329, width: sectionWidth, height: 76 };
+    if (typeof __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__.layout(controller, sectionWidth);
     controller.resizeHandle.frame = { x: Math.max(0, bounds.width - 30), y: Math.max(0, bounds.height - 30), width: 30, height: 30 };
     controller.resizeGlyph.frame = { x: 0, y: 0, width: 30, height: 30 };
     __DAGUANYUAN_IMPORT_REPORT_GLOBAL__.layout(controller);
@@ -171,6 +184,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     const tabs = [
       { name: "math", button: controller.homeButton },
       { name: "408", button: controller.os408Button },
+      { name: "import", button: controller.importButton },
       { name: "settings", button: controller.settingsButton },
     ];
     tabs.filter(function (tab) { return !!tab.button; }).forEach(function (tab) {
@@ -184,10 +198,17 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
   function setActivePage(controller, page) {
     if (!controller || !controller.webView || !controller.settingsPage || !controller.categoryManagerPage) return;
+    if (page !== 'import' && controller.importWorkspaceTask) __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__.close(controller);
+    if (page !== controller.activePage && controller.importTask) {
+      __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__.close(controller);
+    }
     if (page !== "settings") __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.cancelMode(controller);
+    if (page !== 'settings' && typeof __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__.cancel(controller);
     controller.activePage = page;
+    if (page === 'import' && controller.importReportView) controller.importReportView.hidden = true;
     const nativePage = page === "settings" || page === "category-manager";
-    controller.webView.hidden = nativePage;
+    controller.webView.hidden = nativePage || page === 'import';
+    if (controller.importWebView) controller.importWebView.hidden = page !== 'import';
     controller.settingsPage.hidden = page !== "settings";
     controller.categoryManagerPage.hidden = page !== "category-manager";
     if (page === "settings") {
@@ -203,6 +224,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       refreshSingleImportSetting(controller);
       refreshCategoryImportSetting(controller);
       refreshPreviousSetting(controller);
+      if (typeof __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.refresh(controller);
     } else if (page === "category-manager") {
       __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__.refresh(controller);
     }
@@ -301,6 +323,9 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
   function refreshSingleImportSetting(controller) {
     if (controller && controller.singleImportSwitch) controller.singleImportSwitch.on = singleImportVisible();
+    if (controller && controller.singleImportPositionValue) {
+      controller.singleImportPositionValue.text = __DAGUANYUAN_SINGLE_IMPORT_GLOBAL__.positionTitle(__DAGUANYUAN_SINGLE_IMPORT_GLOBAL__.position());
+    }
   }
 
   function refreshCategoryImportSetting(controller) {
@@ -317,7 +342,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     showPanel(controller);
     if (controller.currentContentPage === "math") setActivePage(controller, "math");
     else loadURL(controller, DAGUANYUAN_HOME_URL, "daguanyuan");
-    showMessage(controller, String(message || "请进入正确的大观园分类后点击“绑定当前分类”"));
+    showMessage(controller, String(message || "请进入正确的大观园分类后点击“绑定分类”"));
   }
 
   function setup(controller) {
@@ -346,6 +371,9 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.os408Button = button("408", controller, "open408:");
     controller.titleBar.addSubview(controller.os408Button);
 
+    controller.importButton = button("导入", controller, "openImport:");
+    controller.titleBar.addSubview(controller.importButton);
+
     controller.settingsButton = button("设置", controller, "openSettings:");
     controller.titleBar.addSubview(controller.settingsButton);
 
@@ -357,6 +385,13 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.webView.scalesPageToFit = true;
     controller.webView.delegate = controller;
     controller.containerView.addSubview(controller.webView);
+
+    controller.importWebView = new UIWebView({ x: 0, y: TITLE_HEIGHT, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT - TITLE_HEIGHT });
+    controller.importWebView.backgroundColor = UIColor.whiteColor();
+    controller.importWebView.scalesPageToFit = false;
+    controller.importWebView.delegate = controller;
+    controller.importWebView.hidden = true;
+    controller.containerView.addSubview(controller.importWebView);
 
     controller.settingsPage = new UIScrollView({ x: 0, y: TITLE_HEIGHT, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT - TITLE_HEIGHT });
     controller.settingsPage.backgroundColor = UIColor.colorWithWhiteAlpha(0.96, 1);
@@ -464,7 +499,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.bindCategoryDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
     controller.categorySettingsSection.addSubview(controller.bindCategoryDivider);
 
-    controller.bindCategoryTitle = label("显示绑定当前分类", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
+    controller.bindCategoryTitle = label("显示绑定分类", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
     controller.categorySettingsSection.addSubview(controller.bindCategoryTitle);
 
     controller.bindCategoryDescription = label("在数学与 408 页面显示绑定按钮", UIFont.systemFontOfSize(12), UIColor.grayColor());
@@ -540,7 +575,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.categoryImportSwitch.addTargetActionForControlEvents(controller, "toggleCategoryImportDisplay:", 1 << 12);
     controller.questionNavigationSettingsSection.addSubview(controller.categoryImportSwitch);
 
-    controller.questionToolsSettingsSection = new UIView({ x: 20, y: 920, width: DEFAULT_WIDTH - 40, height: 336 });
+    controller.questionToolsSettingsSection = new UIView({ x: 20, y: 920, width: DEFAULT_WIDTH - 40, height: 484 });
     controller.questionToolsSettingsSection.backgroundColor = UIColor.whiteColor();
     controller.questionToolsSettingsSection.layer.cornerRadius = 10;
     controller.questionToolsSettingsSection.layer.borderWidth = 0.5;
@@ -589,11 +624,29 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.questionToolsSettingsSection.addSubview(controller.singleImportDivider);
     controller.singleImportTitle = label("显示导入单题", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
     controller.questionToolsSettingsSection.addSubview(controller.singleImportTitle);
-    controller.singleImportDescription = label("将数学或 408 的一道题导入为所选卡片的子节点", UIFont.systemFontOfSize(12), UIColor.grayColor());
+    controller.singleImportDescription = label("按所选位置导入一道数学或 408 题", UIFont.systemFontOfSize(12), UIColor.grayColor());
     controller.questionToolsSettingsSection.addSubview(controller.singleImportDescription);
     controller.singleImportSwitch = new UISwitch({ x: DEFAULT_WIDTH - 108, y: 209, width: 51, height: 31 });
     controller.singleImportSwitch.addTargetActionForControlEvents(controller, "toggleSingleImportDisplay:", 1 << 12);
     controller.questionToolsSettingsSection.addSubview(controller.singleImportSwitch);
+
+    controller.singleImportPositionDivider = new UIView({ x: 20, y: 328, width: DEFAULT_WIDTH - 80, height: 1 });
+    controller.singleImportPositionDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
+    controller.questionToolsSettingsSection.addSubview(controller.singleImportPositionDivider);
+    controller.singleImportPositionTitle = label("导入单题位置", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
+    controller.questionToolsSettingsSection.addSubview(controller.singleImportPositionTitle);
+    controller.singleImportPositionDescription = label("选择题卡的插入位置", UIFont.systemFontOfSize(12), UIColor.grayColor());
+    controller.questionToolsSettingsSection.addSubview(controller.singleImportPositionDescription);
+    controller.singleImportPositionValue = label("", UIFont.systemFontOfSize(14), UIColor.grayColor());
+    controller.singleImportPositionValue.textAlignment = 2;
+    controller.questionToolsSettingsSection.addSubview(controller.singleImportPositionValue);
+    controller.singleImportPositionChevron = label("›", UIFont.systemFontOfSize(25), UIColor.grayColor());
+    controller.singleImportPositionChevron.textAlignment = 1;
+    controller.questionToolsSettingsSection.addSubview(controller.singleImportPositionChevron);
+    controller.singleImportPositionButton = button("", controller, "chooseSingleImportPosition:");
+    controller.questionToolsSettingsSection.addSubview(controller.singleImportPositionButton);
+    if (typeof __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.setup(controller);
+    if (typeof __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__.setup(controller);
 
     controller.previousTitle = label("显示上一张", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
     controller.focusSettingsSection.addSubview(controller.previousTitle);
@@ -639,6 +692,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   }
 
   function loadURL(controller, urlString, provider) {
+    if (controller.importTask) __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__.close(controller);
     const url = NSURL.URLWithString(urlString);
     if (!url) throw new Error("题库地址无效");
     const normalizedProvider = String(provider || "daguanyuan");
@@ -663,6 +717,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     const questionId = Number(route && route.questionId);
     const questionNumber = Number(route && route.questionNumber);
     const imported = Boolean(route && route.imported);
+    const offset = route && route.modern && !imported ? (route.page - 1) * route.pageSize : 0;
     const scope = JSON.stringify(String(route && route.scope || ""));
     return `(function () {
       var questionId = ${questionId};
@@ -705,6 +760,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
         if (!imported) {
           var scopeControl = document.querySelector('.learning-shell__scope-toggle[data-scope]');
           var activeScope = scopeControl ? String(scopeControl.getAttribute('data-scope') || '') : '';
+          if (window.location && window.location.search) activeScope = new URLSearchParams(window.location.search).get('scope') || activeScope;
           if (!activeScope) {
             try { activeScope = String(window.localStorage.getItem('daguan:question-bank-scope') || 'complete'); } catch (ignored) {}
           }
@@ -719,7 +775,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
         var target = imported
           ? document.querySelector('[data-learning-question-id="' + questionId + '"]')
             || document.querySelector('article.question-document[data-question-id="' + questionId + '"]')
-          : rows[questionNumber - 1];
+          : rows[questionNumber - ${offset} - 1];
         if (target) {
           finish("success");
           try {
@@ -742,7 +798,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
           lastClickedCount = loadedCount;
           loadMore.click();
         } else if (!loadMore && loadedCount > 0 && loadedCount !== lastScrollCount) {
-          var scroller = document.querySelector('[class*="practiceScroll"]');
+          var scroller = document.querySelector('[data-learning-immersive-scroll-owner="true"]') || document.querySelector('[class*="practiceScroll"]');
           if (scroller && scroller.scrollHeight > scroller.clientHeight) {
             lastScrollCount = loadedCount;
             scroller.scrollTop = scroller.scrollHeight - scroller.clientHeight;
@@ -789,6 +845,18 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   }
 
   function startDaguanyuanQuestionLocator(controller, route) {
+    // 旧题卡继续读取原链接，实际打开时转换成新版分类网址。
+    const category = Number(route.categoryId || (String(route.url).match(/[?&]resumeCategoryId=(\d+)/) || [])[1]
+      || (String(route.url).match(/\/practice\/(?:categories\/)?(\d+)/) || [])[1]);
+    if (category > 0) {
+      const page = route.imported ? 1 : Math.ceil(route.questionNumber / 30);
+      const query = 'scope=' + encodeURIComponent(route.imported ? 'complete' : route.scope) + '&page=' + page
+        + (route.imported ? '&questionId=' + route.questionId : '');
+      const url = route.imported ? 'https://www.cxyonly.fans/math/practice?listId=complete&categoryId=' + category + '&' + query
+        : 'https://www.cxyonly.fans/math/practice/categories/' + category + '?' + query;
+      route = Object.assign({}, route, { url: url,
+        modern: true, page: page, pageSize: 30 });
+    }
     controller.pendingQuestionLocator = route;
     showPanel(controller);
     loadURL(controller, route.url, "daguanyuan");
@@ -805,7 +873,8 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
         if (controller.currentContentPage !== "math" || !/^https:\/\/(?:www\.)?cxyonly\.fans\//i.test(String(current.url || ""))) {
           throw new Error("请先在数学题库选择完整、严选或真题范围");
         }
-        completion(null, __DAGUANYUAN_MATH_API_GLOBAL__.questionScope(current.scope));
+        const list = current.selection && current.selection.listId;
+        completion(null, __DAGUANYUAN_MATH_API_GLOBAL__.questionScope(list === 'core' || list === 'exam' ? list : current.scope));
       } catch (failure) { completion(failure); }
     });
   }
@@ -867,26 +936,29 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     }
   }
 
-  function showImportReport(controller, result) {
+  function showImportReport(controller, result, selectionTask) {
+    if (result.cancelled || selectionTask && (selectionTask !== controller.importTask || selectionTask.dismissed)) return;
     controller.lastCategoryImportReportText = __DAGUANYUAN_IMPORT_REPORT_GLOBAL__.textFor(result);
-    try {
-      __DAGUANYUAN_IMPORT_REPORT_GLOBAL__.show(controller, result);
-    } catch (error) {
-      console.log(`[Daguanyuan Bridge] 导入详情显示失败：${String(error && error.message || error)}`);
-      const failure = result.failed && result.failed[0];
-      showMessage(controller, failure
-        ? `导入失败（题目 ${failure.questionId}）：${failure.reason || "未返回错误原因"}`
-        : result.interrupted || "导入详情暂时无法显示");
+    function fallback(error) {
+      console.log(`[Daguanyuan Bridge] 网页结果显示失败：${String(error && error.message || error)}`);
+      try { __DAGUANYUAN_IMPORT_REPORT_GLOBAL__.show(controller, result); }
+      catch (failure) { showMessage(controller, controller.lastCategoryImportReportText); }
     }
+    try {
+      if (selectionTask) __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__.show(controller, result).catch(fallback);
+      else __DAGUANYUAN_IMPORT_REPORT_GLOBAL__.show(controller, result);
+    }
+    catch (error) { fallback(error); }
   }
 
-  function showCategoryImportResult(controller, result, emptyMessage) {
+  function showCategoryImportResult(controller, result, emptyMessage, selectionTask) {
+    if (selectionTask) { showImportReport(controller, result, selectionTask); return; }
     if (!result.total) { showMessage(controller, emptyMessage); return; }
     if (result.failed.length) { showImportReport(controller, result); return; }
-    showMessage(controller, `导入完成：新建 ${result.createdCount} 道，更新 ${result.updatedCount || 0} 道，跳过 ${result.skippedCount} 道，失败 0 道`);
+    showMessage(controller, `导入完成：新建 ${result.createdCount} 道，补答案 ${result.answerAddedCount || 0} 道，跳过 ${result.skippedCount} 道，失败 0 道`);
   }
 
-  function handleCategoryImport(controller) {
+  function handleCategoryImport(controller, selectionScope, fromToolbar) {
     if (controller.categoryImportBusy) return;
     if (controller.questionToolBusy) { finishCategoryImport(controller); showMessage(controller, "正在读取当前题目，请稍后导入"); return; }
     if (controller.singleImportBusy) {
@@ -894,24 +966,56 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       showMessage(controller, "正在导入单题，请稍后再导入整类题目");
       return;
     }
-    if (!categoryImportVisible() || ["math", "408"].indexOf(controller.currentContentPage) < 0) {
+    if ((!fromToolbar && !categoryImportVisible()) || ["math", "408"].indexOf(controller.currentContentPage) < 0) {
       showMessage(controller, "请在数学或 408 页开启导入当前题目");
       return;
     }
     controller.categoryImportBusy = true;
+    const selecting = fromToolbar && selectionScope === 'selected';
+    let selectionTask, beforeImport;
+    try {
+      if (selecting) {
+        selectionTask = __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__.begin(controller, "准备选题导入", 'selected');
+        beforeImport = __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__.confirmation(controller);
+      }
+    }
+    catch (error) { finishCategoryImport(controller); showMessage(controller, "无法打开导入确认框：" + String(error.message || error)); return; }
+    function report(result) { showImportReport(controller, result, selectionTask); }
+    function progress(value) {
+      if (selecting) __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__.progress(controller, value);
+      else showMessage(controller, `已处理 ${value.processed}/${value.total} 道：新建 ${value.created}，补答案 ${value.answerAdded || 0}，跳过 ${value.skipped}，失败 ${value.failed}`);
+    }
+    if (selecting) {
+      selectionTask.ready.then(function () {
+        beforeImport.check();
+        return __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__.evaluate(controller, 'window.__DAGUANYUAN_IMPORT_UI__.pageSnapshot()');
+      }).then(function (raw) {
+        beforeImport.check();
+        const page = JSON.parse(String(raw));
+        if (page.provider !== controller.currentContentPage) throw new Error('当前题库已切换，请重新打开选题导入');
+        return page.provider === 'math' ? __DAGUANYUAN_MATH_SELECTION_GLOBAL__.importPage(controller.addon, page, progress, beforeImport)
+          : __DAGUANYUAN_408_IMPORT_GLOBAL__.importCategory(controller, progress, null, beforeImport, page);
+      }).then(function (result) {
+        showCategoryImportResult(controller, result, '当前页面暂无可导入题目', selectionTask);
+      }).catch(function (failure) {
+        const result = failure.importResult || { failed: [] };
+        result.interrupted = String(failure.message || failure); report(result);
+      }).then(function () { finishCategoryImport(controller); }, function (failure) {
+        finishCategoryImport(controller); console.log('[Daguanyuan Bridge] 选题导入提示失败：' + String(failure.message || failure));
+      });
+      return;
+    }
     if (controller.currentContentPage === "408") {
       showMessage(controller, "正在读取当前 408 分类的全部题目…");
       Promise.resolve().then(function () {
-        return __DAGUANYUAN_408_IMPORT_GLOBAL__.importCategory(controller, function (progress) {
-          showMessage(controller, `已处理 ${progress.processed}/${progress.total} 道：新建 ${progress.created}，更新 ${progress.updated || 0}，跳过 ${progress.skipped}，失败 ${progress.failed}`);
-        });
+        return __DAGUANYUAN_408_IMPORT_GLOBAL__.importCategory(controller, progress, null, beforeImport);
       }).then(function (result) {
         if (result.failed.length) console.log(`[Daguanyuan Bridge] 408 导入失败详情：${__DAGUANYUAN_IMPORT_REPORT_GLOBAL__.textFor(result)}`);
-        showCategoryImportResult(controller, result, "当前 408 分类没有题目");
+        showCategoryImportResult(controller, result, "当前 408 分类没有题目", selectionTask);
       }).catch(function (failure) {
         const result = failure.importResult || { createdCount: 0, skippedCount: 0, failed: [] };
         result.interrupted = String(failure && failure.message || failure);
-        showImportReport(controller, result);
+        report(result);
       }).then(function () { finishCategoryImport(controller); }, function (failure) {
         finishCategoryImport(controller);
         console.log(`[Daguanyuan Bridge] 导入结束提示失败：${String(failure && failure.message || failure)}`);
@@ -924,13 +1028,13 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
         if (error) throw error;
         importContext = JSON.parse(String(contextJSON || ""));
       } catch (failure) {
-        showMessage(controller, "无法读取当前数学页面，请刷新后重试");
+        report({ interrupted: "无法读取当前数学页面，请刷新后重试", failed: [] });
         finishCategoryImport(controller);
         return;
       }
       const categoryId = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.categoryIdFromURL(importContext.url);
       if (!categoryId) {
-        showMessage(controller, "请先进入具体的数学题型分类");
+        report({ interrupted: "请先进入具体的数学题型分类", failed: [] });
         finishCategoryImport(controller);
         return;
       }
@@ -938,24 +1042,26 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       try {
         scope = __DAGUANYUAN_MATH_API_GLOBAL__.questionScope(importContext.scope);
       } catch (failure) {
-        showMessage(controller, String(failure && failure.message || failure));
+        report({ interrupted: String(failure && failure.message || failure), failed: [] });
         finishCategoryImport(controller);
         return;
       }
       const scopeName = { complete: "完整", core: "严选", exam: "真题" }[scope];
-      showMessage(controller, `正在按“${scopeName}”范围导入当前分类直接归属的题目…`);
+      showMessage(controller, `正在读取“${scopeName}”范围的题目列表…`);
       Promise.resolve().then(function () {
-        return __DAGUANYUAN_MATH_IMPORT_GLOBAL__.importCategory(controller.addon, categoryId, scope, function (progress) {
-          if (progress.phase === "importing") {
-            showMessage(controller, `已处理 ${progress.processed}/${progress.total} 道：新建 ${progress.created}，更新 ${progress.updated || 0}，跳过 ${progress.skipped}，失败 ${progress.failed}`);
+        return __DAGUANYUAN_MATH_IMPORT_GLOBAL__.importCategory(controller.addon, categoryId, scope, function (value) {
+          if (value.phase === "importing" || selecting && value.phase === "fetching") {
+            progress(value);
           }
-        });
+        }, beforeImport);
       }).then(function (result) {
         injectRetestButtons(controller);
         if (result.failed.length) console.log(`[Daguanyuan Bridge] 分类导入失败详情：${__DAGUANYUAN_IMPORT_REPORT_GLOBAL__.textFor(result)}`);
-        showCategoryImportResult(controller, result, "当前分类没有直接归属的题目");
+        showCategoryImportResult(controller, result, "当前分类没有直接归属的题目", selectionTask);
       }).catch(function (failure) {
-        showMessage(controller, String(failure && failure.message || failure));
+        const result = failure.importResult || { failed: [] };
+        result.interrupted = String(failure && failure.message || failure);
+        report(result);
       }).then(function () { finishCategoryImport(controller); }, function (failure) {
         finishCategoryImport(controller);
         console.log(`[Daguanyuan Bridge] 导入结束提示失败：${String(failure && failure.message || failure)}`);
@@ -1002,8 +1108,9 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       const target = __DAGUANYUAN_SINGLE_IMPORT_GLOBAL__.targetFromAddress(address);
       if (target.provider !== controller.currentContentPage) throw new Error("题库页面已切换，请重新点击导入单题");
       controller.singleImportBusy = true;
-      const operation = __DAGUANYUAN_SINGLE_IMPORT_GLOBAL__.importQuestion(controller, target);
-      showMessage(controller, "正在将此题导入为所选卡片的子节点…");
+      const position = __DAGUANYUAN_SINGLE_IMPORT_GLOBAL__.position();
+      const operation = __DAGUANYUAN_SINGLE_IMPORT_GLOBAL__.importQuestion(controller, target, position);
+      showMessage(controller, position === "sibling" ? "正在将此题导入为所选卡片的同级节点…" : "正在将此题导入为所选卡片的子节点…");
       operation.then(function (result) {
         showCategoryImportResult(controller, result, "没有可导入的题目");
       }).catch(function (error) {
@@ -1093,6 +1200,9 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   }
 
   function injectWebsiteButtons(controller) {
+    if (typeof __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__ !== 'undefined') {
+      __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__.inject(controller).catch(function (error) { console.log('[Daguanyuan Bridge] 导入界面加载失败：' + error.message); });
+    }
     injectWebsiteLocateButtons(controller);
     injectBindCategoryButton(controller);
     injectSingleImportButtons(controller);
@@ -1187,6 +1297,24 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.selectMode(self, Number(sender && sender.tag), sender);
     },
 
+    chooseSingleImportPosition: function () {
+      const controller = self;
+      try {
+        __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.chooseOption(controller, "导入单题位置",
+          ["child", "sibling"], ["所选卡片的子节点", "所选卡片的同级节点"],
+          __DAGUANYUAN_SINGLE_IMPORT_GLOBAL__.position(), "selectSingleImportPosition:", function (requested) {
+            try {
+              __DAGUANYUAN_SINGLE_IMPORT_GLOBAL__.setPosition(requested);
+              refreshSingleImportSetting(controller);
+            } catch (error) { showMessage(controller, String(error && error.message || error)); }
+          });
+      } catch (error) { showMessage(controller, String(error && error.message || error)); }
+    },
+
+    selectSingleImportPosition: function (sender) {
+      __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.selectMode(self, Number(sender && sender.tag), sender);
+    },
+
     openDaguanyuan: function () {
       if (self.currentContentPage === "math") setActivePage(self, "math");
       else loadURL(self, DAGUANYUAN_HOME_URL, "daguanyuan");
@@ -1195,6 +1323,17 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     open408: function () {
       if (self.currentContentPage === "408") setActivePage(self, "408");
       else loadURL(self, OS408_HOME_URL, "408os");
+    },
+
+    openImport: function () {
+      setActivePage(self, 'import');
+      if (self.importReportView) self.importReportView.hidden = true;
+      if (!self.importWorkspaceLoaded) {
+        self.importWorkspaceLoaded = true;
+        self.importWebView.loadHTMLStringBaseURL(__DAGUANYUAN_IMPORT_WORKSPACE_HTML__, null);
+      } else {
+        self.importWebView.evaluateJavaScript('window.__DAGUANYUAN_IMPORT_WORKSPACE__&&window.__DAGUANYUAN_IMPORT_WORKSPACE__.resume()', function () {});
+      }
     },
 
     openSettings: function (sender) {
@@ -1220,6 +1359,11 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     closeCategoryManager: function (sender) {
       setActivePage(self, "settings");
     },
+
+    repairImportedCards: function (sender) { __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__.repair(self); },
+    toggleMasteryMarking: function () { __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.toggle(self); },
+    confirmCardRepair: function (sender) { __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__.confirm(self, sender); },
+    cancelCardRepair: function (sender) { __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__.cancel(self); },
 
     updateCategoryCatalog: function (sender) {
       __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__.setUpdating(self, true);
@@ -1422,6 +1566,22 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
     webViewShouldStartLoadWithRequestNavigationType: function (webView, request) {
       const address = requestAddress(request);
+      if (webView === self.import408Worker) return /^https:\/\/www\.408os\.cn\//.test(address) || address === 'about:blank';
+      if (webView === self.importWebView) {
+        if (/^daguanyuanbridge:\/\/ui\?/.test(address)) {
+          __DAGUANYUAN_WEB_BRIDGE_COMMANDS_GLOBAL__.handle({ controller: self, webView, isImportWorkspace: true }, address);
+          return false;
+        }
+        return !address || address === 'about:blank';
+      }
+      if (webView === self.webView && /^daguanyuanbridge:\/\/ui\?/.test(address)) {
+        const controller = self;
+        __DAGUANYUAN_WEB_BRIDGE_COMMANDS_GLOBAL__.handle({ controller,
+          openCategory: function (scope) { handleCategoryImport(controller, scope, true); },
+          bindCategory: function () { bindCurrentCategory(controller); },
+        }, address);
+        return false;
+      }
       if (webView === self.webView && /^daguanyuanbridge:\/\/import-single\?/i.test(address)) {
         handleSingleImport(self, address);
         return false;
@@ -1475,6 +1635,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     },
 
     webViewDidFinishLoad: function (webView) {
+      if (webView === self.import408Worker) { __DAGUANYUAN_408_WORKSPACE_GLOBAL__.loaded(self, webView); return; }
       if (webView === self.webView) {
         injectVideoPopupCompatibility(self);
         injectWebsiteButtons(self);
@@ -1491,6 +1652,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       const errorCodeValue = error && error.code;
       const errorCode = Number(typeof errorCodeValue === "function" ? errorCodeValue.call(error) : errorCodeValue);
       if (errorCode === -999) return;
+      if (webView === self.import408Worker) { __DAGUANYUAN_408_WORKSPACE_GLOBAL__.failed(self, webView, error); return; }
       console.log(`[Daguanyuan Bridge] 页面加载失败：${error && error.localizedDescription || error}`);
     },
 
