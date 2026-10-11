@@ -1,5 +1,9 @@
 node_modules/
 dist/
+dist-test/
+dist-release/
+src/web-dist/
+docs/previews/
 *.mnaddon
 .DS_Store
 *.gitignore.tmp
