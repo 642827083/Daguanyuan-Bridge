@@ -1588,7 +1588,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       }
       if (webView === self.webView && __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__.handles(address)) {
         const controller = self;
-        const opened = __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__.open(address, function (message) { showMessage(controller, message); });
+        const opened = __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__.open(address, function (message) { showMessage(controller, message); }, controller.addon.window);
         if (opened) performClosePanel(controller);
         return false;
       }

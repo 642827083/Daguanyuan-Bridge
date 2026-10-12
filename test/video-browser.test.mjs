@@ -6,11 +6,109 @@ import vm from "node:vm";
 const source = readFileSync(new URL("../src/DaguanyuanVideoBrowser.js", import.meta.url), "utf8");
 const panelSource = readFileSync(new URL("../src/WebPanelController.js", import.meta.url), "utf8");
 
-function nativeBrowser(mnUtil) {
-  const context = { MNUtil: mnUtil };
+function nativeBrowser(mnUtil, globals = {}) {
+  const context = { MNUtil: mnUtil, ...globals };
   vm.runInNewContext(source, context);
   return context.__DAGUANYUAN_VIDEO_BROWSER_GLOBAL__;
 }
+
+function browserWindow(hidden, miniMode, options = {}) {
+  const events = [];
+  const frame = { x: 20, y: 40, width: 419, height: 450 };
+  const view = { hidden, frame: miniMode ? { x: 20, y: 40, width: 40, height: 40 } : { ...frame }, subviews: [] };
+  const webview = { hidden: miniMode, evaluateJavaScript() {} };
+  const controller = {
+    view, webview, miniMode, isMainWindow: options.secondary !== true, lastFrame: { ...frame },
+    setWebMode() {}, toMinimode() {}, openOrJump() {},
+    show(beginFrame, endFrame) {
+      events.push("restore");
+      if (options.restoreError) throw Error("恢复失败");
+      this.miniMode = false; view.hidden = false; webview.hidden = false;
+      if (endFrame) { view.frame = { ...endFrame }; endFrame.x = 0; }
+    },
+  };
+  webview.delegate = controller; view.subviews.push(webview);
+  const studyView = { subviews: [view], bringSubviewToFront(target) { assert.equal(target, view); events.push("front"); } };
+  const mnUtil = { studyView, postNotification(name, payload) {
+    events.push({ name, payload: JSON.parse(JSON.stringify(payload)) });
+    // 对照 MNBrowser 0.2.6：通知加载网址后，仅在窗口隐藏时调用展开方法。
+    webview.url = payload.url;
+    if (view.hidden) controller.show();
+  } };
+  return { events, frame, view, webview, controller, studyView, mnUtil };
+}
+
+test("视频跳转恢复最小化的 MNBrowser 主窗口，并保留原尺寸、分 P 和起播时间", () => {
+  const run = browserWindow(false, true);
+  const browser = nativeBrowser(run.mnUtil);
+  assert.equal(browser.open("bilibili://video/BV164411o7Qo?page=80&start_progress=12000", assert.fail), true);
+  assert.equal(run.controller.miniMode, false);
+  assert.equal(run.webview.hidden, false);
+  assert.equal(run.view.hidden, false);
+  assert.deepEqual(run.view.frame, run.frame);
+  assert.deepEqual(run.controller.lastFrame, run.frame);
+  assert.deepEqual(run.events, ["restore", "front", { name: "openInBrowser", payload: {
+    url: "https://www.bilibili.com/video/BV164411o7Qo/?p=81&t=12", desktop: true,
+  } }]);
+});
+
+test("已展开和已关闭的 MNBrowser 沿用原来的通知逻辑", () => {
+  for (const hidden of [false, true]) {
+    const run = browserWindow(hidden, false), browser = nativeBrowser(run.mnUtil);
+    assert.equal(browser.open("bilibili://video/BV164411o7Qo", assert.fail), true);
+    assert.equal(run.controller.miniMode, false);
+    assert.equal(run.view.hidden, false);
+    assert.equal(run.events.filter(event => event === "restore").length, hidden ? 1 : 0);
+    assert.deepEqual(run.view.frame, run.frame);
+  }
+});
+
+test("不恢复 MNBrowser 副窗口或其他插件的最小化面板", () => {
+  for (const otherPlugin of [false, true]) {
+    const run = browserWindow(false, true, { secondary: !otherPlugin });
+    if (otherPlugin) delete run.controller.toMinimode;
+    const browser = nativeBrowser(run.mnUtil);
+    assert.equal(browser.open("bilibili://video/BV164411o7Qo", assert.fail), true);
+    assert.equal(run.controller.miniMode, true);
+    assert.equal(run.events.length, 1);
+  }
+});
+
+test("恢复最小化窗口失败时显示错误，不将跳转报告为成功", () => {
+  const run = browserWindow(false, true, { restoreError: true }), browser = nativeBrowser(run.mnUtil);
+  let message;
+  assert.equal(browser.open("bilibili://video/BV164411o7Qo", value => { message = value; }), false);
+  assert.match(message, /恢复失败/);
+  assert.equal(run.events.some(event => event && event.name === "openInBrowser"), false);
+});
+
+test("只从发起跳转的活动窗口获取 MNBrowser，不展开其他窗口", () => {
+  const active = browserWindow(false, true), other = browserWindow(false, true);
+  const targetWindow = {}, inactiveWindow = {};
+  const globals = { Application: { sharedInstance() { return {
+    focusWindow: targetWindow,
+    studyController(window) { assert.equal(window, targetWindow); return { view: active.studyView }; },
+  }; } } };
+  active.mnUtil.studyView = other.studyView;
+  const browser = nativeBrowser(active.mnUtil, globals);
+  assert.equal(browser.open("bilibili://video/BV164411o7Qo", assert.fail, targetWindow), true);
+  assert.equal(active.controller.miniMode, false);
+  assert.equal(other.controller.miniMode, true);
+  active.controller.miniMode = true;
+  assert.equal(browser.open("bilibili://video/BV164411o7Qo", assert.fail, inactiveWindow), true);
+  assert.equal(active.controller.miniMode, true);
+  assert.equal(other.controller.miniMode, true);
+});
+
+test("原窗口位置失效时提示手动展开，避免恢复为错误尺寸", () => {
+  const run = browserWindow(false, true), browser = nativeBrowser(run.mnUtil);
+  run.controller.lastFrame.width = 0;
+  let message;
+  assert.equal(browser.open("bilibili://video/BV164411o7Qo", value => { message = value; }), false);
+  assert.match(message, /原窗口位置不可用/);
+  assert.equal(run.controller.miniMode, true);
+  assert.deepEqual(run.events, []);
+});
 
 function webPage(browser) {
   const frames = [];

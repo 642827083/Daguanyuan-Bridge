@@ -39,7 +39,52 @@ var __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__ = (function () {
       /^bilibili:\/\/video\//i.test(String(address || ""));
   }
 
-  function open(address, reportError) {
+  function studyView(targetWindow) {
+    if (targetWindow && typeof Application !== "undefined" && Application &&
+        typeof Application.sharedInstance === "function") {
+      const app = Application.sharedInstance();
+      // MNBrowser 只接收活动窗口的通知，不能提前展开另一个窗口里的浏览器。
+      if (app.focusWindow && app.focusWindow !== targetWindow) return null;
+      if (typeof app.studyController === "function") {
+        const study = app.studyController(targetWindow);
+        return study && study.view;
+      }
+    }
+    return MNUtil.studyView;
+  }
+
+  function restoreMinimizedBrowser(targetWindow) {
+    const root = studyView(targetWindow);
+    const panels = root && root.subviews;
+    if (!panels) return;
+    // 兼容 MNBrowser 0.2.6 的主窗口结构；通过网页代理核对所属面板，避免操作其他插件。
+    for (let i = 0; i < panels.length; i++) {
+      const panel = panels[i];
+      const children = panel && panel.subviews;
+      if (!children) continue;
+      for (let j = 0; j < children.length; j++) {
+        const webview = children[j];
+        if (!webview || typeof webview.evaluateJavaScript !== "function") continue;
+        const controller = webview.delegate;
+        if (!controller || controller.view !== panel || controller.webview !== webview ||
+            controller.isMainWindow !== true || typeof controller.toMinimode !== "function" ||
+            typeof controller.openOrJump !== "function" || typeof controller.setWebMode !== "function" ||
+            typeof controller.show !== "function" || controller.miniMode !== true) continue;
+        const saved = controller.lastFrame;
+        if (!saved || !Number.isFinite(saved.x) || !Number.isFinite(saved.y) ||
+            !Number.isFinite(saved.width) || !Number.isFinite(saved.height) ||
+            saved.width <= 0 || saved.height <= 0) {
+          throw new Error("MN Browser 的原窗口位置不可用，请先手动展开窗口后重试");
+        }
+        // 展开方法会调整传入矩形，复制保存的位置，防止覆盖浏览器自己的恢复记录。
+        controller.show(panel.frame, { x: saved.x, y: saved.y, width: saved.width, height: saved.height });
+        if (typeof root.bringSubviewToFront === "function") root.bringSubviewToFront(panel);
+        return;
+      }
+    }
+  }
+
+  function open(address, reportError, targetWindow) {
     const url = videoURL(address);
     if (!url) {
       reportError("视频地址无效，未打开 MN Browser");
@@ -53,6 +98,7 @@ var __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__ = (function () {
       const payload = { url };
       // 完整视频页使用桌面模式，避免进入移动端或嵌入式播放器。
       if (/^https:\/\/www\.bilibili\.com\/video\/BV[0-9A-Za-z]+\//i.test(url)) payload.desktop = true;
+      restoreMinimizedBrowser(targetWindow);
       MNUtil.postNotification("openInBrowser", payload);
       return true;
     } catch (error) {
