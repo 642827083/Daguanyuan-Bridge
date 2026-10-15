@@ -48,7 +48,7 @@ function runtime(options = {}) {
   return { panel, calls, messages, scripts, stored, timers, api: context.__DAGUANYUAN_WEB_PANEL_GLOBAL__,
     send(command) { return methods.webViewShouldStartLoadWithRequestNavigationType(panel.webView, { URL: { absoluteString: 'daguanyuanbridge://' + command + '?payload=' + encodeURIComponent(JSON.stringify(target)) } }); },
     complete() { resolve({ ...target, id: 843 }); }, fail() { reject(Error('题目读取失败')); },
-    sendMath() { return methods.webViewShouldStartLoadWithRequestNavigationType(panel.webView, { URL: { absoluteString: 'daguanyuanbridge://locate-card?id=3356' } }); },
+    sendMath(command = 'locate-card') { return methods.webViewShouldStartLoadWithRequestNavigationType(panel.webView, { URL: { absoluteString: 'daguanyuanbridge://' + command + '?id=3356' } }); },
     completeLocate(error) { if (error) locateReject(Error(error)); else locateResolve({ noteId: 'target' }); },
   };
 }
@@ -124,31 +124,33 @@ test('408 读取失败、导入锁及添加笔记不收起面板', async () => {
       assert.equal(run.calls.some(c => c[0] === 'hide'), false);
     }
   }
-  const note = runtime(); note.send('add-note'); note.complete(); await tick();
+  const note = runtime(); note.send('add-note'); await tick();
+  assert.equal(note.calls.length, 0); assert.equal(note.messages.at(-1), '添加笔记暂不可用');
   assert.equal(note.panel.panelVisible, true); assert.equal(note.panel.view.hidden, false);
 });
 
-test('408 添加笔记接入自身粘贴模块，独立开关和导入锁生效', async () => {
-  const run = runtime({ locate: false }); run.send('add-note'); run.complete(); await tick();
-  assert.deepEqual(run.calls[1], ['note', { ...target, id: 843 }]);
-  assert.match(run.messages.at(-1), /等待 408 网站保存/);
-  for (const lock of ['categoryImportBusy', 'singleImportBusy']) {
-    const busy = runtime(); busy.panel[lock] = true; busy.send('add-note');
-    assert.equal(busy.calls.length, 0); assert.match(busy.messages.at(-1), /请稍后重试/);
-    assert.match(busy.scripts.at(-1), /finishNotePaste/);
+test('旧版开启状态也无法触发数学或 408 添加笔记，定位卡片仍受独立开关控制', async () => {
+  for (const provider of ['math', '408']) {
+    const run = runtime({ note: true });
+    if (provider === 'math') {
+      run.panel.currentContentPage = run.panel.activePage = 'math';
+      run.sendMath('add-note');
+    } else run.send('add-note');
+    await tick();
+    assert.equal(run.calls.length, 0);
+    assert.equal(run.panel.questionToolBusy, undefined);
+    assert.equal(run.messages.at(-1), '添加笔记暂不可用');
+    assert.match(run.scripts.at(-1), /finishNotePaste/);
+    assert.equal(run.panel.panelVisible, true);
   }
-  for (const [command, setting] of [['locate-card', 'locate'], ['add-note', 'note']]) {
-    const off = runtime({ [setting]: false }); off.send(command);
-    assert.equal(off.calls.length, 0); assert.match(off.messages.at(-1), /开关/);
-  }
+  const off = runtime({ locate: false }); off.send('locate-card');
+  assert.equal(off.calls.length, 0); assert.match(off.messages.at(-1), /开关/);
 });
 
-test('408 工具读取失败或空剪贴板时恢复按钮并返回原因', async () => {
+test('408 定位卡片读取失败时恢复按钮并返回原因', async () => {
   const lookup = runtime(); lookup.send('locate-card'); lookup.fail(); await tick();
   assert.equal(lookup.panel.questionToolBusy, false); assert.match(lookup.scripts.at(-1), /finishLocate/);
   assert.equal(lookup.messages.at(-1), '题目读取失败');
-  const empty = runtime({ noImage: true }); empty.send('add-note'); empty.complete(); await tick();
-  assert.match(empty.scripts.at(-1), /finishNotePaste/); assert.equal(empty.messages.at(-1), '剪贴板中没有图片');
 });
 
 test('数学、复测和 408 按钮等待异步定位结束，不提前提示成功或恢复按钮', async () => {

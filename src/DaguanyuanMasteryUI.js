@@ -125,8 +125,8 @@ var __DAGUANYUAN_MASTERY_UI_GLOBAL__ = (function () {
     hide(addon);
     function message(text) { if (addon.panelController && active(addon)) __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.showMessage(addon, text); }
     message('正在同步“' + choice.title + '”…');
-    __DAGUANYUAN_MASTERY_SYNC_GLOBAL__.save(addon, selected, choice.value).then(function () {
-      message('已同步到大观园：' + choice.title);
+    __DAGUANYUAN_MASTERY_SYNC_GLOBAL__.save(addon, selected, choice.value).then(function (result) {
+      message(result && result.mode === 'retest' ? '已记录本次复测：' + choice.title : '已同步到大观园：' + choice.title);
     }, function (error) { message(String(error.message || error)); }).then(function () {
       (addon.__daguanyuanMasteryButtons || []).forEach(function (button) { button.enabled = true; });
     });

@@ -278,9 +278,9 @@ test("核心模块从题卡直属父节点向上收集完整分类路径", () =>
   assert.deepEqual(Array.from(context.__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.categoryPath(question)), ["高等数学", "（一）极限", "函数"]);
 });
 
-test("设置页拆分题型导航大类并提供默认关闭的快捷跳转开关", () => {
+test("设置页提供题型工具大类并提供默认关闭的快捷跳转开关", () => {
   assert.match(panelSource, /controller\.categorySettingsSection = new UIView/);
-  assert.match(panelSource, /controller\.categorySectionTitle = label\("题型导航"/);
+  assert.match(panelSource, /controller\.categorySectionTitle = label\("题型工具"/);
   assert.match(panelSource, /controller\.categoryJumpTitle = label\("题型分类快捷跳转"/);
   assert.match(panelSource, /controller\.categoryJumpSwitch\.addTargetActionForControlEvents\(controller, "toggleCategoryJump:"/);
   assert.match(panelSource, /toggleCategoryJump: function/);
@@ -299,8 +299,8 @@ test("题型按钮点击通过独立路由模块在插件面板中打开分类",
   assert.match(panelSource, /openDaguanyuanCategory\(controller, urlString\)/);
 });
 
-test("题目导航提供定位开关并复用题型绑定和同级进度", () => {
-  assert.match(panelSource, /controller\.questionNavigationSectionTitle = label\("题目导航"/);
+test("题目工具提供定位开关并复用题型绑定和同级进度", () => {
+  assert.match(panelSource, /controller\.questionToolsTitle = label\("题目工具"/);
   assert.match(panelSource, /controller\.questionLocatorTitle = label\("显示定位题目"/);
   assert.match(panelSource, /controller\.questionLocatorSwitch\.addTargetActionForControlEvents\(controller, "toggleQuestionLocator:"/);
   assert.match(coreSource, /question-navigation\.locator-enabled/);

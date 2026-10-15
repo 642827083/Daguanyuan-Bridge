@@ -19,7 +19,7 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
       var selectedURL = new URL(target.url);
       selectedURL.hash = "";
       selectedURL.searchParams.delete("questionId");
-      if (selectedURL.toString() !== startURL.toString()) throw new Error("当前 408 分类已切换，请重新点击导入单题");
+      if (selectedURL.toString() !== startURL.toString()) throw new Error("当前 408 分类已切换，请重新点击导入本题");
     }
     var category = {
       title: collectionMode ? startURL.searchParams.get("collectionName") || "题本"

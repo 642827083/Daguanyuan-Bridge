@@ -31,11 +31,15 @@ legend { width: 100%; margin-bottom: 10px; font-size: 13px; font-weight: 700; }
 .scope-tabs button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: white; }
 .organization-hint { margin-bottom: 20px; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .knowledge-node .knowledge-tree { padding-left: 13px; }
-.knowledge-row { position: relative; min-height: 36px; padding: 7px 28px 7px 4px; cursor: pointer; font-size: 13px; line-height: 1.5; }
-summary.knowledge-row { display: list-item; margin-left: 13px; }
+.knowledge-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) 28px; align-items: center; min-height: 36px; font-size: 13px; line-height: 1.5; }
 .knowledge-row:hover { background: #e7e9e5; border-radius: 5px; }
-.knowledge-name { overflow-wrap: anywhere; }
-.knowledge-check { position: absolute; right: 0; top: 3px; display: flex; align-items: center; min-height: 30px; padding: 4px; }
+.knowledge-row.is-selected { background: #e7e9e5; border-radius: 5px; }
+.knowledge-toggle, .knowledge-name { min-height: 36px; border: 0; border-radius: 5px; background: transparent; color: inherit; font: inherit; }
+.knowledge-toggle { display: flex; align-items: center; justify-content: center; width: 24px; padding: 0; }
+.knowledge-chevron { flex: none; width: 14px; color: var(--muted); font-size: 19px; line-height: 1; transform: rotate(0deg); transition: transform 160ms ease; }
+.knowledge-toggle[aria-expanded="true"] .knowledge-chevron { transform: rotate(90deg); }
+.knowledge-name { min-width: 0; padding: 7px 4px; text-align: left; overflow-wrap: anywhere; }
+.knowledge-check { display: flex; align-items: center; justify-content: center; min-height: 36px; padding: 4px; }
 input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); }
 .chip-list { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; color: var(--muted); }
 .filter-chip { display: flex; align-items: center; gap: 5px; padding: 5px 7px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: white; }

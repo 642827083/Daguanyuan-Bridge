@@ -120,7 +120,7 @@ test('单题导入位置默认子节点，设置持久化并拒绝无效选项',
   run.importer.setPosition('sibling');
   assert.equal(run.importer.position(), 'sibling');
   assert.equal(run.stored.get('cn.marginnote.daguanyuan-bridge.question-tools.single-import-position'), 'sibling');
-  assert.throws(() => run.importer.setPosition('invalid'), /导入单题位置无效/);
+  assert.throws(() => run.importer.setPosition('invalid'), /导入本题位置无效/);
   assert.equal(run.importer.position(), 'sibling');
 });
 
@@ -390,7 +390,7 @@ test('原生单题开关默认关闭，持久化开启后导入成功并恢复�
   const run = panelRuntime();
   run.context.__DAGUANYUAN_IMPORT_SELECTION_GLOBAL__.begin = () => { throw Error('原单题入口不得打开选题界面'); };
   assert.equal(run.send(math), false); assert.equal(run.requests.length, 0);
-  assert.match(run.messages.at(-1), /开启显示导入单题/);
+  assert.match(run.messages.at(-1), /开启显示导入本题/);
   run.methods.toggleSingleImportDisplay({ on: true });
   assert.equal(run.stored.get('cn.marginnote.daguanyuan-bridge.question-tools.import-single-visible'), true);
   run.send(math); assert.equal(run.panel.singleImportBusy, true); run.complete();

@@ -8,7 +8,7 @@ var __DAGUANYUAN_SINGLE_IMPORT_GLOBAL__ = (function () {
   }
 
   function setPosition(requested) {
-    if (requested !== "child" && requested !== "sibling") throw new Error("导入单题位置无效");
+    if (requested !== "child" && requested !== "sibling") throw new Error("导入本题位置无效");
     NSUserDefaults.standardUserDefaults().setObjectForKey(requested, POSITION_KEY);
   }
 
@@ -21,10 +21,10 @@ var __DAGUANYUAN_SINGLE_IMPORT_GLOBAL__ = (function () {
     const target = match && JSON.parse(decodeURIComponent(match[1]));
     if (!target || typeof target.url !== "string") throw new Error("单题导入参数无效");
     if (target.provider === "math") {
-      if (!/^https:\/\/(?:www\.)?cxyonly\.fans\/math\/(?:practice(?:\/(?:categories\/)?[1-9]\d*)?|questions\/[1-9]\d*|paper)\/?(?:[?#][^\s<>]*)?$/.test(target.url)) throw new Error("请在数学题目页导入单题");
+      if (!/^https:\/\/(?:www\.)?cxyonly\.fans\/math\/(?:practice(?:\/(?:categories\/)?[1-9]\d*)?|questions\/[1-9]\d*|paper)\/?(?:[?#][^\s<>]*)?$/.test(target.url)) throw new Error("请在数学题目页导入本题");
       target.id = __DAGUANYUAN_MATH_API_GLOBAL__.positiveInteger(target.id, "题目 ID");
     } else if (target.provider === "408") {
-      if (!/^https:\/\/www\.408os\.cn\/exercise\?/.test(target.url)) throw new Error("请在 408 题目页导入单题");
+      if (!/^https:\/\/www\.408os\.cn\/exercise\?/.test(target.url)) throw new Error("请在 408 题目页导入本题");
       target.year = __DAGUANYUAN_MATH_API_GLOBAL__.positiveInteger(target.year, "题目年份");
       target.number = __DAGUANYUAN_MATH_API_GLOBAL__.positiveInteger(target.number, "题号");
     } else throw new Error("题目来源无效");

@@ -5,7 +5,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   const PANEL_KEY = "cn.marginnote.daguanyuan-bridge.panel-visible";
   const WEBSITE_LOCATE_KEY = "cn.marginnote.daguanyuan-bridge.question-navigation.website-locate-card-visible";
   const CATEGORY_IMPORT_KEY = "cn.marginnote.daguanyuan-bridge.question-navigation.import-category-visible";
-  const NOTE_ADD_KEY = "cn.marginnote.daguanyuan-bridge.question-tools.add-note-visible";
+  const SELECTION_IMPORT_KEY = "cn.marginnote.daguanyuan-bridge.question-tools.import-selection-visible";
   const SINGLE_IMPORT_KEY = "cn.marginnote.daguanyuan-bridge.question-tools.import-single-visible";
   const TITLE_HEIGHT = 38;
   const DEFAULT_WIDTH = 960;
@@ -75,30 +75,12 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.webView.frame = contentFrame;
     controller.importWebView.frame = contentFrame;
     controller.settingsPage.frame = contentFrame;
-    controller.settingsPage.contentSize = { width: contentFrame.width, height: Math.max(contentFrame.height + 1, 1544) };
+    controller.settingsPage.contentSize = { width: contentFrame.width, height: Math.max(contentFrame.height + 1, 1200) };
     __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__.layout(controller, contentFrame);
-    controller.focusSettingsSection.frame = { x: 20, y: 18, width: sectionWidth, height: 336 };
-    controller.categorySettingsSection.frame = { x: 20, y: 366, width: sectionWidth, height: 336 };
-    controller.questionNavigationSettingsSection.frame = { x: 20, y: 714, width: sectionWidth, height: 194 };
-    controller.questionToolsSettingsSection.frame = { x: 20, y: 920, width: sectionWidth, height: 406 };
+    controller.categorySettingsSection.frame = { x: 20, y: 18, width: sectionWidth, height: 336 };
+    controller.questionToolsSettingsSection.frame = { x: 20, y: 366, width: sectionWidth, height: 616 };
     if (typeof __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.layout(controller, sectionWidth);
-    controller.focusSectionTitle.frame = { x: 20, y: 12, width: Math.max(0, sectionWidth - 40), height: 28 };
-    controller.focusDivider.frame = { x: 20, y: 48, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.focusEnabledTitle.frame = { x: 20, y: 61, width: Math.max(0, sectionWidth - 110), height: 24 };
-    controller.focusEnabledDescription.frame = { x: 20, y: 87, width: Math.max(0, sectionWidth - 110), height: 18 };
-    controller.focusEnabledSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 69, width: 51, height: 31 };
-    controller.focusOptionDivider.frame = { x: 20, y: 118, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.crossLevelTitle.frame = { x: 20, y: 131, width: Math.max(0, sectionWidth - 110), height: 24 };
-    controller.crossLevelDescription.frame = { x: 20, y: 157, width: Math.max(0, sectionWidth - 110), height: 18 };
-    controller.crossLevelSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 139, width: 51, height: 31 };
-    controller.crossLevelDivider.frame = { x: 20, y: 188, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.progressTitle.frame = { x: 20, y: 201, width: Math.max(0, sectionWidth - 110), height: 24 };
-    controller.progressDescription.frame = { x: 20, y: 227, width: Math.max(0, sectionWidth - 110), height: 18 };
-    controller.progressSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 209, width: 51, height: 31 };
-    controller.progressDivider.frame = { x: 20, y: 258, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.previousTitle.frame = { x: 20, y: 271, width: Math.max(0, sectionWidth - 110), height: 24 };
-    controller.previousDescription.frame = { x: 20, y: 297, width: Math.max(0, sectionWidth - 110), height: 18 };
-    controller.previousSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 279, width: 51, height: 31 };
+    if (typeof __DAGUANYUAN_PLUGIN_INTEGRATION_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_PLUGIN_INTEGRATION_SETTINGS_GLOBAL__.layout(controller, sectionWidth);
     controller.categorySectionTitle.frame = { x: 20, y: 12, width: Math.max(0, sectionWidth - 40), height: 28 };
     controller.categorySectionDivider.frame = { x: 20, y: 48, width: Math.max(0, sectionWidth - 40), height: 1 };
     controller.categoryTitle.frame = { x: 20, y: 61, width: Math.max(0, sectionWidth - 110), height: 24 };
@@ -117,40 +99,43 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.categoryManageDescription.frame = { x: 20, y: 297, width: Math.max(0, sectionWidth - 90), height: 18 };
     controller.categoryManageChevron.frame = { x: Math.max(20, sectionWidth - 52), y: 273, width: 30, height: 36 };
     controller.categoryManageButton.frame = { x: 0, y: 259, width: sectionWidth, height: 76 };
-    controller.questionNavigationSectionTitle.frame = { x: 20, y: 12, width: Math.max(0, sectionWidth - 40), height: 28 };
-    controller.questionNavigationDivider.frame = { x: 20, y: 48, width: Math.max(0, sectionWidth - 40), height: 1 };
     controller.questionLocatorTitle.frame = { x: 20, y: 61, width: Math.max(0, sectionWidth - 110), height: 24 };
     controller.questionLocatorDescription.frame = { x: 20, y: 87, width: Math.max(0, sectionWidth - 110), height: 18 };
     controller.questionLocatorSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 69, width: 51, height: 31 };
-    controller.websiteLocateDivider.frame = { x: 20, y: 118, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.websiteLocateTitle.frame = { x: 20, y: 61, width: Math.max(0, sectionWidth - 110), height: 24 };
-    controller.websiteLocateDescription.frame = { x: 20, y: 87, width: Math.max(0, sectionWidth - 110), height: 18 };
-    controller.websiteLocateSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 69, width: 51, height: 31 };
-    controller.categoryImportDivider.frame = { x: 20, y: 118, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.categoryImportTitle.frame = { x: 20, y: 131, width: Math.max(0, sectionWidth - 110), height: 24 };
-    controller.categoryImportDescription.frame = { x: 20, y: 157, width: Math.max(0, sectionWidth - 110), height: 18 };
-    controller.categoryImportSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 139, width: 51, height: 31 };
+    controller.questionLocatorDivider.frame = { x: 20, y: 118, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.websiteLocateDivider.frame = { x: 20, y: 188, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.websiteLocateTitle.frame = { x: 20, y: 131, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.websiteLocateDescription.frame = { x: 20, y: 157, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.websiteLocateSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 139, width: 51, height: 31 };
+    controller.categoryImportDivider.frame = { x: 20, y: 328, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.categoryImportTitle.frame = { x: 20, y: 341, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.categoryImportDescription.frame = { x: 20, y: 367, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.categoryImportSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 349, width: 51, height: 31 };
     controller.questionToolsTitle.frame = { x: 20, y: 12, width: Math.max(0, sectionWidth - 40), height: 28 };
     controller.questionToolsDivider.frame = { x: 20, y: 48, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.cardLocationModeTitle.frame = { x: 20, y: 131, width: Math.max(0, sectionWidth - 224), height: 24 };
-    controller.cardLocationModeDescription.frame = { x: 20, y: 157, width: Math.max(0, sectionWidth - 224), height: 18 };
-    controller.cardLocationModeValue.frame = { x: Math.max(20, sectionWidth - 192), y: 141.5, width: 132, height: 24 };
-    controller.cardLocationModeChevron.frame = { x: Math.max(20, sectionWidth - 52), y: 135.5, width: 30, height: 36 };
-    controller.cardLocationModeButton.frame = { x: 0, y: 119, width: sectionWidth, height: 69 };
-    controller.noteAddDivider.frame = { x: 20, y: 188, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.noteAddTitle.frame = { x: 20, y: 201, width: Math.max(0, sectionWidth - 110), height: 24 };
-    controller.noteAddDescription.frame = { x: 20, y: 227, width: Math.max(0, sectionWidth - 110), height: 18 };
-    controller.noteAddSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 209, width: 51, height: 31 };
-    controller.singleImportDivider.frame = { x: 20, y: 258, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.singleImportTitle.frame = { x: 20, y: 271, width: Math.max(0, sectionWidth - 110), height: 24 };
-    controller.singleImportDescription.frame = { x: 20, y: 297, width: Math.max(0, sectionWidth - 110), height: 18 };
-    controller.singleImportSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 279, width: 51, height: 31 };
-    controller.singleImportPositionDivider.frame = { x: 20, y: 328, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.singleImportPositionTitle.frame = { x: 20, y: 341, width: Math.max(0, sectionWidth - 252), height: 24 };
-    controller.singleImportPositionDescription.frame = { x: 20, y: 367, width: Math.max(0, sectionWidth - 252), height: 18 };
-    controller.singleImportPositionValue.frame = { x: Math.max(20, sectionWidth - 224), y: 351.5, width: 164, height: 24 };
-    controller.singleImportPositionChevron.frame = { x: Math.max(20, sectionWidth - 52), y: 345.5, width: 30, height: 36 };
-    controller.singleImportPositionButton.frame = { x: 0, y: 329, width: sectionWidth, height: 76 };
+    controller.cardLocationModeTitle.frame = { x: 20, y: 201, width: Math.max(0, sectionWidth - 224), height: 24 };
+    controller.cardLocationModeDescription.frame = { x: 20, y: 227, width: Math.max(0, sectionWidth - 224), height: 18 };
+    controller.cardLocationModeValue.frame = { x: Math.max(20, sectionWidth - 192), y: 211.5, width: 132, height: 24 };
+    controller.cardLocationModeChevron.frame = { x: Math.max(20, sectionWidth - 52), y: 205.5, width: 30, height: 36 };
+    controller.cardLocationModeButton.frame = { x: 0, y: 189, width: sectionWidth, height: 69 };
+    controller.noteAddDivider.frame = { x: 20, y: 258, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.noteAddTitle.frame = { x: 20, y: 271, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.noteAddDescription.frame = { x: 20, y: 297, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.noteAddSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 279, width: 51, height: 31 };
+    controller.selectionImportDivider.frame = { x: 20, y: 398, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.selectionImportTitle.frame = { x: 20, y: 411, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.selectionImportDescription.frame = { x: 20, y: 437, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.selectionImportSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 419, width: 51, height: 31 };
+    controller.singleImportDivider.frame = { x: 20, y: 468, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.singleImportTitle.frame = { x: 20, y: 481, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.singleImportDescription.frame = { x: 20, y: 507, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.singleImportSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 489, width: 51, height: 31 };
+    controller.singleImportPositionDivider.frame = { x: 20, y: 538, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.singleImportPositionTitle.frame = { x: 20, y: 551, width: Math.max(0, sectionWidth - 252), height: 24 };
+    controller.singleImportPositionDescription.frame = { x: 20, y: 577, width: Math.max(0, sectionWidth - 252), height: 18 };
+    controller.singleImportPositionValue.frame = { x: Math.max(20, sectionWidth - 224), y: 561.5, width: 164, height: 24 };
+    controller.singleImportPositionChevron.frame = { x: Math.max(20, sectionWidth - 52), y: 555.5, width: 30, height: 36 };
+    controller.singleImportPositionButton.frame = { x: 0, y: 539, width: sectionWidth, height: 76 };
     if (typeof __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__.layout(controller, sectionWidth);
     controller.resizeHandle.frame = { x: Math.max(0, bounds.width - 30), y: Math.max(0, bounds.height - 30), width: 30, height: 30 };
     controller.resizeGlyph.frame = { x: 0, y: 0, width: 30, height: 30 };
@@ -212,9 +197,6 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.settingsPage.hidden = page !== "settings";
     controller.categoryManagerPage.hidden = page !== "category-manager";
     if (page === "settings") {
-      refreshFocusSetting(controller);
-      refreshCrossLevelSetting(controller);
-      refreshProgressSetting(controller);
       refreshCategorySetting(controller);
       refreshCategoryJumpSetting(controller);
       refreshBindCategorySetting(controller);
@@ -223,28 +205,12 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       refreshNoteAddSetting(controller);
       refreshSingleImportSetting(controller);
       refreshCategoryImportSetting(controller);
-      refreshPreviousSetting(controller);
       if (typeof __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.refresh(controller);
+      if (typeof __DAGUANYUAN_PLUGIN_INTEGRATION_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_PLUGIN_INTEGRATION_SETTINGS_GLOBAL__.refresh(controller);
     } else if (page === "category-manager") {
       __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__.refresh(controller);
     }
     refreshTabStyle(controller);
-  }
-
-  function refreshFocusSetting(controller) {
-    if (!controller || !controller.focusEnabledSwitch) return;
-    const enabled = !controller.addon || controller.addon.focusNavigationEnabled !== false;
-    controller.focusEnabledSwitch.on = enabled;
-  }
-
-  function refreshPreviousSetting(controller) {
-    if (!controller || !controller.previousSwitch) return;
-    controller.previousSwitch.on = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.previousEnabled();
-  }
-
-  function refreshProgressSetting(controller) {
-    if (!controller || !controller.progressSwitch) return;
-    controller.progressSwitch.on = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.progressEnabled();
   }
 
   function refreshCategorySetting(controller) {
@@ -292,16 +258,13 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   }
 
   function noteAddVisible() {
-    try {
-      const value = NSUserDefaults.standardUserDefaults().objectForKey(NOTE_ADD_KEY);
-      if (value === undefined || value === null) return false;
-      if (typeof value.booleanValue === "function") return Boolean(value.booleanValue());
-      return value === true || value === 1 || String(value).toLowerCase() === "true";
-    } catch (ignored) { return false; }
+    return false;
   }
 
   function refreshNoteAddSetting(controller) {
-    if (controller && controller.noteAddSwitch) controller.noteAddSwitch.on = noteAddVisible();
+    if (!controller || !controller.noteAddSwitch) return;
+    controller.noteAddSwitch.on = false;
+    controller.noteAddSwitch.enabled = false;
   }
 
   function categoryImportVisible() {
@@ -330,11 +293,16 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
   function refreshCategoryImportSetting(controller) {
     if (controller && controller.categoryImportSwitch) controller.categoryImportSwitch.on = categoryImportVisible();
+    if (controller && controller.selectionImportSwitch) controller.selectionImportSwitch.on = selectionImportVisible();
   }
 
-  function refreshCrossLevelSetting(controller) {
-    if (!controller || !controller.crossLevelSwitch) return;
-    controller.crossLevelSwitch.on = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.crossLevelEnabled();
+  function selectionImportVisible() {
+    try {
+      const value = NSUserDefaults.standardUserDefaults().objectForKey(SELECTION_IMPORT_KEY);
+      if (value === undefined || value === null) return true;
+      if (typeof value.booleanValue === "function") return Boolean(value.booleanValue());
+      return value === true || value === 1 || String(value).toLowerCase() === "true";
+    } catch (ignored) { return true; }
   }
 
   function prepareCategoryBinding(controller, message) {
@@ -401,70 +369,14 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.containerView.addSubview(controller.settingsPage);
     __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__.setup(controller);
 
-    controller.focusSettingsSection = new UIView({ x: 20, y: 18, width: DEFAULT_WIDTH - 40, height: 336 });
-    controller.focusSettingsSection.backgroundColor = UIColor.whiteColor();
-    controller.focusSettingsSection.layer.cornerRadius = 10;
-    controller.focusSettingsSection.layer.borderWidth = 0.5;
-    controller.focusSettingsSection.layer.borderColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.45);
-    controller.settingsPage.addSubview(controller.focusSettingsSection);
-
-    controller.focusSectionTitle = label("焦点切换", UIFont.boldSystemFontOfSize(17), UIColor.darkGrayColor());
-    controller.focusSettingsSection.addSubview(controller.focusSectionTitle);
-
-    controller.focusDivider = new UIView({ x: 20, y: 48, width: DEFAULT_WIDTH - 80, height: 1 });
-    controller.focusDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
-    controller.focusSettingsSection.addSubview(controller.focusDivider);
-
-    controller.focusEnabledTitle = label("启用焦点切换", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
-    controller.focusSettingsSection.addSubview(controller.focusEnabledTitle);
-
-    controller.focusEnabledDescription = label("在同级卡片之间显示浮动导航按钮", UIFont.systemFontOfSize(12), UIColor.grayColor());
-    controller.focusSettingsSection.addSubview(controller.focusEnabledDescription);
-
-    controller.focusEnabledSwitch = new UISwitch({ x: DEFAULT_WIDTH - 108, y: 69, width: 51, height: 31 });
-    controller.focusEnabledSwitch.addTargetActionForControlEvents(controller, "toggleFocusNavigation:", 1 << 12);
-    controller.focusSettingsSection.addSubview(controller.focusEnabledSwitch);
-
-    controller.focusOptionDivider = new UIView({ x: 20, y: 118, width: DEFAULT_WIDTH - 80, height: 1 });
-    controller.focusOptionDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
-    controller.focusSettingsSection.addSubview(controller.focusOptionDivider);
-
-    controller.crossLevelTitle = label("跨层级切换", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
-    controller.focusSettingsSection.addSubview(controller.crossLevelTitle);
-
-    controller.crossLevelDescription = label("按脑图层级连续切换全部卡片", UIFont.systemFontOfSize(12), UIColor.grayColor());
-    controller.focusSettingsSection.addSubview(controller.crossLevelDescription);
-
-    controller.crossLevelSwitch = new UISwitch({ x: DEFAULT_WIDTH - 108, y: 139, width: 51, height: 31 });
-    controller.crossLevelSwitch.addTargetActionForControlEvents(controller, "toggleCrossLevelNavigation:", 1 << 12);
-    controller.focusSettingsSection.addSubview(controller.crossLevelSwitch);
-
-    controller.crossLevelDivider = new UIView({ x: 20, y: 188, width: DEFAULT_WIDTH - 80, height: 1 });
-    controller.crossLevelDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
-    controller.focusSettingsSection.addSubview(controller.crossLevelDivider);
-
-    controller.progressTitle = label("显示做题进度", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
-    controller.focusSettingsSection.addSubview(controller.progressTitle);
-
-    controller.progressDescription = label("在上一张和下一张按钮中显示当前同级位置", UIFont.systemFontOfSize(12), UIColor.grayColor());
-    controller.focusSettingsSection.addSubview(controller.progressDescription);
-
-    controller.progressSwitch = new UISwitch({ x: DEFAULT_WIDTH - 108, y: 209, width: 51, height: 31 });
-    controller.progressSwitch.addTargetActionForControlEvents(controller, "toggleProgressDisplay:", 1 << 12);
-    controller.focusSettingsSection.addSubview(controller.progressSwitch);
-
-    controller.progressDivider = new UIView({ x: 20, y: 258, width: DEFAULT_WIDTH - 80, height: 1 });
-    controller.progressDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
-    controller.focusSettingsSection.addSubview(controller.progressDivider);
-
-    controller.categorySettingsSection = new UIView({ x: 20, y: 366, width: DEFAULT_WIDTH - 40, height: 336 });
+    controller.categorySettingsSection = new UIView({ x: 20, y: 18, width: DEFAULT_WIDTH - 40, height: 336 });
     controller.categorySettingsSection.backgroundColor = UIColor.whiteColor();
     controller.categorySettingsSection.layer.cornerRadius = 10;
     controller.categorySettingsSection.layer.borderWidth = 0.5;
     controller.categorySettingsSection.layer.borderColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.45);
     controller.settingsPage.addSubview(controller.categorySettingsSection);
 
-    controller.categorySectionTitle = label("题型导航", UIFont.boldSystemFontOfSize(17), UIColor.darkGrayColor());
+    controller.categorySectionTitle = label("题型工具", UIFont.boldSystemFontOfSize(17), UIColor.darkGrayColor());
     controller.categorySettingsSection.addSubview(controller.categorySectionTitle);
 
     controller.categorySectionDivider = new UIView({ x: 20, y: 48, width: DEFAULT_WIDTH - 80, height: 1 });
@@ -527,29 +439,32 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.categoryManageButton.backgroundColor = UIColor.colorWithWhiteAlpha(1, 0);
     controller.categorySettingsSection.addSubview(controller.categoryManageButton);
 
-    controller.questionNavigationSettingsSection = new UIView({ x: 20, y: 714, width: DEFAULT_WIDTH - 40, height: 194 });
-    controller.questionNavigationSettingsSection.backgroundColor = UIColor.whiteColor();
-    controller.questionNavigationSettingsSection.layer.cornerRadius = 10;
-    controller.questionNavigationSettingsSection.layer.borderWidth = 0.5;
-    controller.questionNavigationSettingsSection.layer.borderColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.45);
-    controller.settingsPage.addSubview(controller.questionNavigationSettingsSection);
+    controller.questionToolsSettingsSection = new UIView({ x: 20, y: 366, width: DEFAULT_WIDTH - 40, height: 616 });
+    controller.questionToolsSettingsSection.backgroundColor = UIColor.whiteColor();
+    controller.questionToolsSettingsSection.layer.cornerRadius = 10;
+    controller.questionToolsSettingsSection.layer.borderWidth = 0.5;
+    controller.questionToolsSettingsSection.layer.borderColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.45);
+    controller.settingsPage.addSubview(controller.questionToolsSettingsSection);
 
-    controller.questionNavigationSectionTitle = label("题目导航", UIFont.boldSystemFontOfSize(17), UIColor.darkGrayColor());
-    controller.questionNavigationSettingsSection.addSubview(controller.questionNavigationSectionTitle);
+    controller.questionToolsTitle = label("题目工具", UIFont.boldSystemFontOfSize(17), UIColor.darkGrayColor());
+    controller.questionToolsSettingsSection.addSubview(controller.questionToolsTitle);
 
-    controller.questionNavigationDivider = new UIView({ x: 20, y: 48, width: DEFAULT_WIDTH - 80, height: 1 });
-    controller.questionNavigationDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
-    controller.questionNavigationSettingsSection.addSubview(controller.questionNavigationDivider);
-
+    controller.questionToolsDivider = new UIView({ x: 20, y: 48, width: DEFAULT_WIDTH - 80, height: 1 });
+    controller.questionToolsDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
+    controller.questionToolsSettingsSection.addSubview(controller.questionToolsDivider);
     controller.questionLocatorTitle = label("显示定位题目", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
-    controller.questionNavigationSettingsSection.addSubview(controller.questionLocatorTitle);
+    controller.questionToolsSettingsSection.addSubview(controller.questionLocatorTitle);
 
     controller.questionLocatorDescription = label("按当前卡片在所属题型中的序号打开对应题目", UIFont.systemFontOfSize(12), UIColor.grayColor());
-    controller.questionNavigationSettingsSection.addSubview(controller.questionLocatorDescription);
+    controller.questionToolsSettingsSection.addSubview(controller.questionLocatorDescription);
 
     controller.questionLocatorSwitch = new UISwitch({ x: DEFAULT_WIDTH - 108, y: 69, width: 51, height: 31 });
     controller.questionLocatorSwitch.addTargetActionForControlEvents(controller, "toggleQuestionLocator:", 1 << 12);
-    controller.questionNavigationSettingsSection.addSubview(controller.questionLocatorSwitch);
+    controller.questionToolsSettingsSection.addSubview(controller.questionLocatorSwitch);
+
+    controller.questionLocatorDivider = new UIView({ x: 20, y: 118, width: DEFAULT_WIDTH - 80, height: 1 });
+    controller.questionLocatorDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
+    controller.questionToolsSettingsSection.addSubview(controller.questionLocatorDivider);
 
     controller.websiteLocateDivider = new UIView({ x: 20, y: 118, width: DEFAULT_WIDTH - 80, height: 1 });
     controller.websiteLocateDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
@@ -563,31 +478,18 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
     controller.categoryImportDivider = new UIView({ x: 20, y: 188, width: DEFAULT_WIDTH - 80, height: 1 });
     controller.categoryImportDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
-    controller.questionNavigationSettingsSection.addSubview(controller.categoryImportDivider);
+    controller.questionToolsSettingsSection.addSubview(controller.categoryImportDivider);
 
-    controller.categoryImportTitle = label("显示导入当前题目", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
-    controller.questionNavigationSettingsSection.addSubview(controller.categoryImportTitle);
+    controller.categoryImportTitle = label("显示导入题目", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
+    controller.questionToolsSettingsSection.addSubview(controller.categoryImportTitle);
 
     controller.categoryImportDescription = label("在数学与 408 页导入当前分类全部题目", UIFont.systemFontOfSize(12), UIColor.grayColor());
-    controller.questionNavigationSettingsSection.addSubview(controller.categoryImportDescription);
+    controller.questionToolsSettingsSection.addSubview(controller.categoryImportDescription);
 
     controller.categoryImportSwitch = new UISwitch({ x: DEFAULT_WIDTH - 108, y: 209, width: 51, height: 31 });
     controller.categoryImportSwitch.addTargetActionForControlEvents(controller, "toggleCategoryImportDisplay:", 1 << 12);
-    controller.questionNavigationSettingsSection.addSubview(controller.categoryImportSwitch);
+    controller.questionToolsSettingsSection.addSubview(controller.categoryImportSwitch);
 
-    controller.questionToolsSettingsSection = new UIView({ x: 20, y: 920, width: DEFAULT_WIDTH - 40, height: 484 });
-    controller.questionToolsSettingsSection.backgroundColor = UIColor.whiteColor();
-    controller.questionToolsSettingsSection.layer.cornerRadius = 10;
-    controller.questionToolsSettingsSection.layer.borderWidth = 0.5;
-    controller.questionToolsSettingsSection.layer.borderColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.45);
-    controller.settingsPage.addSubview(controller.questionToolsSettingsSection);
-
-    controller.questionToolsTitle = label("题目工具", UIFont.boldSystemFontOfSize(17), UIColor.darkGrayColor());
-    controller.questionToolsSettingsSection.addSubview(controller.questionToolsTitle);
-
-    controller.questionToolsDivider = new UIView({ x: 20, y: 48, width: DEFAULT_WIDTH - 80, height: 1 });
-    controller.questionToolsDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
-    controller.questionToolsSettingsSection.addSubview(controller.questionToolsDivider);
     controller.questionToolsSettingsSection.addSubview(controller.websiteLocateTitle);
     controller.questionToolsSettingsSection.addSubview(controller.websiteLocateDescription);
     controller.questionToolsSettingsSection.addSubview(controller.websiteLocateSwitch);
@@ -609,20 +511,32 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.noteAddDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
     controller.questionToolsSettingsSection.addSubview(controller.noteAddDivider);
 
-    controller.noteAddTitle = label("显示添加笔记", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
+    controller.noteAddTitle = label("显示添加笔记", UIFont.boldSystemFontOfSize(16), UIColor.grayColor());
     controller.questionToolsSettingsSection.addSubview(controller.noteAddTitle);
 
-    controller.noteAddDescription = label("在数学与 408 题目中添加剪贴板图片笔记", UIFont.systemFontOfSize(12), UIColor.grayColor());
+    controller.noteAddDescription = label("暂不可用", UIFont.systemFontOfSize(12), UIColor.grayColor());
     controller.questionToolsSettingsSection.addSubview(controller.noteAddDescription);
 
     controller.noteAddSwitch = new UISwitch({ x: DEFAULT_WIDTH - 108, y: 69, width: 51, height: 31 });
-    controller.noteAddSwitch.addTargetActionForControlEvents(controller, "toggleNoteAddDisplay:", 1 << 12);
+    controller.noteAddSwitch.on = false;
+    controller.noteAddSwitch.enabled = false;
     controller.questionToolsSettingsSection.addSubview(controller.noteAddSwitch);
+
+    controller.selectionImportDivider = new UIView({ x: 20, y: 398, width: DEFAULT_WIDTH - 80, height: 1 });
+    controller.selectionImportDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
+    controller.questionToolsSettingsSection.addSubview(controller.selectionImportDivider);
+    controller.selectionImportTitle = label("显示选题导入", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
+    controller.questionToolsSettingsSection.addSubview(controller.selectionImportTitle);
+    controller.selectionImportDescription = label("在网页导入工具中显示选题导入", UIFont.systemFontOfSize(12), UIColor.grayColor());
+    controller.questionToolsSettingsSection.addSubview(controller.selectionImportDescription);
+    controller.selectionImportSwitch = new UISwitch({ x: DEFAULT_WIDTH - 108, y: 419, width: 51, height: 31 });
+    controller.selectionImportSwitch.addTargetActionForControlEvents(controller, "toggleSelectionImportDisplay:", 1 << 12);
+    controller.questionToolsSettingsSection.addSubview(controller.selectionImportSwitch);
 
     controller.singleImportDivider = new UIView({ x: 20, y: 188, width: DEFAULT_WIDTH - 80, height: 1 });
     controller.singleImportDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
     controller.questionToolsSettingsSection.addSubview(controller.singleImportDivider);
-    controller.singleImportTitle = label("显示导入单题", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
+    controller.singleImportTitle = label("显示导入本题", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
     controller.questionToolsSettingsSection.addSubview(controller.singleImportTitle);
     controller.singleImportDescription = label("按所选位置导入一道数学或 408 题", UIFont.systemFontOfSize(12), UIColor.grayColor());
     controller.questionToolsSettingsSection.addSubview(controller.singleImportDescription);
@@ -633,7 +547,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.singleImportPositionDivider = new UIView({ x: 20, y: 328, width: DEFAULT_WIDTH - 80, height: 1 });
     controller.singleImportPositionDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
     controller.questionToolsSettingsSection.addSubview(controller.singleImportPositionDivider);
-    controller.singleImportPositionTitle = label("导入单题位置", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
+    controller.singleImportPositionTitle = label("导入本题位置", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
     controller.questionToolsSettingsSection.addSubview(controller.singleImportPositionTitle);
     controller.singleImportPositionDescription = label("选择题卡的插入位置", UIFont.systemFontOfSize(12), UIColor.grayColor());
     controller.questionToolsSettingsSection.addSubview(controller.singleImportPositionDescription);
@@ -647,16 +561,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.questionToolsSettingsSection.addSubview(controller.singleImportPositionButton);
     if (typeof __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.setup(controller);
     if (typeof __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__.setup(controller);
-
-    controller.previousTitle = label("显示上一张", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
-    controller.focusSettingsSection.addSubview(controller.previousTitle);
-
-    controller.previousDescription = label("关闭后只显示下一张浮动按钮", UIFont.systemFontOfSize(12), UIColor.grayColor());
-    controller.focusSettingsSection.addSubview(controller.previousDescription);
-
-    controller.previousSwitch = new UISwitch({ x: DEFAULT_WIDTH - 108, y: 349, width: 51, height: 31 });
-    controller.previousSwitch.addTargetActionForControlEvents(controller, "togglePreviousButton:", 1 << 12);
-    controller.focusSettingsSection.addSubview(controller.previousSwitch);
+    if (typeof __DAGUANYUAN_PLUGIN_INTEGRATION_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_PLUGIN_INTEGRATION_SETTINGS_GLOBAL__.setup(controller);
 
     controller.resizeHandle = new UIView({ x: DEFAULT_WIDTH - 30, y: DEFAULT_HEIGHT - 30, width: 30, height: 30 });
     controller.resizeHandle.backgroundColor = UIColor.colorWithWhiteAlpha(0.96, 0.94);
@@ -675,9 +580,6 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
     controller.activePage = "math";
     controller.currentContentPage = "";
-    refreshFocusSetting(controller);
-    refreshCrossLevelSetting(controller);
-    refreshProgressSetting(controller);
     refreshCategorySetting(controller);
     refreshCategoryJumpSetting(controller);
     refreshBindCategorySetting(controller);
@@ -686,7 +588,6 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     refreshWebsiteLocateSetting(controller);
     refreshNoteAddSetting(controller);
     refreshSingleImportSetting(controller);
-    refreshPreviousSetting(controller);
     refreshTabStyle(controller);
     layout(controller);
   }
@@ -963,11 +864,11 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     if (controller.questionToolBusy) { finishCategoryImport(controller); showMessage(controller, "正在读取当前题目，请稍后导入"); return; }
     if (controller.singleImportBusy) {
       finishCategoryImport(controller);
-      showMessage(controller, "正在导入单题，请稍后再导入整类题目");
+      showMessage(controller, "正在导入本题，请稍后再导入整类题目");
       return;
     }
     if ((!fromToolbar && !categoryImportVisible()) || ["math", "408"].indexOf(controller.currentContentPage) < 0) {
-      showMessage(controller, "请在数学或 408 页开启导入当前题目");
+      showMessage(controller, "请在数学或 408 页开启导入题目");
       return;
     }
     controller.categoryImportBusy = true;
@@ -1102,11 +1003,11 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   function handleSingleImport(controller, address) {
     if (controller.singleImportBusy) return;
     try {
-      if (controller.categoryImportBusy) throw new Error("正在导入整类题目，请稍后再导入单题");
+      if (controller.categoryImportBusy) throw new Error("正在导入整类题目，请稍后再导入本题");
       if (controller.questionToolBusy) throw new Error("正在读取当前题目，请稍后导入");
-      if (!singleImportVisible()) throw new Error("请先在设置的题目工具中开启显示导入单题");
+      if (!singleImportVisible()) throw new Error("请先在设置的题目工具中开启显示导入本题");
       const target = __DAGUANYUAN_SINGLE_IMPORT_GLOBAL__.targetFromAddress(address);
-      if (target.provider !== controller.currentContentPage) throw new Error("题库页面已切换，请重新点击导入单题");
+      if (target.provider !== controller.currentContentPage) throw new Error("题库页面已切换，请重新点击导入本题");
       controller.singleImportBusy = true;
       const position = __DAGUANYUAN_SINGLE_IMPORT_GLOBAL__.position();
       const operation = __DAGUANYUAN_SINGLE_IMPORT_GLOBAL__.importQuestion(controller, target, position);
@@ -1172,7 +1073,8 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     let ownsLookup = false;
     try {
       if (controller.currentContentPage !== "408") throw new Error("请先进入 408 题目页");
-      if (addingNote ? !noteAddVisible() : !websiteLocateCardsVisible()) throw new Error("请先开启对应的题目工具开关");
+      if (addingNote && !noteAddVisible()) throw new Error("添加笔记暂不可用");
+      if (!addingNote && !websiteLocateCardsVisible()) throw new Error("请先开启对应的题目工具开关");
       if (controller.categoryImportBusy || controller.singleImportBusy || controller.questionToolBusy) throw new Error("题目正在读取或导入，请稍后重试");
       if (addingNote && controller.notePasteOperation) throw new Error("上一张图片仍在添加中，请稍候");
       const target = __DAGUANYUAN_SINGLE_IMPORT_GLOBAL__.targetFromAddress(address);
@@ -1200,11 +1102,11 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   }
 
   function injectWebsiteButtons(controller) {
+    injectBindCategoryButton(controller);
     if (typeof __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__ !== 'undefined') {
       __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__.inject(controller).catch(function (error) { console.log('[Daguanyuan Bridge] 导入界面加载失败：' + error.message); });
     }
     injectWebsiteLocateButtons(controller);
-    injectBindCategoryButton(controller);
     injectSingleImportButtons(controller);
   }
 
@@ -1231,7 +1133,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
   function injectBindCategoryButton(controller) {
     if (!controller || !controller.webView) return;
-    controller.webView.evaluateJavaScript(__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__.bindCategoryScript(bindCategoryVisible(), categoryImportVisible()), function (result, error) {
+    controller.webView.evaluateJavaScript(__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__.bindCategoryScript(bindCategoryVisible(), categoryImportVisible(), selectionImportVisible()), function (result, error) {
       if (error) console.log(`[Daguanyuan Bridge] 注入分类绑定按钮失败：${error.localizedDescription || error}`);
     });
   }
@@ -1273,6 +1175,10 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       layout(self);
     },
 
+    toggleMNBrowserIntegration: function (sender) {
+      __DAGUANYUAN_PLUGIN_INTEGRATION_SETTINGS_GLOBAL__.toggle(self, sender);
+    },
+
     selectCardLocationChoice: function (sender) {
       __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.select(self, Number(sender && sender.tag), sender);
     },
@@ -1300,7 +1206,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     chooseSingleImportPosition: function () {
       const controller = self;
       try {
-        __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.chooseOption(controller, "导入单题位置",
+        __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.chooseOption(controller, "导入本题位置",
           ["child", "sibling"], ["所选卡片的子节点", "所选卡片的同级节点"],
           __DAGUANYUAN_SINGLE_IMPORT_GLOBAL__.position(), "selectSingleImportPosition:", function (requested) {
             try {
@@ -1424,50 +1330,12 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       }
     },
 
-    toggleFocusNavigation: function (sender) {
-      const addon = self.addon;
-      if (!addon) {
-        showMessage(self, "焦点导航当前不可用");
-        return;
-      }
-      const requested = sender && typeof sender.on !== "undefined"
-        ? Boolean(sender.on)
-        : !(addon.focusNavigationEnabled !== false);
-      addon.focusNavigationEnabled = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.setEnabled(requested);
-      if (addon.focusNavigationEnabled) __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.show(addon);
-      else __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.hide(addon);
-      if (addon.focusNavigationEnabled) __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.syncQuestionLocator(addon);
-      refreshFocusSetting(self);
-    },
-
-    togglePreviousButton: function (sender) {
-      const requested = sender && typeof sender.on !== "undefined"
-        ? Boolean(sender.on)
-        : !__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.previousEnabled();
-      __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.setPreviousEnabled(requested);
-      if (self.addon && self.addon.focusNavigationEnabled !== false) {
-        __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.show(self.addon);
-      }
-      refreshPreviousSetting(self);
-    },
-
-    toggleProgressDisplay: function (sender) {
-      const requested = sender && typeof sender.on !== "undefined"
-        ? Boolean(sender.on)
-        : !__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.progressEnabled();
-      __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.setProgressEnabled(requested);
-      if (self.addon && self.addon.focusNavigationEnabled !== false) {
-        __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.show(self.addon);
-      }
-      refreshProgressSetting(self);
-    },
-
     toggleCategoryDisplay: function (sender) {
       const requested = sender && typeof sender.on !== "undefined"
         ? Boolean(sender.on)
         : !__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.categoryEnabled();
       __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.setCategoryEnabled(requested);
-      if (self.addon && self.addon.focusNavigationEnabled !== false) {
+      if (self.addon) {
         __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.show(self.addon);
       }
       refreshCategorySetting(self);
@@ -1485,6 +1353,13 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       const requested = sender && typeof sender.on !== "undefined" ? Boolean(sender.on) : !bindCategoryVisible();
       NSUserDefaults.standardUserDefaults().setObjectForKey(requested, "cn.marginnote.daguanyuan-bridge.category-navigation.bind-button-visible");
       refreshBindCategorySetting(self);
+      injectBindCategoryButton(self);
+    },
+
+    toggleSelectionImportDisplay: function (sender) {
+      const requested = sender && typeof sender.on !== "undefined" ? Boolean(sender.on) : !selectionImportVisible();
+      NSUserDefaults.standardUserDefaults().setObjectForKey(requested, SELECTION_IMPORT_KEY);
+      refreshCategoryImportSetting(self);
       injectBindCategoryButton(self);
     },
 
@@ -1512,18 +1387,8 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     },
 
     toggleNoteAddDisplay: function (sender) {
-      const requested = sender && typeof sender.on !== "undefined" ? Boolean(sender.on) : !noteAddVisible();
-      NSUserDefaults.standardUserDefaults().setObjectForKey(requested, NOTE_ADD_KEY);
       refreshNoteAddSetting(self);
       injectWebsiteLocateButtons(self);
-    },
-
-    toggleCrossLevelNavigation: function (sender) {
-      const requested = sender && typeof sender.on !== "undefined"
-        ? Boolean(sender.on)
-        : !__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.crossLevelEnabled();
-      __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.setCrossLevelEnabled(requested);
-      refreshCrossLevelSetting(self);
     },
 
     closePanel: function (sender) {
@@ -1588,8 +1453,15 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       }
       if (webView === self.webView && __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__.handles(address)) {
         const controller = self;
-        const opened = __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__.open(address, function (message) { showMessage(controller, message); }, controller.addon.window);
-        if (opened) performClosePanel(controller);
+        if (controller.videoOpening) return false;
+        controller.videoOpening = true;
+        __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__.open(address, function (message) { showMessage(controller, message); }, controller.addon.window).then(function (opened) {
+          controller.videoOpening = false;
+          if (opened) performClosePanel(controller);
+        }, function (error) {
+          controller.videoOpening = false;
+          showMessage(controller, "打开视频失败：" + String(error && error.message || error));
+        });
         return false;
       }
       if (webView === self.webView && /^daguanyuanbridge:\/\/import-category(?:[/?#]|$)/i.test(address)) {
@@ -1618,7 +1490,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       if (webView === self.webView && /^daguanyuanbridge:\/\/add-note\?/i.test(address)) {
         if (/[?&]payload=/.test(address)) { handle408QuestionTool(self, address, true); return false; }
         const match = address.match(/[?&]id=(\d+)/);
-        if (!noteAddVisible() || !match) { finishQuestionTool(self, "finishNotePaste"); showMessage(self, "请先开启显示添加笔记"); return false; }
+        if (!noteAddVisible() || !match) { finishQuestionTool(self, "finishNotePaste"); showMessage(self, "添加笔记暂不可用"); return false; }
         __DAGUANYUAN_NOTE_PASTE_GLOBAL__.start(self, Number(match[1])).then(function (token) {
           if (self.notePasteOperation && self.notePasteOperation.token === token) showMessage(self, "正在添加图片，等待网站保存");
         }).catch(function (error) {
@@ -1679,14 +1551,10 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.panelVisible = true;
     NSUserDefaults.standardUserDefaults().setObjectForKey(true, PANEL_KEY);
     setActivePage(controller, controller.activePage || controller.currentContentPage || "math");
-    refreshFocusSetting(controller);
-    refreshCrossLevelSetting(controller);
-    refreshProgressSetting(controller);
     refreshCategorySetting(controller);
     refreshCategoryJumpSetting(controller);
     refreshQuestionLocatorSetting(controller);
     refreshWebsiteLocateSetting(controller);
-    refreshPreviousSetting(controller);
   }
 
   function hidePanel(controller) {
@@ -1710,13 +1578,9 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     questionLocatorScript,
     prepareCategoryBinding,
     shouldRestorePanel,
-    refreshFocusSetting,
-    refreshCrossLevelSetting,
-    refreshProgressSetting,
     refreshCategorySetting,
     refreshCategoryJumpSetting,
     refreshQuestionLocatorSetting,
-    refreshPreviousSetting,
     refreshRetestButtons: injectWebsiteButtons,
   };
 })();

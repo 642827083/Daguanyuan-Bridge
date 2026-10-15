@@ -153,7 +153,7 @@ test("失败详情控件抛错时仍结束导入、恢复网页按钮，并保�
   assert.ok(messages.some((text) => text.includes("图片保存失败")));
 });
 
-test('数学和408只有选题入口打开网页确认，原导入当前题目立即导入并沿用原生提示', async () => {
+test('数学和408只有选题入口打开网页确认，右下角导入题目立即导入并沿用原生提示', async () => {
   for (const provider of ['math', '408']) for (const selected of [false, true]) {
     const { context, controller } = runtime();
     let methods, beforeImport, starts = 0, shown = 0;
@@ -184,7 +184,7 @@ test('数学和408只有选题入口打开网页确认，原导入当前题目�
     context.self = controller;
     vm.runInContext(readFileSync(new URL('../src/WebBridgeCommands.js', import.meta.url), 'utf8'), context);
     vm.runInContext(readFileSync(new URL('../src/WebPanelController.js', import.meta.url), 'utf8'), context);
-    const address = selected ? 'daguanyuanbridge://ui?payload=' + encodeURIComponent(JSON.stringify({ requestId: 'test', command: 'openQuestionImport', payload: { scope: 'selected' } })) : 'daguanyuanbridge://import-category';
+    const address = 'daguanyuanbridge://ui?payload=' + encodeURIComponent(JSON.stringify({ requestId: 'test', command: selected ? 'openQuestionImport' : 'importCurrentQuestions', payload: selected ? { scope: 'selected' } : null }));
     methods.webViewShouldStartLoadWithRequestNavigationType(controller.webView, { URL: { absoluteString: address } });
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(starts, selected ? 1 : 0); assert.equal(shown, selected ? 1 : 0);

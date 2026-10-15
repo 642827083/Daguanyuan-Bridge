@@ -8,14 +8,14 @@ const panelSource = readFileSync(new URL("../src/WebPanelController.js", import.
 const mainSource = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
 const videoSource = readFileSync(new URL("../src/DaguanyuanVideoBrowser.js", import.meta.url), "utf8");
 
-test("面板提供独立导入页并保留题目导航中的分类导入开关", () => {
+test("面板提供独立导入页并保留题目工具中的分类导入开关", () => {
   assert.match(panelSource, /button\("数学", controller, "openDaguanyuan:"\)/);
   assert.match(panelSource, /button\("408", controller, "open408:"\)/);
   assert.match(panelSource, /button\("设置", controller, "openSettings:"\)/);
   assert.match(panelSource, /button\("导入", controller, "openImport:"\)/);
   assert.ok(panelSource.indexOf('controller.os408Button = button') < panelSource.indexOf('controller.importButton = button'));
   assert.ok(panelSource.indexOf('controller.importButton = button') < panelSource.indexOf('controller.settingsButton = button'));
-  assert.match(panelSource, /显示导入当前题目/);
+  assert.match(panelSource, /显示导入题目/);
   assert.match(panelSource, /在数学与 408 页导入当前分类全部题目/);
   assert.match(panelSource, /toggleCategoryImportDisplay:/);
   assert.match(panelSource, /handleCategoryImport\(self\)/);

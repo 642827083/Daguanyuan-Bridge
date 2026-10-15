@@ -405,7 +405,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
   function preparedSingleSession(addon, provider, position) {
     if (provider !== "math" && provider !== "408") throw new Error("题目来源无效");
     position = position || "child";
-    if (position !== "child" && position !== "sibling") throw new Error("导入单题位置无效");
+    if (position !== "child" && position !== "sibling") throw new Error("导入本题位置无效");
     const context = notebookContext(addon);
     const selected = value(context.notebookController, "focusNote");
     const selectedId = noteId(selected);
@@ -464,7 +464,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
             ? `${category.url}?questionId=${id}` : questionURL(question.categoryId, id);
         const markdown = questionMarkdown(question, url, provider);
         let note;
-        UndoManager.sharedInstance().undoGrouping("导入单题", context.topicId, function () {
+        UndoManager.sharedInstance().undoGrouping("导入本题", context.topicId, function () {
           try {
             const selectedParent = currentParent();
             note = createNote(titleFor(question), context);

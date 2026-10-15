@@ -7,7 +7,8 @@ const source = readFileSync(new URL("../src/DaguanyuanVideoBrowser.js", import.m
 const panelSource = readFileSync(new URL("../src/WebPanelController.js", import.meta.url), "utf8");
 
 function nativeBrowser(mnUtil, globals = {}) {
-  const context = { MNUtil: mnUtil, ...globals };
+  const context = { MNUtil: mnUtil,
+    NSUserDefaults: { standardUserDefaults() { return { objectForKey() { return true; } }; } }, ...globals };
   vm.runInNewContext(source, context);
   return context.__DAGUANYUAN_VIDEO_BROWSER_GLOBAL__;
 }
@@ -38,10 +39,10 @@ function browserWindow(hidden, miniMode, options = {}) {
   return { events, frame, view, webview, controller, studyView, mnUtil };
 }
 
-test("视频跳转恢复最小化的 MNBrowser 主窗口，并保留原尺寸、分 P 和起播时间", () => {
+test("视频跳转恢复最小化的 MNBrowser 主窗口，并保留原尺寸、分 P 和起播时间", async () => {
   const run = browserWindow(false, true);
   const browser = nativeBrowser(run.mnUtil);
-  assert.equal(browser.open("bilibili://video/BV164411o7Qo?page=80&start_progress=12000", assert.fail), true);
+  assert.equal(await browser.open("bilibili://video/BV164411o7Qo?page=80&start_progress=12000", assert.fail), true);
   assert.equal(run.controller.miniMode, false);
   assert.equal(run.webview.hidden, false);
   assert.equal(run.view.hidden, false);
@@ -52,10 +53,10 @@ test("视频跳转恢复最小化的 MNBrowser 主窗口，并保留原尺寸、
   } }]);
 });
 
-test("已展开和已关闭的 MNBrowser 沿用原来的通知逻辑", () => {
+test("已展开和已关闭的 MNBrowser 沿用原来的通知逻辑", async () => {
   for (const hidden of [false, true]) {
     const run = browserWindow(hidden, false), browser = nativeBrowser(run.mnUtil);
-    assert.equal(browser.open("bilibili://video/BV164411o7Qo", assert.fail), true);
+    assert.equal(await browser.open("bilibili://video/BV164411o7Qo", assert.fail), true);
     assert.equal(run.controller.miniMode, false);
     assert.equal(run.view.hidden, false);
     assert.equal(run.events.filter(event => event === "restore").length, hidden ? 1 : 0);
@@ -63,26 +64,26 @@ test("已展开和已关闭的 MNBrowser 沿用原来的通知逻辑", () => {
   }
 });
 
-test("不恢复 MNBrowser 副窗口或其他插件的最小化面板", () => {
+test("不恢复 MNBrowser 副窗口或其他插件的最小化面板", async () => {
   for (const otherPlugin of [false, true]) {
     const run = browserWindow(false, true, { secondary: !otherPlugin });
     if (otherPlugin) delete run.controller.toMinimode;
     const browser = nativeBrowser(run.mnUtil);
-    assert.equal(browser.open("bilibili://video/BV164411o7Qo", assert.fail), true);
+    assert.equal(await browser.open("bilibili://video/BV164411o7Qo", assert.fail), true);
     assert.equal(run.controller.miniMode, true);
     assert.equal(run.events.length, 1);
   }
 });
 
-test("恢复最小化窗口失败时显示错误，不将跳转报告为成功", () => {
+test("恢复最小化窗口失败时显示错误，不将跳转报告为成功", async () => {
   const run = browserWindow(false, true, { restoreError: true }), browser = nativeBrowser(run.mnUtil);
   let message;
-  assert.equal(browser.open("bilibili://video/BV164411o7Qo", value => { message = value; }), false);
+  assert.equal(await browser.open("bilibili://video/BV164411o7Qo", value => { message = value; }), false);
   assert.match(message, /恢复失败/);
   assert.equal(run.events.some(event => event && event.name === "openInBrowser"), false);
 });
 
-test("只从发起跳转的活动窗口获取 MNBrowser，不展开其他窗口", () => {
+test("只从发起跳转的活动窗口获取 MNBrowser，不展开其他窗口", async () => {
   const active = browserWindow(false, true), other = browserWindow(false, true);
   const targetWindow = {}, inactiveWindow = {};
   const globals = { Application: { sharedInstance() { return {
@@ -91,20 +92,20 @@ test("只从发起跳转的活动窗口获取 MNBrowser，不展开其他窗口"
   }; } } };
   active.mnUtil.studyView = other.studyView;
   const browser = nativeBrowser(active.mnUtil, globals);
-  assert.equal(browser.open("bilibili://video/BV164411o7Qo", assert.fail, targetWindow), true);
+  assert.equal(await browser.open("bilibili://video/BV164411o7Qo", assert.fail, targetWindow), true);
   assert.equal(active.controller.miniMode, false);
   assert.equal(other.controller.miniMode, true);
   active.controller.miniMode = true;
-  assert.equal(browser.open("bilibili://video/BV164411o7Qo", assert.fail, inactiveWindow), true);
+  assert.equal(await browser.open("bilibili://video/BV164411o7Qo", assert.fail, inactiveWindow), true);
   assert.equal(active.controller.miniMode, true);
   assert.equal(other.controller.miniMode, true);
 });
 
-test("原窗口位置失效时提示手动展开，避免恢复为错误尺寸", () => {
+test("原窗口位置失效时提示手动展开，避免恢复为错误尺寸", async () => {
   const run = browserWindow(false, true), browser = nativeBrowser(run.mnUtil);
   run.controller.lastFrame.width = 0;
   let message;
-  assert.equal(browser.open("bilibili://video/BV164411o7Qo", value => { message = value; }), false);
+  assert.equal(await browser.open("bilibili://video/BV164411o7Qo", value => { message = value; }), false);
   assert.match(message, /原窗口位置不可用/);
   assert.equal(run.controller.miniMode, true);
   assert.deepEqual(run.events, []);
@@ -128,9 +129,10 @@ function webPage(browser) {
 }
 
 function panelRuntime(provider, options = {}) {
-  let methods;
+  let methods, externalCallback;
   const events = [], messages = [], timers = [];
-  const stored = new Map([["cn.marginnote.daguanyuan-bridge.panel-visible", true]]);
+  const stored = new Map([["cn.marginnote.daguanyuan-bridge.panel-visible", true],
+    ["cn.marginnote.daguanyuan-bridge.plugin-integration.mn-browser-enabled", options.mnBrowserEnabled !== false]]);
   const study = { view: { bounds: { x: 0, y: 0, width: 1024, height: 768 }, addSubview(view) { view.superview = this; } },
     refreshAddonCommands() { events.push("refresh"); } };
   const panel = { addon: { window: {} }, panelVisible: true, activePage: provider, currentContentPage: provider,
@@ -145,6 +147,11 @@ function panelRuntime(provider, options = {}) {
       if (options.notificationError) throw Error("发送失败");
       events.push({ name, payload: JSON.parse(JSON.stringify(payload)) });
     } },
+    UIApplication: { sharedApplication() { return { openURLOptionsCompletionHandler(url, settings, callback) {
+      events.push({ external: url });
+      if (options.deferExternal) externalCallback = callback; else callback(options.openSuccess !== false);
+    } }; } },
+    NSURL: { URLWithString(url) { return url; } },
     Application: { sharedInstance() { return { showHUD(message) { messages.push(message); }, studyController() { return study; } }; } },
     NSUserDefaults: { standardUserDefaults() { return {
       objectForKey(key) { return stored.get(key); }, setObjectForKey(value, key) { stored.set(key, value); },
@@ -155,13 +162,13 @@ function panelRuntime(provider, options = {}) {
   };
   vm.createContext(context); vm.runInContext(source, context); vm.runInContext(panelSource, context);
   return { panel, events, messages, stored, timers, browser: context.__DAGUANYUAN_VIDEO_BROWSER_GLOBAL__,
-    api: context.__DAGUANYUAN_WEB_PANEL_GLOBAL__,
+    api: context.__DAGUANYUAN_WEB_PANEL_GLOBAL__, completeExternal(success) { externalCallback(success); },
     send(address, webView = panel.webView) {
       return methods.webViewShouldStartLoadWithRequestNavigationType(webView, { URL: { absoluteString: address } });
     } };
 }
 
-test("数学视频链接、408 跳转播放和深链发出请求后收起，恢复保留原页面", () => {
+test("数学视频链接、408 跳转播放和深链发出请求后收起，恢复保留原页面", async () => {
   const url = "https://www.bilibili.com/video/BV164411o7Qo/?p=81&t=12";
   for (const entry of ["math", "408", "deep-link"]) {
     const run = panelRuntime(entry === "math" ? "math" : "408");
@@ -177,6 +184,7 @@ test("数学视频链接、408 跳转播放和深链发出请求后收起，恢�
     } else address = "bilibili://video/BV164411o7Qo?page=80&start_progress=12000";
     const originalURL = run.panel.webView.URL, originalWebView = run.panel.webView;
     assert.equal(run.send(address), false);
+    await new Promise(resolve => setImmediate(resolve));
     assert.deepEqual(run.events, [{ name: "openInBrowser", payload: { url, desktop: true } }, "hide"]);
     assert.equal(run.panel.panelVisible, false); assert.equal(run.panel.view.hidden, true);
     assert.equal(run.panel.view.superview, null);
@@ -190,7 +198,7 @@ test("数学视频链接、408 跳转播放和深链发出请求后收起，恢�
   }
 });
 
-test("视频地址无效、缺少 MN Utils 或发送失败时保持面板并显示原因", () => {
+test("视频地址无效、缺少 MN Utils 或发送失败时保持面板并显示原因", async () => {
   for (const provider of ["math", "408"]) {
     for (const scenario of [
       { address: "daguanyuanbridge://open-video?url=%ZZ", reason: /视频地址无效/ },
@@ -199,6 +207,7 @@ test("视频地址无效、缺少 MN Utils 或发送失败时保持面板并显�
     ]) {
       const run = panelRuntime(provider, scenario);
       assert.equal(run.send(scenario.address || "bilibili://video/BV164411o7Qo"), false);
+      await new Promise(resolve => setImmediate(resolve));
       assert.equal(run.panel.panelVisible, true); assert.equal(run.panel.view.hidden, false);
       assert.ok(run.panel.view.superview); assert.deepEqual(run.events, []);
       assert.match(run.messages.at(-1), scenario.reason); assert.equal(run.timers.length, 0);
@@ -207,7 +216,7 @@ test("视频地址无效、缺少 MN Utils 或发送失败时保持面板并显�
   }
 });
 
-test("打开视频列表、普通网页导航和其他 WebView 不触发收起", () => {
+test("打开视频列表、普通网页导航和其他 WebView 不触发收起", async () => {
   for (const provider of ["math", "408"]) {
     const run = panelRuntime(provider), page = webPage(run.browser);
     page.listeners.click({ target: { tagName: "BUTTON", className: "video-btn", textContent: "视频" } });
@@ -219,7 +228,7 @@ test("打开视频列表、普通网页导航和其他 WebView 不触发收起",
   }
 });
 
-test("数学视频链接保留分 P 和播放时间并发给 MN Browser", () => {
+test("数学视频链接保留分 P 和播放时间并发给 MN Browser", async () => {
   const notifications = [];
   const browser = nativeBrowser({ postNotification(name, payload) { notifications.push({ name, payload }); } });
   const page = webPage(browser);
@@ -237,14 +246,14 @@ test("数学视频链接保留分 P 和播放时间并发给 MN Browser", () => 
   assert.equal(page.location.href, "https://www.408os.cn/exercise");
   const bridgeAddress = page.frames[0].src;
   assert.equal(bridgeAddress, "daguanyuanbridge://open-video?url=" + encodeURIComponent(address));
-  assert.equal(browser.open(bridgeAddress, () => assert.fail("unexpected error")), true);
+  assert.equal(await browser.open(bridgeAddress, () => assert.fail("unexpected error")), true);
   assert.equal(notifications.length, 1);
   assert.equal(notifications[0].name, "openInBrowser");
   assert.equal(notifications[0].payload.url, "https://www.bilibili.com/video/BV164411o7Qo/?p=81&t=12");
   assert.equal(notifications[0].payload.desktop, true);
 });
 
-test("408 跳转播放在网页使用 window.open 时发给 MN Browser", () => {
+test("408 跳转播放在网页使用 window.open 时发给 MN Browser", async () => {
   const browser = nativeBrowser({ postNotification() {} });
   const page = webPage(browser);
   const button = { tagName: "BUTTON", className: "jump-btn", textContent: "跳转播放" };
@@ -254,24 +263,25 @@ test("408 跳转播放在网页使用 window.open 时发给 MN Browser", () => {
   assert.equal(browser.videoURL(page.frames[0].src), "https://www.bilibili.com/video/BV164411o7Qo/?p=81&t=12");
 });
 
-test("408 iPad 深链转换为完整桌面视频页", () => {
+test("408 iPad 深链转换为完整桌面视频页", async () => {
   const notifications = [];
   const browser = nativeBrowser({ postNotification(name, payload) { notifications.push({ name, payload }); } });
   const address = "bilibili://video/BV164411o7Qo?page=80&start_progress=12000";
   assert.equal(browser.handles(address), true);
-  assert.equal(browser.open(address, () => assert.fail("unexpected error")), true);
+  assert.equal(await browser.open(address, () => assert.fail("unexpected error")), true);
   assert.equal(notifications[0].name, "openInBrowser");
   assert.equal(notifications[0].payload.url, "https://www.bilibili.com/video/BV164411o7Qo/?p=81&t=12");
   assert.equal(notifications[0].payload.desktop, true);
 });
 
-test("面板拦截 408 深链并交由 MN Browser 打开", () => {
+test("面板拦截 408 深链并交由 MN Browser 打开", async () => {
   const notifications = [];
   let panelMethods;
   const context = {
     MNUtil: { postNotification(name, payload) { notifications.push({ name, payload }); } },
     JSB: { defineClass(name, methods) { panelMethods = methods; return { new() { return {}; } }; } },
     Application: { sharedInstance() { return { showHUD() {} }; } },
+    NSUserDefaults: { standardUserDefaults() { return { objectForKey() { return true; } }; } },
     console,
   };
   vm.createContext(context);
@@ -283,55 +293,128 @@ test("面板拦截 408 深链并交由 MN Browser 打开", () => {
     URL: { absoluteString: "bilibili://video/BV164411o7Qo?page=80&start_progress=12000" },
   });
   assert.equal(allowed, false);
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(notifications[0].payload.url, "https://www.bilibili.com/video/BV164411o7Qo/?p=81&t=12");
   assert.equal(notifications[0].payload.desktop, true);
 });
 
-test("非 B 站视频链接保持原地址", () => {
+test("非 B 站视频链接保持原地址", async () => {
   const notifications = [];
   const browser = nativeBrowser({ postNotification(name, payload) { notifications.push({ name, payload }); } });
   const address = "https://video.example.com/watch?id=42&t=12";
-  assert.equal(browser.open("daguanyuanbridge://open-video?url=" + encodeURIComponent(address), () => assert.fail("unexpected error")), true);
+  assert.equal(await browser.open("daguanyuanbridge://open-video?url=" + encodeURIComponent(address), () => assert.fail("unexpected error")), true);
   assert.equal(notifications[0].payload.url, address);
   assert.equal(Object.hasOwn(notifications[0].payload, "desktop"), false);
 });
 
-test("没有起播时间的 B 站链接不附加零秒参数", () => {
+test("没有起播时间的 B 站链接不附加零秒参数", async () => {
   const browser = nativeBrowser({ postNotification() {} });
   const address = "https://www.bilibili.com/video/BV164411o7Qo/?p=81";
   assert.equal(browser.videoURL("daguanyuanbridge://open-video?url=" + encodeURIComponent(address)),
     "https://www.bilibili.com/video/BV164411o7Qo/?p=81");
 });
 
-test("移动视频链接改为桌面页并保留小数起播时间", () => {
+test("移动视频链接改为桌面页并保留小数起播时间", async () => {
   const notifications = [];
   const browser = nativeBrowser({ postNotification(name, payload) { notifications.push({ name, payload }); } });
   const address = "https://m.bilibili.com/video/BV164411o7Qo?p=2&t=12.5#reply";
-  assert.equal(browser.open("daguanyuanbridge://open-video?url=" + encodeURIComponent(address), assert.fail), true);
+  assert.equal(await browser.open("daguanyuanbridge://open-video?url=" + encodeURIComponent(address), assert.fail), true);
   assert.equal(notifications[0].payload.url, "https://www.bilibili.com/video/BV164411o7Qo/?p=2&t=12.5");
   assert.equal(notifications[0].payload.desktop, true);
 });
 
-test("未指定分 P 或起播时间时仍打开完整视频页", () => {
+test("未指定分 P 或起播时间时仍打开完整视频页", async () => {
   const browser = nativeBrowser({ postNotification() {} });
   assert.equal(browser.videoURL("bilibili://video/BV164411o7Qo"), "https://www.bilibili.com/video/BV164411o7Qo/");
   assert.equal(browser.videoURL("bilibili://video/BV164411o7Qo?page=0&start_progress=0"),
     "https://www.bilibili.com/video/BV164411o7Qo/?p=1&t=0");
 });
 
-test("B 站短链保留地址且不冒充已解析的视频页", () => {
+test("B 站短链保留地址且不冒充已解析的视频页", async () => {
   const notifications = [];
   const browser = nativeBrowser({ postNotification(name, payload) { notifications.push({ name, payload }); } });
   const address = "https://b23.tv/example";
-  assert.equal(browser.open("daguanyuanbridge://open-video?url=" + encodeURIComponent(address), assert.fail), true);
+  assert.equal(await browser.open("daguanyuanbridge://open-video?url=" + encodeURIComponent(address), assert.fail), true);
   assert.equal(notifications[0].payload.url, address);
   assert.equal(Object.hasOwn(notifications[0].payload, "desktop"), false);
 });
 
-test("MN Utils 不可用时给出可见错误", () => {
+test("MN Utils 不可用时给出可见错误", async () => {
   const browser = nativeBrowser(undefined);
   let error = "";
-  const result = browser.open("bilibili://video/BV164411o7Qo", (message) => { error = message; });
+  const result = await browser.open("bilibili://video/BV164411o7Qo", (message) => { error = message; });
   assert.equal(result, false);
   assert.match(error, /MN Utils/);
+});
+
+
+function externalRuntime(options = {}) {
+  const stored = new Map(), calls = [], errors = [];
+  if (options.enabled !== undefined) stored.set('cn.marginnote.daguanyuan-bridge.plugin-integration.mn-browser-enabled', options.enabled);
+  let complete;
+  const globals = {
+    NSUserDefaults: { standardUserDefaults() { return { objectForKey: key => stored.get(key), setObjectForKey(value, key) { stored.set(key, value); } }; } },
+    NSURL: { URLWithString: value => value },
+    UIApplication: { sharedApplication() { return { openURLOptionsCompletionHandler(url, config, callback) {
+      if (options.throwError) throw Error('系统打开失败');
+      calls.push(url); if (options.defer) complete = callback; else callback(options.success !== false);
+    } }; } },
+  };
+  const browser=nativeBrowser(undefined, globals);
+  return { browser, calls, errors, stored, report: message => errors.push(message), complete(success) { complete(success); } };
+}
+
+test('默认关闭 MN Browser 联动，无需 MN Utils 即可打开哔哩哔哩 App', async () => {
+  const run=externalRuntime();
+  assert.equal(run.browser.enabled(), false);
+  assert.equal(await run.browser.open('bilibili://video/BV164411o7Qo', run.report), true);
+  assert.deepEqual(run.calls, ['bilibili://video/BV164411o7Qo']);
+  assert.deepEqual(run.errors, []);
+});
+
+test('网页、移动端与 App 深链转交外部 App 时保留分 P 和毫秒时间', async () => {
+  const run=externalRuntime();
+  for(const address of [
+    'bilibili://video/BV164411o7Qo?page=80&start_progress=12500',
+    'daguanyuanbridge://open-video?url='+encodeURIComponent('https://www.bilibili.com/video/BV164411o7Qo/?p=81&t=12.5'),
+    'daguanyuanbridge://open-video?url='+encodeURIComponent('https://m.bilibili.com/video/BV164411o7Qo?p=81&t=12.5#reply')
+  ]) assert.equal(await run.browser.open(address, run.report),true);
+  assert.deepEqual(run.calls, Array(3).fill('bilibili://video/BV164411o7Qo?page=80&start_progress=12500'));
+  assert.equal(await run.browser.open('bilibili://video/BV164411o7Qo?page=0&start_progress=0', run.report),true);
+  assert.equal(run.calls.at(-1), 'bilibili://video/BV164411o7Qo?page=0&start_progress=0');
+});
+
+test('保存关闭与开启状态，重建模块后沿用设置，非法值默认关闭', () => {
+  for(const value of [undefined,null,false,0,'false','bad']) assert.equal(externalRuntime({enabled:value}).browser.enabled(),false);
+  const run=externalRuntime();run.browser.setEnabled(true);assert.equal(run.browser.enabled(),true);
+  assert.equal(run.stored.get('cn.marginnote.daguanyuan-bridge.plugin-integration.mn-browser-enabled'),true);
+  run.browser.setEnabled(false);assert.equal(run.browser.enabled(),false);
+  const next=nativeBrowser(undefined,{NSUserDefaults:{standardUserDefaults(){return {objectForKey:key=>run.stored.get(key)};}}});
+  assert.equal(next.enabled(),false);
+});
+
+test('外部打开失败与异常返回失败，非法链接不调用系统，短链和其他视频原样交系统', async () => {
+  for(const options of [{success:false},{throwError:true}]){
+    const run=externalRuntime(options);assert.equal(await run.browser.open('bilibili://video/BV164411o7Qo',run.report),false);
+    assert.match(run.errors[0], /无法打开哔哩哔哩|系统打开失败/);
+  }
+  const run=externalRuntime();assert.equal(await run.browser.open('daguanyuanbridge://open-video?url=%ZZ',run.report),false);assert.equal(run.calls.length,0);
+  for(const url of ['https://b23.tv/example','https://video.example.com/watch?id=42']){
+    assert.equal(await run.browser.open('daguanyuanbridge://open-video?url='+encodeURIComponent(url),run.report),true);
+    assert.equal(run.calls.at(-1),url);
+  }
+});
+
+test('关闭联动时数学和 408 等待系统打开回调，成功才收起，失败保留且能重试', async () => {
+  for(const provider of ['math','408']) for(const success of [false,true]){
+    const run=panelRuntime(provider,{mnBrowserEnabled:false,missingUtils:true,deferExternal:true});
+    run.send('bilibili://video/BV164411o7Qo?page=1&start_progress=12000');
+    assert.equal(run.panel.panelVisible,true);assert.equal(run.panel.videoOpening,true);
+    assert.deepEqual(run.events,[{external:'bilibili://video/BV164411o7Qo?page=1&start_progress=12000'}]);
+    run.send('bilibili://video/BV164411o7Qo');assert.equal(run.events.length,1);
+    run.completeExternal(success);await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(run.panel.videoOpening,false);assert.equal(run.panel.panelVisible,!success);
+    assert.equal(run.events.some(event=>event==='hide'),success);
+    if(!success){assert.match(run.messages.at(-1),/哔哩哔哩/);run.send('bilibili://video/BV164411o7Qo');assert.equal(run.panel.videoOpening,true);run.completeExternal(true);await new Promise(resolve=>setImmediate(resolve));assert.equal(run.panel.panelVisible,false);}
+  }
 });

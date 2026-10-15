@@ -71,7 +71,7 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
           var specs = [
             { key: math ? 'data-daguanyuan-practice-locate-card' : 'data-daguanyuan-408-locate-card', text: '定位卡片', command: 'locate-card', show: state.enabled, busy: state.locateBusy },
             { key: math ? 'data-daguanyuan-practice-add-note' : 'data-daguanyuan-408-add-note', text: '添加笔记', command: 'add-note', show: state.noteEnabled, busy: state.noteBusy },
-            { key: 'data-daguanyuan-single-import', text: '导入单题', command: 'import-single', show: state.singleEnabled, busy: state.busy }
+            { key: 'data-daguanyuan-single-import', text: '导入本题', command: 'import-single', show: state.singleEnabled, busy: state.busy }
           ];
           specs.forEach(function (spec) {
             var button = row.querySelector('[' + spec.key + ']');
@@ -124,11 +124,12 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
 
   function practicePageScript(enabled, noteEnabled) { return questionToolsPageScript(enabled, noteEnabled, null); }
 
-  function bindCategoryPageScript(bindEnabled, importEnabled) {
+  function bindCategoryPageScript(bindEnabled, importEnabled, selectionEnabled) {
     var state = window.__DAGUANYUAN_BIND_CATEGORY_BUTTON__;
-    if (state && state.version === 7) {
+    if (state && state.version === 8) {
       state.bindEnabled = bindEnabled;
       state.importEnabled = importEnabled;
+      state.selectionEnabled = selectionEnabled;
       state.schedule();
       return true;
     }
@@ -136,106 +137,23 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
     if (previous) {
       if (previous.timer !== null && typeof window.clearTimeout === 'function') window.clearTimeout(previous.timer);
       previous.timer = -1;
+      var saved = previous.contextStyle;
+      if (saved) {
+        saved.element.style.display = saved.display;
+        saved.element.style.alignItems = saved.alignItems;
+        saved.element.style.gap = saved.gap;
+      }
     }
-    var oldToolbar = document.querySelector("[data-daguanyuan-bind-category-wrap]");
-    if (oldToolbar && oldToolbar.parentNode) oldToolbar.parentNode.removeChild(oldToolbar);
-    state = { version: 7, bindEnabled: bindEnabled, importEnabled: importEnabled,
-      importBusy: false, timer: null, schedule: null, finishImport: null, contextStyle: null };
+    state = { version: 8, bindEnabled: bindEnabled, importEnabled: importEnabled, selectionEnabled: selectionEnabled,
+      importBusy: Boolean(previous && previous.importBusy), timer: null, schedule: null, finishImport: null };
     window.__DAGUANYUAN_BIND_CATEGORY_BUTTON__ = state;
-    function restoreContextStyle() {
-      var saved = state.contextStyle;
-      if (!saved) return;
-      saved.element.style.display = saved.display;
-      saved.element.style.alignItems = saved.alignItems;
-      saved.element.style.gap = saved.gap;
-      state.contextStyle = null;
-    }
     function sync() {
       state.timer = null;
       if (previous) previous.timer = -1;
-      var host = window.location.hostname || "";
-      var path = window.location.pathname || "";
-      var math = /(^|\.)cxyonly\.fans$/i.test(host) && /^\/math\/practice\/\d+(?:\/|$)/.test(path);
-      var os408 = /^www\.408os\.cn$/i.test(host) && /^\/exercise\/?$/.test(path)
-        && /[?&](?:year=\d{4}|knowledgeId=[1-9]\d*)(?:[&#]|$)/.test(window.location.search || "")
-        && !/[?&](?:mode|collectionId|daguanyuanKnowledgeSource)=/.test(window.location.search || "");
+      // 绑定与直接导入统一放在右下角，移除旧页顶入口。
+      var toolbar = document.querySelector('[data-daguanyuan-bind-category-wrap]');
+      if (toolbar && toolbar.parentNode) toolbar.parentNode.removeChild(toolbar);
       if (window.__DAGUANYUAN_IMPORT_UI__) window.__DAGUANYUAN_IMPORT_UI__.refresh();
-      var active = (math || os408) && state.importEnabled;
-      var toolbar = document.querySelector("[data-daguanyuan-bind-category-wrap]");
-      if (!active) {
-        if (toolbar && toolbar.parentNode) toolbar.parentNode.removeChild(toolbar);
-        restoreContextStyle();
-        return;
-      }
-      var target = math
-        ? document.querySelector('[data-learning-question-practice-toolbar] [data-slot="context"]')
-        : document.querySelector(".exercise-header > .header-left");
-      if (!target) {
-        restoreContextStyle();
-        return;
-      }
-      var selector = math && target.querySelector('[class*="chapterSelector"]');
-      if (math && !selector) {
-        if (toolbar && toolbar.parentNode) toolbar.parentNode.removeChild(toolbar);
-        restoreContextStyle();
-        return;
-      }
-      if (toolbar && toolbar.parentNode !== target) {
-        toolbar.parentNode.removeChild(toolbar);
-      }
-      if (!toolbar) {
-        toolbar = document.createElement("div");
-        toolbar.setAttribute("data-daguanyuan-bind-category-wrap", "");
-      }
-      // 绑定入口统一由右下角工具栏显示，页顶仅保留原有整类导入。
-      var bindButton = toolbar.querySelector("[data-daguanyuan-bind-category]");
-      if (bindButton && bindButton.parentNode) bindButton.parentNode.removeChild(bindButton);
-      var importButton = toolbar.querySelector("[data-daguanyuan-import-category]");
-      if (state.importEnabled && !importButton) {
-        importButton = document.createElement("button");
-        importButton.type = "button";
-        importButton.setAttribute("data-daguanyuan-import-category", "");
-        importButton.addEventListener("click", function (event) {
-          event.preventDefault();
-          event.stopPropagation();
-          if (state.importBusy) return;
-          state.importBusy = true;
-          sync();
-          sendCommand("import-category");
-        }, true);
-        toolbar.appendChild(importButton);
-      }
-      if (!state.importEnabled && importButton && importButton.parentNode) {
-        importButton.parentNode.removeChild(importButton);
-        importButton = null;
-      }
-      var buttonStyle = "padding:7px 12px;border:0;border-radius:8px;background:#2572d2;color:#fff;font-size:13px;white-space:nowrap;cursor:pointer";
-      if (importButton) {
-        importButton.style.cssText = buttonStyle;
-        importButton.textContent = state.importBusy ? "导入中…" : "导入当前题目";
-        importButton.title = "导入当前分类的全部题目";
-        importButton.disabled = state.importBusy;
-      }
-      toolbar.style.cssText = math
-        ? "display:inline-flex;align-items:center;gap:8px;flex:none;position:relative;z-index:10"
-        : "display:inline-flex;align-items:center;gap:8px;flex:none;margin-left:8px;position:relative;z-index:10";
-      if (math) {
-        if (!state.contextStyle || state.contextStyle.element !== target) {
-          restoreContextStyle();
-          state.contextStyle = {
-            element: target,
-            display: target.style.display,
-            alignItems: target.style.alignItems,
-            gap: target.style.gap,
-          };
-        }
-        target.style.display = "flex";
-        target.style.alignItems = "center";
-        target.style.gap = "8px";
-      } else restoreContextStyle();
-      if (toolbar.parentNode !== target || math && toolbar.previousElementSibling !== selector || os408 && toolbar.nextSibling) {
-        target.insertBefore(toolbar, math ? selector.nextSibling : null);
-      }
     }
     state.schedule = function () {
       if (state.timer !== null) return;
@@ -243,10 +161,12 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
     };
     state.finishImport = function () {
       state.importBusy = false;
+      var ui = window.__DAGUANYUAN_IMPORT_UI__;
+      if (ui && typeof ui.finishDirectImport === 'function') ui.finishDirectImport();
       state.schedule();
     };
     new MutationObserver(state.schedule).observe(document.documentElement, { childList: true, subtree: true });
-    window.addEventListener("popstate", state.schedule);
+    window.addEventListener('popstate', state.schedule);
     state.schedule();
     return true;
   }
@@ -258,8 +178,8 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
   }
   function singleImportScript(enabled) { return toolsScript(singleImportPageScript, enabled ? 'true' : 'false'); }
   function practiceScript(enabled, noteEnabled) { return toolsScript(practicePageScript, (enabled === false ? 'false' : 'true') + ',' + (noteEnabled ? 'true' : 'false')); }
-  function bindCategoryScript(bindEnabled, importEnabled) {
-    return '(function () { var sendCommand = ' + sendCommand.toString() + '; return (' + bindCategoryPageScript.toString() + ')(' + (bindEnabled ? 'true' : 'false') + ',' + (importEnabled ? 'true' : 'false') + '); })();';
+  function bindCategoryScript(bindEnabled, importEnabled, selectionEnabled) {
+    return '(function () { var sendCommand = ' + sendCommand.toString() + '; return (' + bindCategoryPageScript.toString() + ')(' + (bindEnabled ? 'true' : 'false') + ',' + (importEnabled ? 'true' : 'false') + ',' + (selectionEnabled === false ? 'false' : 'true') + '); })();';
   }
 
   function readImportContext() {

@@ -1,7 +1,6 @@
 function createDaguanyuanBridgeAddon() {
   return JSB.defineClass("DaguanyuanBridgeAddon : JSExtension", {
     sceneWillConnect: function () {
-      self.focusNavigationEnabled = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.enabled();
       self.__daguanyuanFocusNextRememberToken = 0;
       self.__daguanyuanFocusNextPlaceToken = 0;
       self.panelController = __DAGUANYUAN_WEB_PANEL_GLOBAL__.createController(self);
@@ -23,7 +22,6 @@ function createDaguanyuanBridgeAddon() {
       self.__daguanyuanFocusNextRememberToken += 1;
       self.__daguanyuanFocusNextPlaceToken += 1;
       __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.remove(self);
-      self.focusNavigationEnabled = false;
       if (self.panelController && self.panelController.view && self.panelController.view.superview) {
         self.panelController.view.removeFromSuperview();
       }
@@ -37,9 +35,8 @@ function createDaguanyuanBridgeAddon() {
       self.panelController.addonWindow = self.window;
       if (typeof __DAGUANYUAN_CARD_LOCATOR_GLOBAL__ !== "undefined") __DAGUANYUAN_CARD_LOCATOR_GLOBAL__.resume(self);
       self.__daguanyuanFocusNextLastFocus = null;
-      if (self.focusNavigationEnabled !== false) __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.show(self);
-      else __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.hide(self);
-      if (self.focusNavigationEnabled !== false) __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.syncQuestionLocator(self);
+      __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.show(self);
+      __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.syncQuestionLocator(self);
       if (typeof __DAGUANYUAN_WEB_PANEL_GLOBAL__.refreshRetestButtons === "function") {
         __DAGUANYUAN_WEB_PANEL_GLOBAL__.refreshRetestButtons(self.panelController);
       }
@@ -54,6 +51,8 @@ function createDaguanyuanBridgeAddon() {
     },
 
     notebookWillClose: function () {
+      __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.hide(self);
+      self.__daguanyuanFocusNextLastFocus = null;
       if (typeof __DAGUANYUAN_MASTERY_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_MASTERY_UI_GLOBAL__.hide(self);
       if (typeof __DAGUANYUAN_MASTERY_SYNC_GLOBAL__ !== 'undefined') __DAGUANYUAN_MASTERY_SYNC_GLOBAL__.cancel(self);
     },
@@ -82,49 +81,6 @@ function createDaguanyuanBridgeAddon() {
       } else {
         __DAGUANYUAN_WEB_PANEL_GLOBAL__.showPanel(self.panelController);
         Application.sharedInstance().studyController(self.window).refreshAddonCommands();
-      }
-    },
-
-    toggleFocusNavigation: function (sender) {
-      self.focusNavigationEnabled = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.setEnabled(!(self.focusNavigationEnabled !== false));
-      if (self.focusNavigationEnabled) __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.show(self);
-      else __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.hide(self);
-      if (self.focusNavigationEnabled) __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.syncQuestionLocator(self);
-      __DAGUANYUAN_WEB_PANEL_GLOBAL__.refreshFocusSetting(self.panelController);
-      return self.focusNavigationEnabled;
-    },
-
-    focusNext: function (sender) {
-      if (self.__daguanyuanFocusNextSuppressTap) {
-        self.__daguanyuanFocusNextSuppressTap = false;
-        return;
-      }
-      try {
-        const result = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.focusNext(self);
-        __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.refreshProgress(self, result.next);
-        __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.refreshCategory(self, result.next);
-      }
-      catch (error) {
-        const message = error && error.message ? error.message : String(error);
-        __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.showMessage(self, message);
-        console.log(`[Daguanyuan Bridge Focus Next] 切换失败：${message}`);
-      }
-    },
-
-    focusPrevious: function (sender) {
-      if (self.__daguanyuanFocusNextSuppressTap) {
-        self.__daguanyuanFocusNextSuppressTap = false;
-        return;
-      }
-      try {
-        const result = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.focusPrevious(self);
-        __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.refreshProgress(self, result.next);
-        __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.refreshCategory(self, result.next);
-      }
-      catch (error) {
-        const message = error && error.message ? error.message : String(error);
-        __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.showMessage(self, message);
-        console.log(`[Daguanyuan Bridge Focus Next] 切换失败：${message}`);
       }
     },
 
@@ -207,14 +163,6 @@ function createDaguanyuanBridgeAddon() {
         __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.showMessage(self, message);
         console.log(`[Daguanyuan Bridge Question Locator] 定位失败：${message}`);
       }
-    },
-
-    handleFocusNextButtonPan: function (recognizer) {
-      __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.handleNextPan(self, recognizer);
-    },
-
-    handleFocusPreviousButtonPan: function (recognizer) {
-      __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.handlePreviousPan(self, recognizer);
     },
 
     handleFocusCategoryButtonPan: function (recognizer) {

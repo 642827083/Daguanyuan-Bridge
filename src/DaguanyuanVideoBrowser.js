@@ -1,4 +1,19 @@
 var __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__ = (function () {
+  const ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.plugin-integration.mn-browser-enabled";
+
+  function enabled() {
+    try {
+      const value = NSUserDefaults.standardUserDefaults().objectForKey(ENABLED_KEY);
+      if (value && typeof value.booleanValue === "function") return Boolean(value.booleanValue());
+      return value === true || value === 1 || String(value).toLowerCase() === "true";
+    } catch (ignored) { return false; }
+  }
+
+  function setEnabled(value) {
+    NSUserDefaults.standardUserDefaults().setObjectForKey(Boolean(value), ENABLED_KEY);
+    return Boolean(value);
+  }
+
   function videoPageURL(bvid, page, start) {
     const parameters = [];
     if (page && Number(page) > 0) parameters.push("p=" + Number(page));
@@ -84,7 +99,7 @@ var __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__ = (function () {
     }
   }
 
-  function open(address, reportError, targetWindow) {
+  function openInBrowser(address, reportError, targetWindow) {
     const url = videoURL(address);
     if (!url) {
       reportError("视频地址无效，未打开 MN Browser");
@@ -105,6 +120,43 @@ var __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__ = (function () {
       reportError("打开 MN Browser 失败：" + String(error && error.message || error));
       return false;
     }
+  }
+
+  function appVideoURL(url) {
+    const match = url.match(/^https:\/\/www\.bilibili\.com\/video\/(BV[0-9A-Za-z]+)\/(?:\?([^#]*))?$/i);
+    if (!match) return url;
+    const query = match[2] || "", parameters = [];
+    const page = query.match(/(?:^|&)p=(\d+)(?:&|$)/);
+    const start = query.match(/(?:^|&)t=(\d+(?:\.\d+)?)(?:&|$)/);
+    // 网站 App 深链使用从零开始的分 P 编号与毫秒起播时间。
+    if (page) parameters.push("page=" + (Number(page[1]) - 1));
+    if (start) parameters.push("start_progress=" + Math.round(Number(start[1]) * 1000));
+    return "bilibili://video/" + match[1] + (parameters.length ? "?" + parameters.join("&") : "");
+  }
+
+  function open(address, reportError, targetWindow) {
+    if (enabled()) return Promise.resolve(openInBrowser(address, reportError, targetWindow));
+    const url = videoURL(address);
+    if (!url) { reportError("视频地址无效，未打开视频"); return Promise.resolve(false); }
+    return new Promise(function (resolve) {
+      const destination = appVideoURL(url), bilibili = /^bilibili:\/\//i.test(destination);
+      try {
+        const app = typeof UIApplication !== "undefined" && UIApplication.sharedApplication();
+        if (!app || typeof app.openURLOptionsCompletionHandler !== "function") {
+          throw new Error("当前 MarginNote 版本不支持系统视频跳转");
+        }
+        const nativeURL = NSURL.URLWithString(destination);
+        if (!nativeURL) throw new Error("视频地址无效");
+        // 直接发起打开并检查回调，避免 canOpenURL 的宿主白名单限制误判 App 未安装。
+        app.openURLOptionsCompletionHandler(nativeURL, {}, function (success) {
+          if (!success) reportError(bilibili ? "无法打开哔哩哔哩，请确认已安装 App" : "无法打开视频链接，请重试");
+          resolve(Boolean(success));
+        });
+      } catch (error) {
+        reportError("打开视频失败：" + String(error && error.message || error));
+        resolve(false);
+      }
+    });
   }
 
   function pageScript() {
@@ -163,5 +215,5 @@ var __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__ = (function () {
     }.toString() + ")()";
   }
 
-  return { handles, videoURL, open, pageScript };
+  return { handles, videoURL, open, pageScript, enabled, setEnabled };
 })();

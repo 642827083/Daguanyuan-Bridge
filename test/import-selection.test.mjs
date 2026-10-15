@@ -145,7 +145,7 @@ test('读取期间关闭后迟到的确认不会重新打开，原生回调超�
   run.timers.at(-1).callback(); await assert.rejects(stalled, /超时/);
 });
 
-test('右下角提供绑定分类和选题导入，题库页面保留入口，非题库网站隐藏', async () => {
+test('右下角统一三个入口，题库页面保留入口，非题库网站隐藏', async () => {
   for (const [url, hidden] of [
     ['https://www.cxyonly.fans/math/practice/1', false],
     ['https://www.408os.cn/exercise?year=2026', false],
@@ -155,11 +155,52 @@ test('右下角提供绑定分类和选题导入，题库页面保留入口，�
   ]) {
     const run = runtime(url); await run.ui.inject(run.controller);
     assert.equal(run.document.querySelector('#dgy-toolbar').hidden, hidden);
-    assert.equal(run.document.querySelectorAll('#dgy-toolbar button').length, 2);
+    assert.equal(run.document.querySelectorAll('#dgy-toolbar-actions button').length, 3);
+    assert.equal(run.document.querySelector('#dgy-toolbar-actions').hidden, true);
+    assert.equal(run.document.querySelector('[data-toggle-import-tools]').getAttribute('aria-expanded'), 'false');
     assert.equal(run.document.querySelector('[data-scope="selected"]').textContent, '选题导入');
     assert.equal(run.document.querySelector('[data-scope="single"]'), null);
     assert.equal(run.document.querySelector('[data-scope="all"]'), null);
   }
+});
+
+test('导入工具默认收起，重复点击展开收起，刷新和重复注入保留当前展开状态', async () => {
+  const run = runtime(); await run.ui.inject(run.controller);
+  const actions = run.document.querySelector('#dgy-toolbar-actions');
+  const toggle = run.document.querySelector('[data-toggle-import-tools]');
+  assert.equal(toggle.textContent, '');
+  assert.equal(toggle.getAttribute('aria-label'), '导入工具');
+  assert.equal(toggle.querySelectorAll('svg[aria-hidden="true"]').length, 1);
+  assert.equal(actions.querySelectorAll('button svg[aria-hidden="true"]').length, 3);
+  assert.equal(actions.hidden, true);
+  run.click('[data-toggle-import-tools]');
+  assert.equal(actions.hidden, false); assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+  assert.equal(run.document.querySelector('#dgy-toolbar').getAttribute('data-expanded'), 'true');
+  run.browser.window.__DAGUANYUAN_IMPORT_UI__.refresh(); await run.ui.inject(run.controller);
+  assert.equal(actions.hidden, false); assert.equal(run.document.querySelectorAll('#dgy-toolbar').length, 1);
+  run.click('[data-toggle-import-tools]');
+  assert.equal(actions.hidden, true); assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+  assert.equal(run.document.querySelector('#dgy-toolbar').getAttribute('data-expanded'), 'false');
+});
+
+test('显示选题导入开关实时隐藏与恢复入口，隐藏后不提交，全部关闭则隐藏工具', async () => {
+  const run = runtime();
+  run.document.body.innerHTML = '<article class="question-document" data-question-id="11">题干</article>';
+  const config = { bindEnabled: true, importEnabled: true, selectionEnabled: false };
+  run.browser.window.__DAGUANYUAN_BIND_CATEGORY_BUTTON__ = config;
+  await run.ui.inject(run.controller); run.click('[data-toggle-import-tools]');
+  const select = run.document.querySelector('[data-scope="selected"]');
+  assert.equal(select.hidden, true);
+  run.click('[data-scope="selected"]'); await tick(); assert.equal(run.messages.length, 0);
+  assert.equal(run.document.querySelector('[data-import-current]').hidden, false);
+  config.selectionEnabled = true; run.browser.window.__DAGUANYUAN_IMPORT_UI__.refresh();
+  assert.equal(select.hidden, false); assert.equal(select.disabled, false);
+  config.bindEnabled = config.importEnabled = config.selectionEnabled = false;
+  run.browser.window.__DAGUANYUAN_IMPORT_UI__.refresh();
+  assert.equal(run.document.querySelector('#dgy-toolbar').hidden, true);
+  config.selectionEnabled = true; run.browser.window.__DAGUANYUAN_IMPORT_UI__.refresh();
+  assert.equal(run.document.querySelector('#dgy-toolbar').hidden, false);
+  assert.equal(run.document.querySelector('#dgy-toolbar-actions').hidden, true);
 });
 
 test('选题导入失败可以关闭提示，不留下无法关闭的假任务', async () => {
@@ -180,6 +221,50 @@ test('选题导入入口向原生发送勾选范围', async () => {
   assert.deepEqual(calls, ['selected']);
 });
 
+test('导入题目在选题上方直接调用整类导入，运行中防止重复提交，完成后恢复', async () => {
+  for (const url of ['https://www.cxyonly.fans/math/practice/categories/345', 'https://www.408os.cn/exercise?year=2026']) {
+    const run = runtime(url);
+    run.document.body.innerHTML = url.includes('408os')
+      ? '<div class="question-card"><span class="year-tag">2026年</span><span class="index-tag">第1题</span>题干</div>'
+      : '<article class="question-document" data-question-id="11">题干</article>';
+    const config = { bindEnabled: true, importEnabled: true, importBusy: false };
+    run.browser.window.__DAGUANYUAN_BIND_CATEGORY_BUTTON__ = config;
+    await run.ui.inject(run.controller);
+    const direct = run.document.querySelector('[data-import-current]');
+    assert.equal(direct.nextElementSibling.textContent, '选题导入');
+    assert.equal(direct.disabled, false);
+    const scopes = []; run.bridgeContext.openCategory = scope => scopes.push(scope);
+    run.click('[data-import-current]'); run.click('[data-import-current]'); await tick();
+    assert.deepEqual(scopes, ['all']);
+    assert.equal(run.messages.at(-1).command, 'importCurrentQuestions');
+    assert.equal(run.document.getElementById('dgy-dialog').hidden, true);
+    assert.equal(direct.disabled, true); assert.equal(direct.textContent, '导入中…');
+    assert.ok(direct.querySelector('svg'));
+    config.importBusy = false; run.browser.window.__DAGUANYUAN_IMPORT_UI__.finishDirectImport();
+    assert.equal(direct.disabled, false); assert.equal(direct.textContent, '导入题目');
+    config.importEnabled = false; run.browser.window.__DAGUANYUAN_IMPORT_UI__.refresh();
+    assert.equal(direct.hidden, true);
+  }
+});
+
+test('直接导入拒绝时恢复按钮，空页面与题本页面不触发旧分类流程', async () => {
+  const run = runtime(); await run.ui.inject(run.controller);
+  const direct = run.document.querySelector('[data-import-current]');
+  assert.equal(direct.disabled, true);
+  run.document.body.insertAdjacentHTML('afterbegin', '<article class="question-document" data-question-id="11">题干</article>');
+  run.browser.window.__DAGUANYUAN_IMPORT_UI__.refresh();
+  run.bridgeContext.openCategory = () => { throw Error('读取失败'); };
+  run.click('[data-import-current]'); await tick();
+  assert.equal(direct.disabled, false); assert.equal(direct.textContent, '导入题目');
+  run.location.href = 'https://www.cxyonly.fans/math/papers/1';
+  run.browser.window.__DAGUANYUAN_IMPORT_UI__.refresh();
+  assert.equal(direct.disabled, true);
+  assert.equal(run.document.querySelector('[data-scope="selected"]').disabled, false);
+  assert.throws(() => run.commands.commands.importCurrentQuestions({ ...run.bridgeContext, isImportWorkspace: true }), /题库网页/);
+  run.controller.singleImportBusy = true;
+  assert.throws(() => run.commands.commands.importCurrentQuestions(run.bridgeContext), /尚未结束/);
+});
+
 test('网页刚切换但观察器尚未运行时，提交仍拒绝旧选择', async () => {
   const run = runtime(); const { pending } = await run.open('all');
   run.location.href = 'https://www.cxyonly.fans/math/practice/2';
@@ -194,7 +279,7 @@ test('绑定分类排在选题导入之前，两者同步禁用，点击沿用�
   const run = runtime(); await run.ui.inject(run.controller);
   const toolbar = run.document.querySelector('#dgy-toolbar');
   const bind = toolbar.querySelector('[data-bind-category]'), select = toolbar.querySelector('[data-scope="selected"]');
-  assert.equal(bind.textContent, '绑定分类'); assert.equal(bind.nextElementSibling, select);
+  assert.equal(bind.textContent, '绑定分类'); assert.equal(bind.nextElementSibling.textContent, '导入题目'); assert.equal(bind.nextElementSibling.nextElementSibling, select);
   assert.equal(bind.disabled, true); assert.equal(select.disabled, true);
   run.click('[data-bind-category]'); await tick(); assert.equal(run.messages.length, 0);
   run.document.body.insertAdjacentHTML('afterbegin', '<article class="question-document" data-question-id="31">题干</article>');

@@ -90,7 +90,7 @@ test('设置入口位于定位开关下方，保存后即时显示，切页和�
   assert.equal(panel.singleImportPositionTitle.superview, panel.questionToolsSettingsSection);
   assert.ok(panel.singleImportPositionButton.frame.y > panel.singleImportSwitch.frame.y + panel.singleImportSwitch.frame.height);
   methods.chooseSingleImportPosition(); let positionMenu = panel.cardLocationModeChoice;
-  assert.equal(positionMenu.title.text, '导入单题位置');
+  assert.equal(positionMenu.title.text, '导入本题位置');
   assert.equal(positionMenu.buttons[0].title, '所选卡片的子节点（当前）');
   assert.equal(positionMenu.buttons[1].selector, 'selectSingleImportPosition:');
   methods.selectSingleImportPosition(positionMenu.buttons[1]);

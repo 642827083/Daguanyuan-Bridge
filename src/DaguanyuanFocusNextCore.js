@@ -1,8 +1,4 @@
 var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
-  const ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.enabled";
-  const PREVIOUS_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.previous-enabled";
-  const PROGRESS_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.progress-enabled";
-  const CROSS_LEVEL_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.cross-level-enabled";
   const CATEGORY_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.category-enabled";
   const CATEGORY_JUMP_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.category-jump-enabled";
   const QUESTION_LOCATOR_ENABLED_KEY = "cn.marginnote.daguanyuan-bridge.question-navigation.locator-enabled";
@@ -140,22 +136,6 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
     throw new Error("请先双击进入一张脑图卡片焦点");
   }
 
-  function adjacent(note, offset) {
-    const parent = member(note, "parentNote");
-    const siblings = items(member(parent, "childNotes"));
-    if (!parent || !siblings.length) throw new Error("当前卡片没有同级兄弟卡片");
-    const id = noteId(note);
-    let index = -1;
-    for (let cursor = 0; cursor < siblings.length; cursor += 1) {
-      if (siblings[cursor] === note || (id && noteId(siblings[cursor]) === id)) { index = cursor; break; }
-    }
-    if (index < 0) throw new Error("当前焦点不在脑图同级卡片列表中");
-    const targetIndex = index + offset;
-    if (targetIndex < 0) throw new Error("已经是第一张同级卡片");
-    if (targetIndex >= siblings.length) throw new Error("已经是最后一张同级卡片");
-    return siblings[targetIndex];
-  }
-
   function siblingIndex(note, siblings) {
     const id = noteId(note);
     for (let index = 0; index < siblings.length; index += 1) {
@@ -227,114 +207,11 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
     };
   }
 
-  function depthFirstNext(note) {
-    const children = items(member(note, "childNotes"));
-    if (children.length) return children[0];
-
-    let cursor = note;
-    while (cursor) {
-      const parent = member(cursor, "parentNote");
-      if (!parent) break;
-      const siblings = items(member(parent, "childNotes"));
-      const index = siblingIndex(cursor, siblings);
-      if (index < 0) throw new Error("当前焦点不在脑图父节点的子卡片列表中");
-      if (index + 1 < siblings.length) return siblings[index + 1];
-      cursor = parent;
-    }
-    throw new Error("已经是整棵脑图的最后一张卡片");
-  }
-
-  function deepestLastDescendant(note) {
-    let cursor = note;
-    while (cursor) {
-      const children = items(member(cursor, "childNotes"));
-      if (!children.length) return cursor;
-      cursor = children[children.length - 1];
-    }
-    return note;
-  }
-
-  function depthFirstPrevious(note) {
-    const parent = member(note, "parentNote");
-    if (!parent) throw new Error("已经是整棵脑图的第一张卡片");
-    const siblings = items(member(parent, "childNotes"));
-    const index = siblingIndex(note, siblings);
-    if (index < 0) throw new Error("当前焦点不在脑图父节点的子卡片列表中");
-    if (index > 0) return deepestLastDescendant(siblings[index - 1]);
-    return parent;
-  }
-
-  function focusSibling(addon, offset) {
-    const current = navigationNote(addon);
-    const controller = studyController(addon);
-    const notebook = member(controller, "notebookController");
-    if (!notebook || typeof notebook.changeFocusToNote !== "function") throw new Error("当前 MarginNote 版本不支持切换脑图焦点");
-    const target = crossLevelEnabled()
-      ? (offset > 0 ? depthFirstNext(current) : depthFirstPrevious(current))
-      : adjacent(current, offset);
-    notebook.changeFocusToNote(target);
-    if (addon) addon.__daguanyuanFocusNextLastFocus = target;
-    return { current, next: target, nextId: noteId(target) };
-  }
-
-  function focusNext(addon) {
-    return focusSibling(addon, 1);
-  }
-
-  function focusPrevious(addon) {
-    return focusSibling(addon, -1);
-  }
-
   function showMessage(addon, message) {
     try {
       const application = Application.sharedInstance();
       if (application && typeof application.showHUD === "function") application.showHUD(String(message), addon && addon.window, 2);
     } catch (error) { console.log(`[Daguanyuan Bridge Focus Next] 显示提示失败：${error && error.message || error}`); }
-  }
-
-  function enabled() {
-    try {
-      const value = NSUserDefaults.standardUserDefaults().objectForKey(ENABLED_KEY);
-      if (value === undefined || value === null) return true;
-      if (typeof value.booleanValue === "function") return Boolean(value.booleanValue());
-      return !(value === false || value === 0 || String(value).toLowerCase() === "false");
-    } catch (error) { return true; }
-  }
-
-  function setEnabled(value) {
-    const result = Boolean(value);
-    try { NSUserDefaults.standardUserDefaults().setObjectForKey(result, ENABLED_KEY); } catch (ignored) {}
-    return result;
-  }
-
-  function previousEnabled() {
-    try {
-      const value = NSUserDefaults.standardUserDefaults().objectForKey(PREVIOUS_ENABLED_KEY);
-      if (value === undefined || value === null) return true;
-      if (typeof value.booleanValue === "function") return Boolean(value.booleanValue());
-      return !(value === false || value === 0 || String(value).toLowerCase() === "false");
-    } catch (error) { return true; }
-  }
-
-  function setPreviousEnabled(value) {
-    const result = Boolean(value);
-    try { NSUserDefaults.standardUserDefaults().setObjectForKey(result, PREVIOUS_ENABLED_KEY); } catch (ignored) {}
-    return result;
-  }
-
-  function progressEnabled() {
-    try {
-      const value = NSUserDefaults.standardUserDefaults().objectForKey(PROGRESS_ENABLED_KEY);
-      if (value === undefined || value === null) return false;
-      if (typeof value.booleanValue === "function") return Boolean(value.booleanValue());
-      return !(value === false || value === 0 || String(value).toLowerCase() === "false");
-    } catch (error) { return false; }
-  }
-
-  function setProgressEnabled(value) {
-    const result = Boolean(value);
-    try { NSUserDefaults.standardUserDefaults().setObjectForKey(result, PROGRESS_ENABLED_KEY); } catch (ignored) {}
-    return result;
   }
 
   function categoryEnabled() {
@@ -382,21 +259,6 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
     return result;
   }
 
-  function crossLevelEnabled() {
-    try {
-      const value = NSUserDefaults.standardUserDefaults().objectForKey(CROSS_LEVEL_ENABLED_KEY);
-      if (value === undefined || value === null) return false;
-      if (typeof value.booleanValue === "function") return Boolean(value.booleanValue());
-      return !(value === false || value === 0 || String(value).toLowerCase() === "false");
-    } catch (error) { return false; }
-  }
-
-  function setCrossLevelEnabled(value) {
-    const result = Boolean(value);
-    try { NSUserDefaults.standardUserDefaults().setObjectForKey(result, CROSS_LEVEL_ENABLED_KEY); } catch (ignored) {}
-    return result;
-  }
-
   return {
     currentFocus,
     navigationNote,
@@ -407,22 +269,12 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
     currentCategoryPath,
     currentCategorySource,
     currentQuestionContext,
-    focusNext,
-    focusPrevious,
     showMessage,
-    enabled,
-    setEnabled,
-    previousEnabled,
-    setPreviousEnabled,
-    progressEnabled,
-    setProgressEnabled,
     categoryEnabled,
     setCategoryEnabled,
     categoryJumpEnabled,
     setCategoryJumpEnabled,
     questionLocatorEnabled,
     setQuestionLocatorEnabled,
-    crossLevelEnabled,
-    setCrossLevelEnabled,
   };
 })();

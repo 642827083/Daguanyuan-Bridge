@@ -9,12 +9,13 @@ function browser(options = {}) {
   const storage = new Map([['daguan_token', 'test-token'], ['daguan_user', '{"id":7,"role":"user"}']]);
   const calls = [], locks = [];
   const context = { location: new URL('https://www.cxyonly.fans/math/practice/categories/345'),
-    localStorage: { getItem: key => storage.get(key) }, AbortController, setTimeout, clearTimeout,
+    localStorage: { getItem: key => storage.get(key) }, AbortController, URLSearchParams, setTimeout, clearTimeout,
     navigator: { locks: { request(key, callback) { locks.push(key); return callback(); } } },
     fetch: async (path, init) => {
       calls.push({ path, init });
       if (options.fetch) return options.fetch(path, init, calls);
-      return { ok: true, json: async () => ({ code: 0, message: '', data: path.includes('csrf') ? { csrf_token: 'csrf-test' } : { mastery: JSON.parse(init.body).mastery } }) };
+      return { ok: true, json: async () => ({ code: 0, message: '', data: path.includes('/retest/queue?') ? { items: [], total: 0 }
+        : path.includes('csrf') ? { csrf_token: 'csrf-test' } : { mastery: JSON.parse(init.body).mastery } }) };
     }
   };
   context.window = context;
@@ -26,12 +27,13 @@ for (const mastery of ['needs_practice', 'not_known', 'mastered']) test('同步�
   assert.equal(run.api.begin('task-1', 1214, mastery), 'ok'); await tick();
   const result = run.api.read('task-1');
   assert.equal(JSON.parse(result).status, 'ready');
-  assert.equal(run.calls[1].path, '/api/questions/1214/state');
-  assert.equal(run.calls[1].init.method, 'PATCH');
-  assert.deepEqual(JSON.parse(run.calls[1].init.body), { mastery });
-  assert.equal(run.calls[1].init.headers['X-CSRF-Token'], 'csrf-test');
-  assert.equal(run.calls[1].init.headers.Authorization, 'Bearer test-token');
-  assert.equal(run.calls[1].init.redirect, 'error');
+  assert.equal(JSON.parse(result).mode, 'mastery');
+  assert.equal(run.calls[2].path, '/api/questions/1214/state');
+  assert.equal(run.calls[2].init.method, 'PATCH');
+  assert.deepEqual(JSON.parse(run.calls[2].init.body), { mastery });
+  assert.equal(run.calls[2].init.headers['X-CSRF-Token'], 'csrf-test');
+  assert.equal(run.calls[2].init.headers.Authorization, 'Bearer test-token');
+  assert.equal(run.calls[2].init.redirect, 'error');
   assert.deepEqual(run.locks, ['daguan:question-state:7:1214']);
   assert.doesNotMatch(result, /test-token|csrf-test/);
   run.api.release('task-1');
@@ -50,7 +52,7 @@ for (const status of [401, 403, 429, 503]) test('网站错误不伪报成功，�
   run.api.begin('t', 1, 'mastered'); await tick();
   assert.equal(JSON.parse(run.api.read('t')).status, 'error');
   assert.match(JSON.parse(run.api.read('t')).error, new RegExp(status === 401 ? '登录' : String(status)));
-  assert.equal(run.calls.length, 2); run.api.release('t');
+  assert.equal(run.calls.length, 1); run.api.release('t');
 });
 test('账号切换或路由变化阻止后续写入，完成后切账号不接受旧回执', async () => {
   const run = browser({ fetch: async () => { run.storage.set('daguan_user', '{"id":8}'); return { ok: true, json: async () => ({ csrf_token: 'csrf-test' }) }; } });
@@ -62,7 +64,8 @@ test('账号切换或路由变化阻止后续写入，完成后切账号不接�
 });
 test('拒绝重复任务、错误回执和服务端业务失败', async () => {
   for (const payload of [{ mastery: 'not_known' }, { code: 4, message: 'failed', data: null }, null]) {
-    const run = browser({ fetch: async path => ({ ok: true, json: async () => path.includes('csrf') ? { csrf_token: 'csrf-test' } : payload }) });
+    const run = browser({ fetch: async path => ({ ok: true, json: async () => path.includes('/retest/queue?') ? { items: [], total: 0 }
+      : path.includes('csrf') ? { csrf_token: 'csrf-test' } : payload }) });
     run.api.begin('t', 1, 'mastered'); assert.throws(() => run.api.begin('t2', 2, 'mastered'), /正在同步/);
     await tick(); assert.equal(JSON.parse(run.api.read('t')).status, 'error'); run.api.release('t');
   }
@@ -75,6 +78,99 @@ test('取消进行中的任务会中止请求且不会继续写入', async () =>
   assert.equal(signal.aborted, true);
   complete({ ok: true, json: async () => ({ csrf_token: 'csrf-test' }) }); await tick();
   assert.equal(run.calls.length, 1); assert.throws(() => run.api.read('t'), /已失效/);
+});
+
+function retestBrowser(options = {}) {
+  const schedule = { active: true, revision: 8, due_status: 'due_today', ...options.schedule };
+  const queue = options.queue === undefined ? { items: [{ question: { id: 1214 }, schedule }], total: 1 } : options.queue;
+  return browser({ fetch: async (path, init) => {
+    if (options.fetch) return options.fetch(path, init);
+    let data;
+    if (path.includes('/retest/queue?')) data = queue;
+    else if (path.includes('csrf')) data = { csrf_token: 'csrf-test' };
+    else if (path.endsWith('/review')) {
+      if (options.status) return { ok: false, status: options.status };
+      if (options.networkFailure) throw new TypeError('连接已断开');
+      const mastery = JSON.parse(init.body).mastery;
+      data = options.receipt === undefined ? { review: { outcome: mastery, next_due_on: '2026-10-18' },
+        user_state: { mastery }, schedule: { active: mastery !== 'mastered', revision: 9 } } : options.receipt;
+    } else data = { mastery: JSON.parse(init.body).mastery };
+    return { ok: true, json: async () => ({ code: 0, message: '', data }) };
+  } });
+}
+
+for (const mastery of ['needs_practice', 'not_known', 'mastered']) {
+  for (const due of ['due_today', 'overdue', 'upcoming']) test('有效计划在任意页面提交本次复测：' + mastery + '/' + due, async () => {
+    const run = retestBrowser({ schedule: { due_status: due } });
+    run.context.location = new URL('https://www.cxyonly.fans/math/paper');
+    run.api.begin('review-1', 1214, mastery); await tick();
+    const result = run.api.read('review-1');
+    assert.equal(JSON.parse(result).status, 'ready'); assert.equal(JSON.parse(result).mode, 'retest');
+    const query = new URL(run.calls[0].path, 'https://www.cxyonly.fans').searchParams;
+    assert.equal(query.get('include_upcoming'), 'true'); assert.equal(query.get('scope'), 'complete');
+    assert.deepEqual(JSON.parse(query.get('filters')), { match: 'all', conditions: [{ field: 'question_id', operator: 'between', value: [1214, 1214] }] });
+    const writes = run.calls.filter(c => c.init.method === 'POST' || c.init.method === 'PATCH');
+    assert.equal(writes.length, 1); assert.equal(writes[0].path, '/api/retest/questions/1214/review');
+    assert.equal(writes[0].init.method, 'POST');
+    assert.deepEqual(JSON.parse(writes[0].init.body), { mastery, early: due === 'upcoming', expected_revision: 8 });
+    assert.equal(writes[0].init.headers['Idempotency-Key'], 'retest-review:1214:' + mastery + ':review-1');
+    assert.equal(writes[0].init.headers['X-CSRF-Token'], 'csrf-test');
+    assert.doesNotMatch(result, /test-token|csrf-test/); run.api.release('review-1');
+  });
+}
+
+test('已退出复测计划的题仍然只修改普通掌握状态', async () => {
+  const run = retestBrowser({ schedule: { active: false } });
+  run.api.begin('t', 1214, 'not_known'); await tick();
+  assert.equal(JSON.parse(run.api.read('t')).mode, 'mastery');
+  assert.equal(run.calls[2].path, '/api/questions/1214/state');
+  assert.deepEqual(JSON.parse(run.calls[2].init.body), { mastery: 'not_known' }); run.api.release('t');
+});
+
+test('计划查询不完整、题号不匹配或计划损坏时禁止写入', async () => {
+  const item = { question: { id: 1214 }, schedule: { active: true, revision: 8, due_status: 'due_today' } };
+  const queues = [null, {}, { items: [], total: 1 }, { items: [item], total: 2 }, { items: [item, item], total: 2 },
+    { items: [{ ...item, question: { id: 1 } }], total: 1 },
+    ...[null, {}, { active: true, due_status: 'due_today' }, { active: true, revision: 8, due_status: 'invalid' }]
+      .map(schedule => ({ items: [{ ...item, schedule }], total: 1 }))];
+  for (const queue of queues) {
+    const run = retestBrowser({ queue }); run.api.begin('t', 1214, 'mastered'); await tick();
+    assert.equal(JSON.parse(run.api.read('t')).status, 'error');
+    assert.equal(run.calls.length, 1); run.api.release('t');
+  }
+});
+
+for (const status of [401, 403, 409, 429, 503]) test('复测提交失败不补发普通标记、不重复提交：' + status, async () => {
+  const run = retestBrowser({ status }); run.api.begin('t', 1214, 'mastered'); await tick();
+  const result = JSON.parse(run.api.read('t'));
+  assert.equal(result.status, 'error');
+  assert.match(result.error, new RegExp(status === 401 ? '登录' : status === 409 ? '其他页面更新' : String(status)));
+  assert.equal(run.calls.filter(c => c.init.method === 'POST').length, 1);
+  assert.equal(run.calls.filter(c => c.init.method === 'PATCH').length, 0); run.api.release('t');
+});
+
+test('复测网络中断或回执错误时不伪报成功、不降级写入', async () => {
+  for (const options of [{ networkFailure: true }, { receipt: null },
+    { receipt: { review: { outcome: 'not_known' }, user_state: { mastery: 'mastered' }, schedule: { revision: 9 } } },
+    { receipt: { review: { outcome: 'mastered' }, user_state: { mastery: 'mastered' }, schedule: { revision: 8 } } }]) {
+    const run = retestBrowser(options); run.api.begin('t', 1214, 'mastered'); await tick();
+    assert.equal(JSON.parse(run.api.read('t')).status, 'error');
+    assert.equal(run.calls.filter(c => c.init.method === 'POST').length, 1);
+    assert.equal(run.calls.filter(c => c.init.method === 'PATCH').length, 0); run.api.release('t');
+  }
+});
+
+test('取消查询或查询后切换页面时不提交复测', async () => {
+  for (const action of ['cancel', 'route']) {
+    let complete;
+    const run = retestBrowser({ fetch: () => new Promise(resolve => { complete = resolve; }) });
+    run.api.begin('t', 1214, 'mastered'); await tick();
+    if (action === 'cancel') run.api.release('t');
+    else run.context.location = new URL('https://www.cxyonly.fans/math/retest');
+    complete({ ok: true, json: async () => ({ items: [{ question: { id: 1214 }, schedule: { active: true, revision: 8, due_status: 'due_today' } }], total: 1 }) });
+    await tick(); assert.equal(run.calls.length, 1);
+    assert.throws(() => run.api.read('t'), action === 'cancel' ? /失效/ : /页面或登录账号/); run.api.release('t');
+  }
 });
 
 function nativeUI() {
@@ -109,6 +205,16 @@ function nativeUI() {
   function select(note, winRect = '{{200, 140}, {350, 250}}') { notebook.focusNote = note; ui.show(addon, { userInfo: { note, winRect } }); }
   return { View, stored, timers, observers, writes, messages, context, notebook, view, addon, ui, card, select };
 }
+
+test('题卡成功提示区分复测结果与普通掌握标记', async () => {
+  for (const mode of ['mastery', 'retest']) {
+    const run = nativeUI();
+    run.context.__DAGUANYUAN_MASTERY_SYNC_GLOBAL__.save = async () => ({ mode });
+    run.ui.setEnabled(run.addon, true); run.select(run.card());
+    run.ui.click(run.addon, run.addon.__daguanyuanMasteryButtons[2]); await tick();
+    assert.equal(run.messages.at(-1), mode === 'retest' ? '已记录本次复测：掌握' : '已同步到大观园：掌握');
+  }
+});
 test('点击数学题卡才出现横排黄红绿按钮，普通卡和答案卡不显示', () => {
   const run = nativeUI(), { ui, addon } = run;
   run.select(run.card()); assert.equal(addon.__daguanyuanMasteryToolbar, undefined);

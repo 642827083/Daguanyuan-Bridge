@@ -487,10 +487,10 @@ test("错题复测页面无需先读取笔记本索引也能注入定位按钮",
   context.__DAGUANYUAN_WEB_PANEL_GLOBAL__.refreshRetestButtons({
     webView: { evaluateJavaScript(script, callback) { injected.push(script); callback(true, null); } },
   });
-  assert.deepEqual(injected, ["retest-buttons", "practice-buttons", "bind-button", "single-button"]);
+  assert.deepEqual(injected, ["bind-button", "retest-buttons", "practice-buttons", "single-button"]);
 });
 
-test("题目导航开关同时控制题目页和错题复测网页按钮", () => {
+test("题目工具定位卡片开关同时控制题目页和错题复测网页按钮", () => {
   let methods;
   const stored = {};
   const injected = [];
@@ -521,9 +521,9 @@ test("题目导航开关同时控制题目页和错题复测网页按钮", () =>
   assert.deepEqual(injected.slice(2), ["retest-true", "practice-true"]);
 });
 
-test("题目工具中的添加笔记开关默认关闭并独立控制两个网页按钮", () => {
+test("添加笔记固定关闭且禁用，旧设置为开启也不能恢复网页按钮", () => {
   let methods;
-  const stored = {};
+  const stored = { "cn.marginnote.daguanyuan-bridge.question-tools.add-note-visible": true };
   const injected = [];
   const context = {
     JSB: { defineClass(name, instanceMethods) { methods = instanceMethods; return { new() { return {}; } }; } },
@@ -540,12 +540,13 @@ test("题目工具中的添加笔记开关默认关闭并独立控制两个网�
   vm.createContext(context);
   vm.runInContext(panelSource, context);
   context.self = {
-    noteAddSwitch: { on: false },
+    noteAddSwitch: { on: true, enabled: true },
     webView: { evaluateJavaScript(script, callback) { injected.push(script); callback(true, null); } },
   };
   methods.toggleNoteAddDisplay({ on: true });
-  assert.equal(context.self.noteAddSwitch.on, true);
-  assert.deepEqual(injected, ["retest-true-true", "practice-true-true"]);
+  assert.equal(context.self.noteAddSwitch.on, false);
+  assert.equal(context.self.noteAddSwitch.enabled, false);
+  assert.deepEqual(injected, ["retest-true-false", "practice-true-false"]);
   assert.equal(stored["cn.marginnote.daguanyuan-bridge.question-tools.add-note-visible"], true);
   methods.toggleNoteAddDisplay({ on: false });
   assert.equal(context.self.noteAddSwitch.on, false);

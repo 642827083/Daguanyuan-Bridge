@@ -2,7 +2,7 @@ import MNBridge from './lib/mnBridge.js';
 
 (function () {
   if (window.__DAGUANYUAN_IMPORT_UI__) { window.__DAGUANYUAN_IMPORT_UI__.refresh(); return; }
-  const state = { token: '', scope: 'all', questions: [], selected: new Set(), busy: false, route: location.href, locked: false };
+  const state = { token: '', scope: 'all', questions: [], selected: new Set(), busy: false, route: location.href, locked: false, toolsExpanded: false };
   const escape = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const el = id => document.getElementById('dgy-' + id);
   function status(message) { if (el('status')) { el('status').textContent = message; el('status').title = message; } }
@@ -161,16 +161,55 @@ import MNBridge from './lib/mnBridge.js';
     const bind = el('toolbar').querySelector('[data-bind-category]');
     bind.hidden = window.__DAGUANYUAN_BIND_CATEGORY_BUTTON__?.bindEnabled === false;
     bind.disabled = button.disabled;
+    const category = window.__DAGUANYUAN_BIND_CATEGORY_BUTTON__, direct = el('toolbar').querySelector('[data-import-current]');
+    button.hidden = category?.selectionEnabled === false;
+    direct.hidden = category?.importEnabled === false;
+    el('toolbar').hidden = !page.provider || (bind.hidden && direct.hidden && button.hidden);
+    if (el('toolbar').hidden) state.toolsExpanded = false;
+    el('toolbar').setAttribute('data-expanded', String(state.toolsExpanded));
+    el('toolbar-actions').hidden = !state.toolsExpanded;
+    el('toolbar').querySelector('[data-toggle-import-tools]').setAttribute('aria-expanded', String(state.toolsExpanded));
+    direct.disabled = button.disabled || !source().category || state.directBusy || Boolean(category?.importBusy);
+    const directTitle = state.directBusy || category?.importBusy ? '导入中…' : '导入题目';
+    const directLabel = direct.querySelector('.dgy-tool-label');
+    if (directLabel.textContent !== directTitle) directLabel.textContent = directTitle;
     const hint = page.questions.length ? '导入当前页面已加载的 ' + page.questions.length + ' 道题目' : '当前页面暂无可导入题目';
     if (button.title !== hint) { button.title = hint; button.setAttribute('aria-label', '选题导入：' + hint); }
     if (state.route !== location.href) { if (state.token) MNBridge.send('cancelQuestionImport', { token: state.token, dismiss: true }).catch(() => {}); sourceRelease(state.token); hide(); state.snapshot = null; state.token = ''; state.route = location.href; }
     viewport();
   }
   const toolbar = document.createElement('div'); toolbar.id = 'dgy-toolbar'; toolbar.setAttribute('aria-label', '大观园题目导入');
-  toolbar.innerHTML = '<button data-bind-category>绑定分类</button><button data-scope="selected">选题导入</button>';
+  // 图标使用 Lucide，一体菜单的底部保留居中的省略号入口。
+  const toolIcon = content => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + content + '</svg>';
+  const bindIcon = toolIcon('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>');
+  const importIcon = toolIcon('<path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/>');
+  const selectionIcon = toolIcon('<path d="M13 5h8M13 12h8M13 19h8m-18-2 2 2 4-4M3 7l2 2 4-4"/>');
+  const moreIcon = toolIcon('<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>');
+  toolbar.innerHTML = '<div id="dgy-toolbar-actions" hidden><button data-bind-category>' + bindIcon + '<span class="dgy-tool-label">绑定分类</span></button><button data-import-current title="导入当前分类的全部题目">' + importIcon + '<span class="dgy-tool-label">导入题目</span></button><button data-scope="selected">' + selectionIcon + '<span class="dgy-tool-label">选题导入</span></button></div><button data-toggle-import-tools aria-label="导入工具" title="展开或收起导入工具" aria-expanded="false" aria-controls="dgy-toolbar-actions">' + moreIcon + '</button>';
   document.body.appendChild(toolbar);
   const dialog = document.createElement('div'); dialog.id = 'dgy-dialog'; dialog.hidden = true; document.body.appendChild(dialog);
   toolbar.addEventListener('click', async event => {
+    if (event.target.closest('[data-toggle-import-tools]')) {
+      state.toolsExpanded = !state.toolsExpanded;
+      refresh();
+      return;
+    }
+    const direct = event.target.closest('[data-import-current]');
+    if (direct) {
+      refresh();
+      if (direct.hidden || direct.disabled || state.busy || !dialog.hidden) return;
+      const category = window.__DAGUANYUAN_BIND_CATEGORY_BUTTON__;
+      state.directBusy = true;
+      if (category) category.importBusy = true;
+      direct.disabled = true; direct.querySelector('.dgy-tool-label').textContent = '导入中…';
+      try { await command('importCurrentQuestions'); }
+      catch (error) {
+        state.directBusy = false;
+        if (category) category.importBusy = false;
+        refresh(); window.console?.log('[Daguanyuan Bridge] 导入题目失败：' + error.message);
+      }
+      return;
+    }
     const bind = event.target.closest('[data-bind-category]');
     if (bind) {
       refresh();
@@ -181,6 +220,7 @@ import MNBridge from './lib/mnBridge.js';
     }
     const button = event.target.closest('[data-scope]'); if (!button || button.disabled || state.busy || !dialog.hidden) return;
     refresh();
+    if (button.hidden || button.disabled) return;
     state.snapshot = currentPage();
     if (!state.snapshot.questions.length) { refresh(); return; }
     try { await command('openQuestionImport', { scope: 'selected' }); }
@@ -211,6 +251,7 @@ import MNBridge from './lib/mnBridge.js';
     } catch (error) { status(error.message); }
   });
   window.__DAGUANYUAN_IMPORT_UI__ = { loading, startPlan, appendQuestions, render, progress, result, refresh, pageSnapshot, sourceBegin, sourceRead, sourceRelease,
+    finishDirectImport: function () { state.directBusy = false; refresh(); },
     hide: function (token) { if (token === state.token) hide(); return 'ok'; },
     selectionChunk: function (token, offset) { if (state.route !== location.href || token !== state.token || !state.selection) throw Error('选择已失效，请重新打开导入'); return JSON.stringify(state.selection.slice(offset, offset + 250)); } };
   let scheduled = false;

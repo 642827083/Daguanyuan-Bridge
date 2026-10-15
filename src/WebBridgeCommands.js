@@ -5,6 +5,11 @@ var __DAGUANYUAN_WEB_BRIDGE_COMMANDS_GLOBAL__ = (function () {
     return __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__;
   }
   const commands = {
+    importCurrentQuestions: function (context) {
+      if (context.isImportWorkspace || typeof context.openCategory !== 'function') throw new Error('请从题库网页导入题目');
+      if (context.controller.categoryImportBusy || context.controller.singleImportBusy || context.controller.questionToolBusy) throw new Error('当前任务尚未结束，请稍后导入');
+      context.openCategory('all'); return { accepted: true };
+    },
     bindCurrentCategory: function (context) {
       if (context.isImportWorkspace || typeof context.bindCategory !== 'function') throw new Error('请从题库网页绑定分类');
       if (context.controller.categoryImportBusy || context.controller.singleImportBusy || context.controller.questionToolBusy) throw new Error('当前任务尚未结束，请稍后绑定分类');

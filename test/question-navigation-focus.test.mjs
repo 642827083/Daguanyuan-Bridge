@@ -152,8 +152,7 @@ test("没有当前焦点及历史卡片时提示先进入卡片焦点，不打�
 test("打开学习集清空历史卡片，避免取消选中后沿用上一学习集题目", () => {
   const run = runtime();
   run.remember(run.card(3356, "math"));
-  run.addon.focusNavigationEnabled = false;
-  run.context.__DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = { hide() {} };
+  run.context.__DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = { show() {}, syncQuestionLocator() {} };
   run.methods.notebookWillOpen();
   run.methods.locateQuestion();
   assert.equal(run.addon.__daguanyuanFocusNextLastFocus, null);

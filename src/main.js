@@ -35,6 +35,7 @@ JSB.require("DaguanyuanWebsiteBridge");
 JSB.require("DaguanyuanNotePaste");
 JSB.require("Daguanyuan408NotePaste");
 JSB.require("DaguanyuanVideoBrowser");
+JSB.require("DaguanyuanPluginIntegrationSettings");
 JSB.require("DaguanyuanCategoryMappingStore");
 JSB.require("DaguanyuanFocusNextUI");
 JSB.require("DaguanyuanCategoryManagerUI");

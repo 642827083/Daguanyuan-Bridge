@@ -4,8 +4,6 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
   const TITLE_HORIZONTAL_PADDING = 28;
   const BUTTON_HEIGHT = 36;
   const RIGHT_MARGIN = 10;
-  const NEXT_POSITION_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.next-button-position";
-  const PREVIOUS_POSITION_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.previous-button-position";
   const CATEGORY_POSITION_KEY = "cn.marginnote.daguanyuan-bridge.focus-next.category-button-position";
   const QUESTION_LOCATOR_POSITION_KEY = "cn.marginnote.daguanyuan-bridge.question-navigation.locator-button-position";
 
@@ -119,14 +117,10 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
   }
 
   function place(addon) {
-    const previous = addon && addon.__daguanyuanFocusPreviousButton;
-    const next = addon && addon.__daguanyuanFocusNextButton;
     const category = addon && addon.__daguanyuanFocusCategoryButton;
     const questionLocator = addon && addon.__daguanyuanQuestionLocatorButton;
     const view = viewFor(addon);
     if (!view || !view.bounds) return false;
-    const previousPlaced = placeButton(addon, previous, PREVIOUS_POSITION_KEY, RIGHT_MARGIN);
-    const nextPlaced = placeButton(addon, next, NEXT_POSITION_KEY, Math.max(0, (view.bounds.width - buttonWidth(addon, next)) - RIGHT_MARGIN));
     const categoryPlaced = placeButton(
       addon,
       category,
@@ -141,7 +135,7 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
       Math.max(0, view.bounds.width - buttonWidth(addon, questionLocator) - RIGHT_MARGIN),
       Math.max(0, (view.bounds.height - BUTTON_HEIGHT) / 2 - (BUTTON_HEIGHT + 10) * 2)
     );
-    return previousPlaced || nextPlaced || categoryPlaced || questionLocatorPlaced;
+    return categoryPlaced || questionLocatorPlaced;
   }
 
   function savePosition(addon, button, positionKey) {
@@ -202,25 +196,9 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
         savePosition(addon, button, positionKey);
         if (button === addon.__daguanyuanFocusCategoryButton) addon.__daguanyuanFocusCategorySuppressTap = true;
         else if (button === addon.__daguanyuanQuestionLocatorButton) addon.__daguanyuanQuestionLocatorSuppressTap = true;
-        else addon.__daguanyuanFocusNextSuppressTap = true;
       }
       addon.__daguanyuanFocusNextDragging = false;
     }
-  }
-
-  function refreshProgress(addon, note) {
-    const previous = addon && addon.__daguanyuanFocusPreviousButton;
-    const next = addon && addon.__daguanyuanFocusNextButton;
-    const enabled = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.progressEnabled();
-    const progressNote = note || (addon && addon.__daguanyuanFocusNextLastFocus);
-    const progress = enabled && __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.siblingProgress(progressNote);
-    const suffix = progress ? `（${progress.index}/${progress.total}）` : "";
-    let widthChanged = false;
-    if (previous) widthChanged = setAdaptiveTitle(previous, `上一张${suffix}`) || widthChanged;
-    if (next) widthChanged = setAdaptiveTitle(next, `下一张${suffix}`) || widthChanged;
-    const currentWidth = Number((next && next.frame && next.frame.width) || (previous && previous.frame && previous.frame.width));
-    if (widthChanged || currentWidth !== buttonWidth(addon, next || previous)) place(addon);
-    return progress;
   }
 
   function refreshCategory(addon, note) {
@@ -233,12 +211,14 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     return title;
   }
 
+  function hasVisibleNavigation(addon) {
+    return [addon && addon.__daguanyuanFocusCategoryButton, addon && addon.__daguanyuanQuestionLocatorButton]
+      .some(function (button) { return button && button.superview && !button.hidden; });
+  }
+
   function rememberLoop(addon, token) {
-    const next = addon && addon.__daguanyuanFocusNextButton;
-    const previous = addon && addon.__daguanyuanFocusPreviousButton;
-    if (!addon || addon.__daguanyuanFocusNextRememberToken !== token || (!next && !previous) || (next && next.hidden && previous && previous.hidden)) return;
+    if (!addon || addon.__daguanyuanFocusNextRememberToken !== token || !hasVisibleNavigation(addon)) return;
     const note = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.rememberFocus(addon);
-    refreshProgress(addon, note);
     refreshCategory(addon, note);
     if (typeof NSTimer !== "undefined" && NSTimer.scheduledTimerWithTimeInterval) NSTimer.scheduledTimerWithTimeInterval(0.15, false, function () { rememberLoop(addon, token); });
   }
@@ -247,8 +227,8 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     if (!addon) return;
     const token = Number(addon.__daguanyuanFocusNextRememberToken || 0) + 1;
     addon.__daguanyuanFocusNextRememberToken = token;
+    if (!hasVisibleNavigation(addon)) return;
     const note = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.rememberFocus(addon);
-    refreshProgress(addon, note);
     refreshCategory(addon, note);
     if (typeof NSTimer === "undefined" || !NSTimer.scheduledTimerWithTimeInterval) return;
     NSTimer.scheduledTimerWithTimeInterval(0.15, false, function () { rememberLoop(addon, token); });
@@ -257,11 +237,8 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
   function show(addon) {
     const view = viewFor(addon);
     if (!view) return false;
-    const showPrevious = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.previousEnabled();
     const showCategory = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.categoryEnabled();
     const buttonDefinitions = [
-      { property: "__daguanyuanFocusPreviousButton", title: "上一张", action: "focusPrevious:", panAction: "handleFocusPreviousButtonPan:", visible: showPrevious },
-      { property: "__daguanyuanFocusNextButton", title: "下一张", action: "focusNext:", panAction: "handleFocusNextButtonPan:" },
       { property: "__daguanyuanFocusCategoryButton", title: "无题型分类", action: "openFocusCategory:", panAction: "handleFocusCategoryButtonPan:", visible: showCategory },
     ];
     for (const definition of buttonDefinitions) {
@@ -303,11 +280,12 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     const view = viewFor(addon);
     if (!addon || !view) return false;
     let button = addon.__daguanyuanQuestionLocatorButton;
-    if (addon.focusNavigationEnabled === false || !__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.questionLocatorEnabled()) {
+    if (!__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.questionLocatorEnabled()) {
       if (button) {
         button.hidden = true;
         if (button.superview) button.removeFromSuperview();
       }
+      startRemembering(addon);
       return false;
     }
     if (!button) {
@@ -331,6 +309,7 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     button.hidden = false;
     place(addon);
     schedulePlace(addon);
+    startRemembering(addon);
     return true;
   }
 
@@ -339,7 +318,7 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
       addon.__daguanyuanFocusNextRememberToken = Number(addon.__daguanyuanFocusNextRememberToken || 0) + 1;
       addon.__daguanyuanFocusNextPlaceToken = Number(addon.__daguanyuanFocusNextPlaceToken || 0) + 1;
     }
-    const buttons = [addon && addon.__daguanyuanFocusPreviousButton, addon && addon.__daguanyuanFocusNextButton, addon && addon.__daguanyuanFocusCategoryButton, addon && addon.__daguanyuanQuestionLocatorButton];
+    const buttons = [addon && addon.__daguanyuanFocusCategoryButton, addon && addon.__daguanyuanQuestionLocatorButton];
     for (const button of buttons) {
       if (!button) continue;
       button.hidden = true;
@@ -355,19 +334,9 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
         questionLocator.hidden = true;
         if (questionLocator.superview) questionLocator.removeFromSuperview();
       }
-      addon.__daguanyuanFocusPreviousButton = null;
-      addon.__daguanyuanFocusNextButton = null;
       addon.__daguanyuanFocusCategoryButton = null;
       addon.__daguanyuanQuestionLocatorButton = null;
     }
-  }
-
-  function handleNextPan(addon, recognizer) {
-    handlePan(addon, recognizer, addon && addon.__daguanyuanFocusNextButton, NEXT_POSITION_KEY);
-  }
-
-  function handlePreviousPan(addon, recognizer) {
-    handlePan(addon, recognizer, addon && addon.__daguanyuanFocusPreviousButton, PREVIOUS_POSITION_KEY);
   }
 
   function handleCategoryPan(addon, recognizer) {
@@ -383,10 +352,7 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     hide,
     remove,
     place,
-    handleNextPan,
-    handlePreviousPan,
     handleCategoryPan,
-    refreshProgress,
     refreshCategory,
     syncQuestionLocator,
     handleQuestionLocatorPan,

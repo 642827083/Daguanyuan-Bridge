@@ -41,23 +41,53 @@
       check();
       if (!response.ok) {
         if (response.status === 401) throw Error('登录已过期，请在插件数学面板重新登录');
+        if (response.status === 409) throw Error('复测计划已在其他页面更新，请查看原题后重新标记');
         throw Error('掌握状态保存失败（' + response.status + '），请重试');
       }
-      return unwrap(await response.json());
+      const value = unwrap(await response.json());
+      check();
+      return value;
     }
     async function save() {
       // 使用网站当前登录身份和 CSRF 接口，凭据只留在网站 WebView 中。
       const headers = { Accept: 'application/json', Authorization: 'Bearer ' + identity.token };
+      // 按题号精确查询有效复测队列，包含尚未到期的计划，不受当前页面筛选影响。
+      const query = new URLSearchParams({ page: '1', per_page: '2', scope: 'complete', include_upcoming: 'true',
+        filters: JSON.stringify({ match: 'all', conditions: [{ field: 'question_id', operator: 'between', value: [id, id] }] }) });
+      const queue = await send('/api/retest/queue?' + query, { method: 'GET', headers });
+      if (!queue || !Array.isArray(queue.items) || queue.items.length > 1 || queue.total !== queue.items.length
+        || queue.items.some(item => !item || !item.question || item.question.id !== id)) throw Error('无法确认当前题目的复测计划，请查看原题后重试');
+      const schedule = queue.items.length ? queue.items[0].schedule : null;
+      if (queue.items.length && (!schedule || typeof schedule.active !== 'boolean')) throw Error('复测计划格式无效，请查看原题后重试');
+      const review = schedule && schedule.active;
+      if (review && (!Number.isSafeInteger(schedule.revision) || schedule.revision < 0
+        || !['due_today', 'overdue', 'upcoming'].includes(schedule.due_status))) throw Error('复测计划格式无效，请查看原题后重试');
       const csrf = await send('/api/auth/csrf', { method: 'GET', headers });
       const csrfToken = csrf && (csrf.csrf_token || csrf.token);
       if (typeof csrfToken !== 'string' || !csrfToken) throw Error('无法验证登录状态，请重新登录后重试');
       check();
-      const saved = await send('/api/questions/' + id + '/state', {
-        method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
-        body: JSON.stringify({ mastery })
-      });
+      const writeHeaders = { ...headers, 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken };
+      let saved;
+      if (review) {
+        // 沿用网站复测的版本校验与幂等键；失败不再降级为普通标记，避免重复写入。
+        writeHeaders['Idempotency-Key'] = 'retest-review:' + id + ':' + mastery + ':' + token;
+        saved = await send('/api/retest/questions/' + id + '/review', {
+          method: 'POST', headers: writeHeaders,
+          body: JSON.stringify({ early: schedule.due_status === 'upcoming', mastery, expected_revision: schedule.revision })
+        });
+        if (!saved || !saved.review || saved.review.outcome !== mastery || !saved.user_state || saved.user_state.mastery !== mastery
+          || !saved.schedule || !Number.isSafeInteger(saved.schedule.revision) || saved.schedule.revision <= schedule.revision) {
+          throw Error('复测回执不一致，网站可能已保存，请查看原题确认后重试');
+        }
+        request.mode = 'retest';
+      } else {
+        saved = await send('/api/questions/' + id + '/state', {
+          method: 'PATCH', headers: writeHeaders, body: JSON.stringify({ mastery })
+        });
+        if (!saved || saved.mastery !== mastery) throw Error('网站返回的掌握状态不一致，请查看原题确认后重试');
+        request.mode = 'mastery';
+      }
       check();
-      if (!saved || saved.mastery !== mastery) throw Error('网站返回的掌握状态不一致，请查看原题确认后重试');
       request.status = 'ready';
     }
     // 与网站题目状态修改共用锁，避免同一道题同时写入。
@@ -69,7 +99,7 @@
   function read(token) {
     if (!task || task.token !== token) throw Error('掌握标记任务已失效');
     task.check();
-    return JSON.stringify({ status: task.status, error: task.error, id: task.id, mastery: task.mastery });
+    return JSON.stringify({ status: task.status, error: task.error, id: task.id, mastery: task.mastery, mode: task.mode });
   }
   window.__DAGUANYUAN_MASTERY_PAGE__ = { begin, read, release };
 })();
