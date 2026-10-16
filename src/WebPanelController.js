@@ -49,6 +49,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.cancelMode(controller);
     if (typeof __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__.cancel(controller);
     if (typeof __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.cancelFold(controller);
+    if (typeof __DAGUANYUAN_SETTINGS_NAVIGATION_GLOBAL__ !== 'undefined') __DAGUANYUAN_SETTINGS_NAVIGATION_GLOBAL__.stop(controller);
     controller.panelVisible = false;
     controller.view.hidden = true;
     controller.view.removeFromSuperview();
@@ -75,73 +76,77 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.settingsButton.frame = { x: tabsX + 240, y: 4, width: 72, height: 30 };
     controller.webView.frame = contentFrame;
     controller.importWebView.frame = contentFrame;
-    controller.settingsPage.frame = contentFrame;
-    controller.settingsPage.contentSize = { width: contentFrame.width, height: Math.max(contentFrame.height + 1, 1200) };
+    if (!controller.settingsNavigation) {
+      controller.settingsPage.frame = contentFrame;
+      controller.settingsPage.contentSize = { width: contentFrame.width, height: Math.max(contentFrame.height + 1, 710) };
+    }
     __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__.layout(controller, contentFrame);
-    controller.categorySettingsSection.frame = { x: 20, y: 18, width: sectionWidth, height: 336 };
-    controller.questionToolsSettingsSection.frame = { x: 20, y: 366, width: sectionWidth, height: 616 };
+    controller.categorySettingsSection.frame = { x: 20, y: 0, width: sectionWidth, height: 406 };
+    controller.questionToolsSettingsSection.frame = { x: 20, y: 0, width: sectionWidth, height: 624 };
     if (typeof __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.layout(controller, sectionWidth);
     if (typeof __DAGUANYUAN_PLUGIN_INTEGRATION_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_PLUGIN_INTEGRATION_SETTINGS_GLOBAL__.layout(controller, sectionWidth);
+    if (typeof __DAGUANYUAN_ABOUT_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_ABOUT_SETTINGS_GLOBAL__.layout(controller, sectionWidth);
     controller.categorySectionTitle.frame = { x: 20, y: 12, width: Math.max(0, sectionWidth - 40), height: 28 };
     controller.categorySectionDivider.frame = { x: 20, y: 48, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.categoryTitle.frame = { x: 20, y: 61, width: Math.max(0, sectionWidth - 110), height: 24 };
-    controller.categoryDescription.frame = { x: 20, y: 87, width: Math.max(0, sectionWidth - 110), height: 18 };
-    controller.categorySwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 69, width: 51, height: 31 };
-    controller.categoryDivider.frame = { x: 20, y: 118, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.categoryJumpTitle.frame = { x: 20, y: 131, width: Math.max(0, sectionWidth - 110), height: 24 };
-    controller.categoryJumpDescription.frame = { x: 20, y: 157, width: Math.max(0, sectionWidth - 110), height: 18 };
-    controller.categoryJumpSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 139, width: 51, height: 31 };
-    controller.bindCategoryDivider.frame = { x: 20, y: 188, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.bindCategoryTitle.frame = { x: 20, y: 201, width: Math.max(0, sectionWidth - 110), height: 24 };
-    controller.bindCategoryDescription.frame = { x: 20, y: 227, width: Math.max(0, sectionWidth - 110), height: 18 };
-    controller.bindCategorySwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 209, width: 51, height: 31 };
-    controller.categoryManageDivider.frame = { x: 20, y: 258, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.categoryManageTitle.frame = { x: 20, y: 271, width: Math.max(0, sectionWidth - 90), height: 24 };
-    controller.categoryManageDescription.frame = { x: 20, y: 297, width: Math.max(0, sectionWidth - 90), height: 18 };
-    controller.categoryManageChevron.frame = { x: Math.max(20, sectionWidth - 52), y: 273, width: 30, height: 36 };
-    controller.categoryManageButton.frame = { x: 0, y: 259, width: sectionWidth, height: 76 };
+    controller.categoryTitle.frame = { x: 20, y: 131, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.categoryDescription.frame = { x: 20, y: 157, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.categorySwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 139, width: 51, height: 31 };
+    controller.categoryDivider.frame = { x: 20, y: 188, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.categoryJumpTitle.frame = { x: 20, y: 201, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.categoryJumpDescription.frame = { x: 20, y: 227, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.categoryJumpSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 209, width: 51, height: 31 };
+    controller.bindCategoryDivider.frame = { x: 20, y: 258, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.bindCategoryTitle.frame = { x: 20, y: 271, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.bindCategoryDescription.frame = { x: 20, y: 297, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.bindCategorySwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 279, width: 51, height: 31 };
+    controller.categoryManageDivider.frame = { x: 20, y: 328, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.categoryManageTitle.frame = { x: 20, y: 341, width: Math.max(0, sectionWidth - 90), height: 24 };
+    controller.categoryManageDescription.frame = { x: 20, y: 367, width: Math.max(0, sectionWidth - 90), height: 18 };
+    controller.categoryManageChevron.frame = { x: Math.max(20, sectionWidth - 52), y: 343, width: 30, height: 36 };
+    controller.categoryManageButton.frame = { x: 0, y: 329, width: sectionWidth, height: 76 };
     controller.questionLocatorTitle.frame = { x: 20, y: 61, width: Math.max(0, sectionWidth - 110), height: 24 };
     controller.questionLocatorDescription.frame = { x: 20, y: 87, width: Math.max(0, sectionWidth - 110), height: 18 };
     controller.questionLocatorSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 69, width: 51, height: 31 };
     controller.questionLocatorDivider.frame = { x: 20, y: 118, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.websiteLocateDivider.frame = { x: 20, y: 188, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.websiteLocateTitle.frame = { x: 20, y: 131, width: Math.max(0, sectionWidth - 110), height: 24 };
-    controller.websiteLocateDescription.frame = { x: 20, y: 157, width: Math.max(0, sectionWidth - 110), height: 18 };
-    controller.websiteLocateSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 139, width: 51, height: 31 };
-    controller.categoryImportDivider.frame = { x: 20, y: 328, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.categoryImportTitle.frame = { x: 20, y: 341, width: Math.max(0, sectionWidth - 110), height: 24 };
-    controller.categoryImportDescription.frame = { x: 20, y: 367, width: Math.max(0, sectionWidth - 110), height: 18 };
-    controller.categoryImportSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 349, width: 51, height: 31 };
+    controller.websiteLocateDivider.frame = { x: 20, y: 118, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.websiteLocateTitle.frame = { x: 20, y: 61, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.websiteLocateDescription.frame = { x: 20, y: 87, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.websiteLocateSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 69, width: 51, height: 31 };
+    controller.categoryImportDivider.frame = { x: 20, y: 258, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.categoryImportTitle.frame = { x: 20, y: 271, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.categoryImportDescription.frame = { x: 20, y: 297, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.categoryImportSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 279, width: 51, height: 31 };
     controller.questionToolsTitle.frame = { x: 20, y: 12, width: Math.max(0, sectionWidth - 40), height: 28 };
     controller.questionToolsDivider.frame = { x: 20, y: 48, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.cardLocationModeTitle.frame = { x: 20, y: 201, width: Math.max(0, sectionWidth - 224), height: 24 };
-    controller.cardLocationModeDescription.frame = { x: 20, y: 227, width: Math.max(0, sectionWidth - 224), height: 18 };
-    controller.cardLocationModeValue.frame = { x: Math.max(20, sectionWidth - 192), y: 211.5, width: 132, height: 24 };
-    controller.cardLocationModeChevron.frame = { x: Math.max(20, sectionWidth - 52), y: 205.5, width: 30, height: 36 };
-    controller.cardLocationModeButton.frame = { x: 0, y: 189, width: sectionWidth, height: 69 };
-    controller.noteAddDivider.frame = { x: 20, y: 258, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.noteAddTitle.frame = { x: 20, y: 271, width: Math.max(0, sectionWidth - 110), height: 24 };
-    controller.noteAddDescription.frame = { x: 20, y: 297, width: Math.max(0, sectionWidth - 110), height: 18 };
-    controller.noteAddSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 279, width: 51, height: 31 };
-    controller.selectionImportDivider.frame = { x: 20, y: 398, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.selectionImportTitle.frame = { x: 20, y: 411, width: Math.max(0, sectionWidth - 110), height: 24 };
-    controller.selectionImportDescription.frame = { x: 20, y: 437, width: Math.max(0, sectionWidth - 110), height: 18 };
-    controller.selectionImportSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 419, width: 51, height: 31 };
-    controller.singleImportDivider.frame = { x: 20, y: 468, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.singleImportTitle.frame = { x: 20, y: 481, width: Math.max(0, sectionWidth - 110), height: 24 };
-    controller.singleImportDescription.frame = { x: 20, y: 507, width: Math.max(0, sectionWidth - 110), height: 18 };
-    controller.singleImportSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 489, width: 51, height: 31 };
-    controller.singleImportPositionDivider.frame = { x: 20, y: 538, width: Math.max(0, sectionWidth - 40), height: 1 };
-    controller.singleImportPositionTitle.frame = { x: 20, y: 551, width: Math.max(0, sectionWidth - 252), height: 24 };
-    controller.singleImportPositionDescription.frame = { x: 20, y: 577, width: Math.max(0, sectionWidth - 252), height: 18 };
-    controller.singleImportPositionValue.frame = { x: Math.max(20, sectionWidth - 224), y: 561.5, width: 164, height: 24 };
-    controller.singleImportPositionChevron.frame = { x: Math.max(20, sectionWidth - 52), y: 555.5, width: 30, height: 36 };
-    controller.singleImportPositionButton.frame = { x: 0, y: 539, width: sectionWidth, height: 76 };
+    controller.cardLocationModeTitle.frame = { x: 20, y: 131, width: Math.max(0, sectionWidth - 224), height: 24 };
+    controller.cardLocationModeDescription.frame = { x: 20, y: 157, width: Math.max(0, sectionWidth - 224), height: 18 };
+    controller.cardLocationModeValue.frame = { x: Math.max(20, sectionWidth - 192), y: 141.5, width: 132, height: 24 };
+    controller.cardLocationModeChevron.frame = { x: Math.max(20, sectionWidth - 52), y: 135.5, width: 30, height: 36 };
+    controller.cardLocationModeButton.frame = { x: 0, y: 119, width: sectionWidth, height: 69 };
+    controller.noteAddDivider.frame = { x: 20, y: 188, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.noteAddTitle.frame = { x: 20, y: 201, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.noteAddDescription.frame = { x: 20, y: 227, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.noteAddSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 209, width: 51, height: 31 };
+    controller.selectionImportDivider.frame = { x: 20, y: 328, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.selectionImportTitle.frame = { x: 20, y: 341, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.selectionImportDescription.frame = { x: 20, y: 367, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.selectionImportSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 349, width: 51, height: 31 };
+    controller.singleImportDivider.frame = { x: 20, y: 398, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.singleImportTitle.frame = { x: 20, y: 411, width: Math.max(0, sectionWidth - 110), height: 24 };
+    controller.singleImportDescription.frame = { x: 20, y: 437, width: Math.max(0, sectionWidth - 110), height: 18 };
+    controller.singleImportSwitch.frame = { x: Math.max(20, sectionWidth - 68), y: 419, width: 51, height: 31 };
+    controller.singleImportPositionDivider.frame = { x: 20, y: 468, width: Math.max(0, sectionWidth - 40), height: 1 };
+    controller.singleImportPositionTitle.frame = { x: 20, y: 481, width: Math.max(0, sectionWidth - 252), height: 24 };
+    controller.singleImportPositionDescription.frame = { x: 20, y: 507, width: Math.max(0, sectionWidth - 252), height: 18 };
+    controller.singleImportPositionValue.frame = { x: Math.max(20, sectionWidth - 224), y: 491.5, width: 164, height: 24 };
+    controller.singleImportPositionChevron.frame = { x: Math.max(20, sectionWidth - 52), y: 485.5, width: 30, height: 36 };
+    controller.singleImportPositionButton.frame = { x: 0, y: 469, width: sectionWidth, height: 76 };
     if (typeof __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__.layout(controller, sectionWidth);
     controller.resizeHandle.frame = { x: Math.max(0, bounds.width - 30), y: Math.max(0, bounds.height - 30), width: 30, height: 30 };
     controller.resizeGlyph.frame = { x: 0, y: 0, width: 30, height: 30 };
     __DAGUANYUAN_IMPORT_REPORT_GLOBAL__.layout(controller);
     if (typeof __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__ !== "undefined") __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.layout(controller);
+    if (typeof __DAGUANYUAN_SETTINGS_NAVIGATION_GLOBAL__ !== 'undefined') __DAGUANYUAN_SETTINGS_NAVIGATION_GLOBAL__.layout(controller, contentFrame);
   }
 
   function button(title, controller, selector) {
@@ -191,12 +196,14 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     if (page !== "settings") __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.cancelMode(controller);
     if (page !== 'settings' && typeof __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__.cancel(controller);
     if (page !== 'settings' && typeof __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.cancelFold(controller);
+    if (page !== 'settings' && typeof __DAGUANYUAN_SETTINGS_NAVIGATION_GLOBAL__ !== 'undefined') __DAGUANYUAN_SETTINGS_NAVIGATION_GLOBAL__.stop(controller);
     controller.activePage = page;
     if (page === 'import' && controller.importReportView) controller.importReportView.hidden = true;
     const nativePage = page === "settings" || page === "category-manager";
     controller.webView.hidden = nativePage || page === 'import';
     if (controller.importWebView) controller.importWebView.hidden = page !== 'import';
     controller.settingsPage.hidden = page !== "settings";
+    if (controller.settingsNavigation) controller.settingsNavigation.hidden = page !== 'settings';
     controller.categoryManagerPage.hidden = page !== "category-manager";
     if (page === "settings") {
       refreshCategorySetting(controller);
@@ -213,6 +220,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__.refresh(controller);
     }
     refreshTabStyle(controller);
+    if (typeof __DAGUANYUAN_SETTINGS_NAVIGATION_GLOBAL__ !== 'undefined') __DAGUANYUAN_SETTINGS_NAVIGATION_GLOBAL__.layout(controller, controller.webView.frame);
   }
 
   function refreshCategorySetting(controller) {
@@ -371,7 +379,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.containerView.addSubview(controller.settingsPage);
     __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__.setup(controller);
 
-    controller.categorySettingsSection = new UIView({ x: 20, y: 18, width: DEFAULT_WIDTH - 40, height: 336 });
+    controller.categorySettingsSection = new UIView({ x: 20, y: 0, width: DEFAULT_WIDTH - 40, height: 406 });
     controller.categorySettingsSection.backgroundColor = UIColor.whiteColor();
     controller.categorySettingsSection.layer.cornerRadius = 10;
     controller.categorySettingsSection.layer.borderWidth = 0.5;
@@ -441,7 +449,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.categoryManageButton.backgroundColor = UIColor.colorWithWhiteAlpha(1, 0);
     controller.categorySettingsSection.addSubview(controller.categoryManageButton);
 
-    controller.questionToolsSettingsSection = new UIView({ x: 20, y: 366, width: DEFAULT_WIDTH - 40, height: 616 });
+    controller.questionToolsSettingsSection = new UIView({ x: 20, y: 0, width: DEFAULT_WIDTH - 40, height: 624 });
     controller.questionToolsSettingsSection.backgroundColor = UIColor.whiteColor();
     controller.questionToolsSettingsSection.layer.cornerRadius = 10;
     controller.questionToolsSettingsSection.layer.borderWidth = 0.5;
@@ -455,18 +463,18 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.questionToolsDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
     controller.questionToolsSettingsSection.addSubview(controller.questionToolsDivider);
     controller.questionLocatorTitle = label("显示定位题目", UIFont.boldSystemFontOfSize(16), UIColor.darkGrayColor());
-    controller.questionToolsSettingsSection.addSubview(controller.questionLocatorTitle);
+    controller.categorySettingsSection.addSubview(controller.questionLocatorTitle);
 
     controller.questionLocatorDescription = label("按当前卡片在所属题型中的序号打开对应题目", UIFont.systemFontOfSize(12), UIColor.grayColor());
-    controller.questionToolsSettingsSection.addSubview(controller.questionLocatorDescription);
+    controller.categorySettingsSection.addSubview(controller.questionLocatorDescription);
 
     controller.questionLocatorSwitch = new UISwitch({ x: DEFAULT_WIDTH - 108, y: 69, width: 51, height: 31 });
     controller.questionLocatorSwitch.addTargetActionForControlEvents(controller, "toggleQuestionLocator:", 1 << 12);
-    controller.questionToolsSettingsSection.addSubview(controller.questionLocatorSwitch);
+    controller.categorySettingsSection.addSubview(controller.questionLocatorSwitch);
 
     controller.questionLocatorDivider = new UIView({ x: 20, y: 118, width: DEFAULT_WIDTH - 80, height: 1 });
     controller.questionLocatorDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
-    controller.questionToolsSettingsSection.addSubview(controller.questionLocatorDivider);
+    controller.categorySettingsSection.addSubview(controller.questionLocatorDivider);
 
     controller.websiteLocateDivider = new UIView({ x: 20, y: 118, width: DEFAULT_WIDTH - 80, height: 1 });
     controller.websiteLocateDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
@@ -563,6 +571,8 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.questionToolsSettingsSection.addSubview(controller.singleImportPositionButton);
     if (typeof __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.setup(controller);
     if (typeof __DAGUANYUAN_PLUGIN_INTEGRATION_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_PLUGIN_INTEGRATION_SETTINGS_GLOBAL__.setup(controller);
+    if (typeof __DAGUANYUAN_ABOUT_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_ABOUT_SETTINGS_GLOBAL__.setup(controller);
+    if (typeof __DAGUANYUAN_SETTINGS_NAVIGATION_GLOBAL__ !== 'undefined') __DAGUANYUAN_SETTINGS_NAVIGATION_GLOBAL__.setup(controller);
 
     controller.resizeHandle = new UIView({ x: DEFAULT_WIDTH - 30, y: DEFAULT_HEIGHT - 30, width: 30, height: 30 });
     controller.resizeHandle.backgroundColor = UIColor.colorWithWhiteAlpha(0.96, 0.94);
@@ -1245,6 +1255,20 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
     openSettings: function (sender) {
       setActivePage(self, "settings");
+    },
+
+    selectSettingsSection: function (sender) { __DAGUANYUAN_SETTINGS_NAVIGATION_GLOBAL__.select(self, sender); },
+    openPluginGuide: function () { __DAGUANYUAN_ABOUT_SETTINGS_GLOBAL__.open(self); },
+    resetSettingsPanelFrame: function () {
+      if (self.activePage !== 'settings' || self.settingsSection !== 'about') return;
+      try {
+        const bounds = targetStudyController(self).view.bounds;
+        self.view.frame = safeFrame({ x: bounds.x + (bounds.width - DEFAULT_WIDTH) / 2,
+          y: bounds.y + (bounds.height - DEFAULT_HEIGHT) / 2, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }, bounds);
+        layout(self);
+        persistFrame(self);
+        showMessage(self, '已恢复窗口位置与大小');
+      } catch (error) { showMessage(self, String(error && error.message || error)); }
     },
 
     closeCategoryImportReport: function () {

@@ -40,6 +40,9 @@ JSB.require("DaguanyuanPluginIntegrationSettings");
 JSB.require("DaguanyuanCategoryMappingStore");
 JSB.require("DaguanyuanFocusNextUI");
 JSB.require("DaguanyuanCategoryManagerUI");
+JSB.require("web-dist/DaguanyuanPluginInfo");
+JSB.require("DaguanyuanAboutSettings");
+JSB.require("DaguanyuanSettingsNavigation");
 JSB.require("WebPanelController");
 JSB.require("WebAddon");
 

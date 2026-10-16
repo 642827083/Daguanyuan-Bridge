@@ -13,6 +13,8 @@ function pageScript() {
 }
 function buildWeb() {
   const destination = path.join(root, 'src/web-dist'); fs.mkdirSync(destination, { recursive: true });
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'src/mnaddon.json'), 'utf8'));
+  fs.writeFileSync(path.join(destination, 'DaguanyuanPluginInfo.js'), 'var __DAGUANYUAN_PLUGIN_INFO__ = ' + JSON.stringify({ version: manifest.version, author: manifest.author }) + ';\n');
   fs.writeFileSync(path.join(destination, 'DaguanyuanImportPageScript.js'), 'var __DAGUANYUAN_IMPORT_PAGE_SCRIPT__ = ' + JSON.stringify(pageScript()) + ';\n');
   fs.writeFileSync(path.join(destination, 'DaguanyuanImportWorkspaceHTML.js'), 'var __DAGUANYUAN_IMPORT_WORKSPACE_HTML__ = ' + JSON.stringify(workspaceHTML()) + ';\n');
   const imageScript = fs.readFileSync(path.join(root, 'web/src/DaguanyuanMathImagePage.js'), 'utf8');

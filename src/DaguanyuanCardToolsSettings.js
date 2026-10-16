@@ -13,7 +13,7 @@ var __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__ = (function () {
     view.addTargetActionForControlEvents(controller, action, 1 << 0); return view;
   }
   function setup(controller) {
-    const section = new UIView({ x: 20, y: 994, width: 100, height: 272 });
+    const section = new UIView({ x: 20, y: 0, width: 100, height: 272 });
     section.backgroundColor = UIColor.whiteColor(); section.layer.cornerRadius = 10;
     section.layer.borderWidth = 0.5; section.layer.borderColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.45);
     controller.cardToolsSettingsSection = section; controller.settingsPage.addSubview(section);
@@ -51,7 +51,7 @@ var __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__ = (function () {
   }
   function layout(controller, width) {
     if (!controller.cardToolsSettingsSection) return;
-    controller.cardToolsSettingsSection.frame = { x: 20, y: 994, width, height: 272 };
+    controller.cardToolsSettingsSection.frame = { x: 20, y: 0, width, height: 272 };
     controller.cardToolsTitle.frame = { x: 20, y: 12, width: Math.max(0, width - 40), height: 28 };
     controller.cardToolsDivider.frame = { x: 20, y: 48, width: Math.max(0, width - 40), height: 1 };
     controller.masteryTitle.frame = { x: 20, y: 61, width: Math.max(0, width - 110), height: 24 };
