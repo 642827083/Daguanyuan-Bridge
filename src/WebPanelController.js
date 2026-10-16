@@ -9,10 +9,11 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   const SINGLE_IMPORT_KEY = "cn.marginnote.daguanyuan-bridge.question-tools.import-single-visible";
   const TITLE_HEIGHT = 38;
   const DEFAULT_WIDTH = 960;
-  const DEFAULT_HEIGHT = 680;
+  const DEFAULT_HEIGHT = 656;
   const MIN_WIDTH = 560;
   const MIN_HEIGHT = 420;
   const MARGIN = 12;
+  const TOP_CLEARANCE = 80;
 
   function targetStudyController(controller) {
     const window = controller.addon ? controller.addon.window : controller.addonWindow;
@@ -24,10 +25,12 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   }
 
   function safeFrame(frame, bounds) {
+    const topMargin = Math.min(TOP_CLEARANCE, Math.max(MARGIN, bounds.height - MARGIN - 1));
+    const availableHeight = Math.max(1, bounds.height - topMargin - MARGIN);
     const width = Math.min(Math.max(MIN_WIDTH, Number(frame && frame.width) || DEFAULT_WIDTH), bounds.width - MARGIN * 2);
-    const height = Math.min(Math.max(MIN_HEIGHT, Number(frame && frame.height) || DEFAULT_HEIGHT), bounds.height - MARGIN * 2);
+    const height = Math.min(Math.max(MIN_HEIGHT, Number(frame && frame.height) || DEFAULT_HEIGHT), availableHeight);
     const x = Math.max(bounds.x + MARGIN, Math.min(Number(frame && frame.x) || bounds.x + (bounds.width - width) / 2, bounds.x + bounds.width - width - MARGIN));
-    const y = Math.max(bounds.y + MARGIN, Math.min(Number(frame && frame.y) || bounds.y + (bounds.height - height) / 2, bounds.y + bounds.height - height - MARGIN));
+    const y = Math.max(bounds.y + topMargin, Math.min(Number(frame && frame.y) || bounds.y + topMargin, bounds.y + bounds.height - height - MARGIN));
     return { x, y, width, height };
   }
 
@@ -40,6 +43,16 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
   function persistFrame(controller) {
     NSUserDefaults.standardUserDefaults().setObjectForKey(controller.view.frame, FRAME_KEY);
+  }
+
+  function resetPanelFrame(controller) {
+    try {
+      const bounds = targetStudyController(controller).view.bounds;
+      controller.view.frame = safeFrame(null, bounds);
+      layout(controller);
+      persistFrame(controller);
+      showMessage(controller, '已恢复窗口位置与大小');
+    } catch (error) { showMessage(controller, String(error && error.message || error)); }
   }
 
   function performClosePanel(controller) {
@@ -339,7 +352,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.containerView.addSubview(controller.titleBar);
 
     controller.closeButton = button("×", controller, "closePanel:");
-    controller.closeButton.titleLabel.font = UIFont.systemFontOfSize(24);
+    controller.closeButton.titleLabel.font = UIFont.systemFontOfSize(22);
     controller.closeButton.setTitleColorForState(UIColor.darkGrayColor(), 0);
     controller.titleBar.addSubview(controller.closeButton);
 
@@ -357,6 +370,14 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
     const pan = new UIPanGestureRecognizer(controller, "movePanel:");
     controller.titleBar.addGestureRecognizer(pan);
+    const doubleTap = new UITapGestureRecognizer(controller, "resetPanelOnDoubleTap:");
+    doubleTap.numberOfTapsRequired = 2;
+    doubleTap.cancelsTouchesInView = false;
+    doubleTap.delaysTouchesBegan = false;
+    doubleTap.delaysTouchesEnded = false;
+    // 拖动优先响应，双击不延迟导航按钮的正常点击。
+    doubleTap.requireGestureRecognizerToFail(pan);
+    controller.titleBar.addGestureRecognizer(doubleTap);
 
     controller.webView = new UIWebView({ x: 0, y: TITLE_HEIGHT, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT - TITLE_HEIGHT });
     controller.webView.backgroundColor = UIColor.whiteColor();
@@ -1260,15 +1281,19 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     selectSettingsSection: function (sender) { __DAGUANYUAN_SETTINGS_NAVIGATION_GLOBAL__.select(self, sender); },
     openPluginGuide: function () { __DAGUANYUAN_ABOUT_SETTINGS_GLOBAL__.open(self); },
     resetSettingsPanelFrame: function () {
-      if (self.activePage !== 'settings' || self.settingsSection !== 'about') return;
-      try {
-        const bounds = targetStudyController(self).view.bounds;
-        self.view.frame = safeFrame({ x: bounds.x + (bounds.width - DEFAULT_WIDTH) / 2,
-          y: bounds.y + (bounds.height - DEFAULT_HEIGHT) / 2, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }, bounds);
-        layout(self);
-        persistFrame(self);
-        showMessage(self, '已恢复窗口位置与大小');
-      } catch (error) { showMessage(self, String(error && error.message || error)); }
+      resetPanelFrame(self);
+    },
+    resetPanelOnDoubleTap: function (recognizer) {
+      if (recognizer.state !== 3) return;
+      const point = recognizer.locationInView(self.titleBar);
+      // 导航标签与关闭按钮保留各自操作，仅空白处双击重置。
+      const controls = [self.homeButton, self.os408Button, self.importButton, self.settingsButton, self.closeButton];
+      if (controls.some(control => {
+        const frame = control.frame;
+        return point.x >= frame.x && point.x <= frame.x + frame.width
+          && point.y >= frame.y && point.y <= frame.y + frame.height;
+      })) return;
+      resetPanelFrame(self);
     },
 
     closeCategoryImportReport: function () {

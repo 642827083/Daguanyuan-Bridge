@@ -10,7 +10,7 @@ function runtime(stored = new Map()) {
     get bounds() { return {x:0,y:0,width:this.frame.width,height:this.frame.height}; }
     addSubview(view) { this.subviews.push(view); view.superview=this; }
     removeFromSuperview() { if (this.superview) this.superview.subviews = this.superview.subviews.filter(view => view !== this); this.superview = null; }
-    addGestureRecognizer() {}
+    addGestureRecognizer(gesture) { (this.gestures ||= []).push(gesture); }
     addTargetActionForControlEvents(target, action) { this.action=action; }
     setTitleForState(title) { this.title=title; }
     setTitleColorForState() {}
@@ -18,8 +18,13 @@ function runtime(stored = new Map()) {
     evaluateJavaScript(script, callback) { this.lastScript=script; callback(null,null); }
   }
   const color={colorWithAlphaComponent() { return this; }};
+  class Gesture {
+    constructor(target, action) { this.target=target; this.action=action; }
+    requireGestureRecognizerToFail(other) { this.requiredToFail=other; }
+    locationInView() { return this.point; }
+  }
   const context={console, JSB:{defineClass(name, instance) { methods=instance; return {}; }},
-    UIView:View,UILabel:View,UIButton:View,UIWebView:View,UIScrollView:View,UISwitch:View,UIPanGestureRecognizer:function(){},
+    UIView:View,UILabel:View,UIButton:View,UIWebView:View,UIScrollView:View,UISwitch:View,UIPanGestureRecognizer:Gesture,UITapGestureRecognizer:Gesture,
     UIColor:new Proxy({},{get(){return ()=>color;}}),UIFont:{boldSystemFontOfSize(){},systemFontOfSize(){}},
     NSUserDefaults:{standardUserDefaults(){return {objectForKey:key=>stored.get(key),setObjectForKey(value,key){stored.set(key,value);}};}},
     NSURL:{URLWithString:url=>url},NSURLRequest:{requestWithURL:url=>url},
@@ -181,9 +186,10 @@ test('设置四个导航仅展示对应内容，滚动不遮挡导航，保留�
 
 test('关于插件显示清单版本与作者，使用说明打开论坛且移除版本更新，重置只调整窗口', () => {
   const run = runtime(), c = run.controller, opened = [], messages = [];
+  let studyBounds = { x: 0, y: 0, width: 1200, height: 900 };
   run.context.Application = { sharedInstance: () => ({
     openURL: url => opened.push(url), showHUD: text => messages.push(text),
-    studyController: () => ({ view: { bounds: { x: 0, y: 0, width: 1200, height: 900 } } }),
+    studyController: () => ({ view: { bounds: studyBounds } }),
   }) };
   run.methods.openSettings();
   run.methods.openPluginGuide(); assert.deepEqual(opened, []);
@@ -203,10 +209,49 @@ test('关于插件显示清单版本与作者，使用说明打开论坛且移�
   }
   const before = c.selectionImportSwitch.on;
   run.methods.resetSettingsPanelFrame();
-  assert.deepEqual(JSON.parse(JSON.stringify(c.view.frame)), { x: 120, y: 110, width: 960, height: 680 });
+  assert.deepEqual(JSON.parse(JSON.stringify(c.view.frame)), { x: 120, y: 80, width: 960, height: 656 });
+  for (const bounds of [{ x: 0, y: 0, width: 1024, height: 768 }, { x: 0, y: 0, width: 760, height: 600 },
+    { x: 0, y: 0, width: 560, height: 420 }, { x: 16, y: 20, width: 1180, height: 900 }]) {
+    studyBounds = bounds;
+    run.methods.resetSettingsPanelFrame();
+    assert.equal(c.view.frame.y, bounds.y + 80);
+    assert.ok(c.view.frame.y + c.view.frame.height <= bounds.y + bounds.height - 12);
+    assert.ok(c.view.frame.height <= 656);
+    assert.equal(c.view.frame.x + c.view.frame.width / 2, bounds.x + bounds.width / 2);
+  }
   assert.deepEqual(run.stored.get('cn.marginnote.daguanyuan-bridge.panel-frame'), c.view.frame);
   assert.equal(c.activePage, 'settings'); assert.equal(c.settingsSection, 'about');
   assert.equal(c.selectionImportSwitch.on, before); assert.equal(messages.at(-1), '已恢复窗口位置与大小');
+  assert.equal(c.resetFrameButton, undefined);
+  assert.equal(c.closeButton.action, 'closePanel:');
+  assert.equal(c.closeButton.title, '×');
+  const doubleTap = c.titleBar.gestures.find(gesture => gesture.numberOfTapsRequired === 2);
+  assert.ok(doubleTap);
+  assert.equal(doubleTap.cancelsTouchesInView, false);
+  assert.equal(doubleTap.delaysTouchesBegan, false);
+  assert.equal(doubleTap.delaysTouchesEnded, false);
+  assert.equal(doubleTap.requiredToFail.action, 'movePanel:');
+  const doubleTapAction = run.methods[doubleTap.action.replace(':', '')];
+  const movedFrame = { x: 200, y: 200, width: 560, height: 420 };
+  c.view.frame = movedFrame;
+  doubleTap.point = { x: 10, y: 15 }; doubleTap.state = 1;
+  doubleTapAction(doubleTap); assert.deepEqual(c.view.frame, movedFrame);
+  doubleTap.state = 3;
+  for (const control of [c.homeButton, c.os408Button, c.importButton, c.settingsButton, c.closeButton]) {
+    doubleTap.point = { x: control.frame.x + control.frame.width / 2, y: control.frame.y + control.frame.height / 2 };
+    doubleTapAction(doubleTap); assert.deepEqual(c.view.frame, movedFrame);
+  }
+  c.webView.loadRequest = () => assert.fail('恢复窗口位置不应重新加载网页');
+  const currentTask = { status: 'running' }; c.importWorkspaceTask = currentTask;
+  for (const page of ['math', '408', 'import', 'settings', 'category-manager']) {
+    c.activePage = page; c.view.frame = { x: 200, y: 200, width: 560, height: 420 };
+    doubleTap.point = { x: 10, y: 15 }; doubleTapAction(doubleTap);
+    assert.equal(c.activePage, page); assert.equal(c.importWorkspaceTask, currentTask);
+    assert.equal(currentTask.cancelled, undefined);
+    assert.equal(c.view.frame.y, studyBounds.y + 80);
+    assert.ok(c.settingsButton.frame.x + c.settingsButton.frame.width < c.closeButton.frame.x);
+    assert.deepEqual(run.stored.get('cn.marginnote.daguanyuan-bridge.panel-frame'), c.view.frame);
+  }
 });
 
 test('滚动只移动设置内容，悬浮区域仅占胶囊宽度，连续切换滑块从当前画面接续', () => {

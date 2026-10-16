@@ -68,6 +68,7 @@ test('定位方式菜单标记当前值，取消不修改，选择返回方式�
 test('设置入口位于定位开关下方，保存后即时显示，切页和关闭均清理选择菜单', () => {
   const { context, View, ui } = runtime(); const stored = new Map(); let methods;
   context.UISwitch = View; context.UIWebView = View; context.UIPanGestureRecognizer = View;
+  context.UITapGestureRecognizer = class { requireGestureRecognizerToFail() {} };
   context.NSUserDefaults = { standardUserDefaults() { return {
     objectForKey(key) { return stored.get(key); }, setObjectForKey(value, key) { stored.set(key, value); },
   }; } };
