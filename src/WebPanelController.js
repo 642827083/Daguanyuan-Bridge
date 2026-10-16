@@ -14,6 +14,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   const MIN_HEIGHT = 420;
   const MARGIN = 12;
   const TOP_CLEARANCE = 80;
+  const BOTTOM_CLEARANCE = 64;
 
   function targetStudyController(controller) {
     const window = controller.addon ? controller.addon.window : controller.addonWindow;
@@ -24,13 +25,14 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     Application.sharedInstance().showHUD(String(message), controller.addon.window, 2);
   }
 
-  function safeFrame(frame, bounds) {
-    const topMargin = Math.min(TOP_CLEARANCE, Math.max(MARGIN, bounds.height - MARGIN - 1));
-    const availableHeight = Math.max(1, bounds.height - topMargin - MARGIN);
+  function safeFrame(frame, bounds, useDefaultPosition) {
+    const topMargin = Math.min(useDefaultPosition ? TOP_CLEARANCE : MARGIN, Math.max(MARGIN, bounds.height - MARGIN - 1));
+    const bottomMargin = Math.min(useDefaultPosition ? BOTTOM_CLEARANCE : MARGIN, Math.max(0, bounds.height - topMargin - 1));
+    const availableHeight = Math.max(1, bounds.height - topMargin - bottomMargin);
     const width = Math.min(Math.max(MIN_WIDTH, Number(frame && frame.width) || DEFAULT_WIDTH), bounds.width - MARGIN * 2);
     const height = Math.min(Math.max(MIN_HEIGHT, Number(frame && frame.height) || DEFAULT_HEIGHT), availableHeight);
     const x = Math.max(bounds.x + MARGIN, Math.min(Number(frame && frame.x) || bounds.x + (bounds.width - width) / 2, bounds.x + bounds.width - width - MARGIN));
-    const y = Math.max(bounds.y + topMargin, Math.min(Number(frame && frame.y) || bounds.y + topMargin, bounds.y + bounds.height - height - MARGIN));
+    const y = Math.max(bounds.y + topMargin, Math.min(Number(frame && frame.y) || bounds.y + topMargin, bounds.y + bounds.height - height - bottomMargin));
     return { x, y, width, height };
   }
 
@@ -38,7 +40,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     const studyController = targetStudyController(controller);
     const bounds = studyController.view.bounds;
     const stored = NSUserDefaults.standardUserDefaults().objectForKey(FRAME_KEY);
-    return safeFrame(stored, bounds);
+    return safeFrame(stored, bounds, !stored);
   }
 
   function persistFrame(controller) {
@@ -48,7 +50,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   function resetPanelFrame(controller) {
     try {
       const bounds = targetStudyController(controller).view.bounds;
-      controller.view.frame = safeFrame(null, bounds);
+      controller.view.frame = safeFrame(null, bounds, true);
       layout(controller);
       persistFrame(controller);
       showMessage(controller, '已恢复窗口位置与大小');
@@ -1468,7 +1470,9 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
         width: frame.width + translation.x,
         height: frame.height + translation.y,
       };
-      self.view.frame = safeFrame(resizedFrame, superview.bounds);
+      const size = safeFrame(resizedFrame, superview.bounds);
+      // 拖动右下角仅改变尺寸，不移动用户放置的左上角。
+      self.view.frame = { x: frame.x, y: frame.y, width: size.width, height: size.height };
       layout(self);
       recognizer.setTranslationInView({ x: 0, y: 0 }, superview);
       if (recognizer.state === 3) persistFrame(self);

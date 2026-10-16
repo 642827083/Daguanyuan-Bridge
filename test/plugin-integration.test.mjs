@@ -8,6 +8,8 @@ function runtime(stored = new Map()) {
   class View {
     constructor(frame) { this.frame=frame; this.layer={}; this.subviews=[]; this.titleLabel={}; }
     get bounds() { return {x:0,y:0,width:this.frame.width,height:this.frame.height}; }
+    get center() { return {x:this.frame.x+this.frame.width/2,y:this.frame.y+this.frame.height/2}; }
+    set center(point) { this.frame={...this.frame,x:point.x-this.frame.width/2,y:point.y-this.frame.height/2}; }
     addSubview(view) { this.subviews.push(view); view.superview=this; }
     removeFromSuperview() { if (this.superview) this.superview.subviews = this.superview.subviews.filter(view => view !== this); this.superview = null; }
     addGestureRecognizer(gesture) { (this.gestures ||= []).push(gesture); }
@@ -215,7 +217,7 @@ test('关于插件显示清单版本与作者，使用说明打开论坛且移�
     studyBounds = bounds;
     run.methods.resetSettingsPanelFrame();
     assert.equal(c.view.frame.y, bounds.y + 80);
-    assert.ok(c.view.frame.y + c.view.frame.height <= bounds.y + bounds.height - 12);
+    assert.ok(c.view.frame.y + c.view.frame.height <= bounds.y + bounds.height - 64);
     assert.ok(c.view.frame.height <= 656);
     assert.equal(c.view.frame.x + c.view.frame.width / 2, bounds.x + bounds.width / 2);
   }
@@ -252,6 +254,72 @@ test('关于插件显示清单版本与作者，使用说明打开论坛且移�
     assert.ok(c.settingsButton.frame.x + c.settingsButton.frame.width < c.closeButton.frame.x);
     assert.deepEqual(run.stored.get('cn.marginnote.daguanyuan-bridge.panel-frame'), c.view.frame);
   }
+});
+
+test('仅默认与重置预留底部工具栏，普通恢复、移动和缩放保持原有行为', () => {
+  const key = 'cn.marginnote.daguanyuan-bridge.panel-frame';
+  for (const bounds of [{x:0,y:0,width:1024,height:768}, {x:0,y:0,width:760,height:600},
+    {x:0,y:0,width:560,height:420}, {x:16,y:20,width:1180,height:900}]) {
+    const run = runtime(new Map([[key,{x:200,y:200,width:960,height:680}]])), c = run.controller;
+    const parent = { bounds, addSubview(view) { view.superview=this; } };
+    run.context.Application = { sharedInstance: () => ({ studyController: () => ({view:parent}), showHUD() {} }) };
+    const withinTools = () => {
+      const frame = c.view.frame;
+      assert.ok(frame.y >= bounds.y+80);
+      assert.ok(frame.y+frame.height <= bounds.y+bounds.height-64);
+      assert.ok(frame.x >= bounds.x+12);
+      assert.ok(frame.x+frame.width <= bounds.x+bounds.width-12);
+    };
+    run.context.__DAGUANYUAN_WEB_PANEL_GLOBAL__.showPanel(c);
+    assert.equal(c.view.frame.height,Math.min(680,bounds.height-24));
+    if (bounds.height===768) {
+      c.view.frame={x:32,y:80,width:960,height:656};
+      run.methods.resizePanel({state:3,translationInView:()=>({x:1,y:0}),setTranslationInView(){}});
+      assert.equal(c.view.frame.height,656);
+      assert.equal(c.view.frame.width,961);
+    }
+    let translation={x:10000,y:10000};
+    const gesture={state:2,translationInView:()=>translation,setTranslationInView(point){translation=point;}};
+    run.methods.movePanel(gesture);
+    const movedFrame = { ...c.view.frame };
+    gesture.state=3; run.methods.movePanel(gesture);
+    assert.deepEqual({ ...c.view.frame },movedFrame);
+    assert.ok(c.view.frame.y+c.view.frame.height > bounds.y+bounds.height-64);
+    assert.deepEqual(run.stored.get(key),c.view.frame);
+    translation={x:500,y:2000}; run.methods.resizePanel(gesture);
+    assert.equal(c.view.frame.height,bounds.height-24);
+    assert.deepEqual(run.stored.get(key),c.view.frame);
+    const beforeCancel = { ...c.view.frame };
+    translation={x:-10000,y:-10000}; gesture.state=4; run.methods.movePanel(gesture);
+    assert.equal(c.view.frame.x,beforeCancel.x-10000);
+    assert.equal(c.view.frame.y,beforeCancel.y-10000);
+    run.methods.resetSettingsPanelFrame();
+    withinTools(); assert.deepEqual(run.stored.get(key),c.view.frame);
+    const resetFrame={...c.view.frame};
+    run.stored.delete(key);
+    run.context.__DAGUANYUAN_WEB_PANEL_GLOBAL__.showPanel(c);
+    assert.deepEqual({...c.view.frame},resetFrame);
+  }
+});
+
+test('窗口靠近顶部、底部或越过边缘时，右下角缩放始终固定左上角', () => {
+  const run=runtime(), c=run.controller;
+  const bounds={x:0,y:0,width:1024,height:768};
+  const parent={bounds,addSubview(view){view.superview=this;}};
+  run.context.Application={sharedInstance:()=>({studyController:()=>({view:parent}),showHUD(){}})};
+  c.view.superview=parent;
+  for (const origin of [{x:32,y:0},{x:0,y:12},{x:350,y:600},{x:-30,y:-20}]) {
+    c.view.frame={...origin,width:800,height:500};
+    run.methods.resizePanel({state:3,translationInView:()=>({x:1,y:1}),setTranslationInView(){}});
+    assert.deepEqual({...c.view.frame},{...origin,width:801,height:501});
+    assert.deepEqual(run.stored.get('cn.marginnote.daguanyuan-bridge.panel-frame'),c.view.frame);
+  }
+  const stored={x:32,y:12,width:800,height:700};
+  run.stored.set('cn.marginnote.daguanyuan-bridge.panel-frame',stored);
+  run.context.__DAGUANYUAN_WEB_PANEL_GLOBAL__.showPanel(c);
+  assert.deepEqual({...c.view.frame},stored);
+  run.methods.resetSettingsPanelFrame();
+  assert.deepEqual({...c.view.frame},{x:32,y:80,width:960,height:624});
 });
 
 test('滚动只移动设置内容，悬浮区域仅占胶囊宽度，连续切换滑块从当前画面接续', () => {
