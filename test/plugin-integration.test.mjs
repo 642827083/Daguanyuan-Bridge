@@ -9,6 +9,7 @@ function runtime(stored = new Map()) {
     constructor(frame) { this.frame=frame; this.layer={}; this.subviews=[]; this.titleLabel={}; }
     get bounds() { return {x:0,y:0,width:this.frame.width,height:this.frame.height}; }
     addSubview(view) { this.subviews.push(view); view.superview=this; }
+    removeFromSuperview() { if (this.superview) this.superview.subviews = this.superview.subviews.filter(view => view !== this); this.superview = null; }
     addGestureRecognizer() {}
     addTargetActionForControlEvents(target, action) { this.action=action; }
     setTitleForState(title) { this.title=title; }
@@ -32,11 +33,63 @@ function runtime(stored = new Map()) {
     __DAGUANYUAN_MASTERY_UI_GLOBAL__:{enabled(){return true;}},self:{addon:{window:{}}}
   };
   vm.createContext(context);
-  for(const name of ['DaguanyuanVideoBrowser','DaguanyuanCardToolsSettings','DaguanyuanPluginIntegrationSettings','WebPanelController'])
+  for(const name of ['DaguanyuanSourceLink','DaguanyuanCardComments','DaguanyuanCommentFold','DaguanyuanCardLocatorUI','DaguanyuanVideoBrowser','DaguanyuanCardToolsSettings','DaguanyuanPluginIntegrationSettings','WebPanelController'])
     vm.runInContext(readFileSync(new URL('../src/'+name+'.js',import.meta.url),'utf8'),context);
   methods.viewDidLoad();
-  return {controller:context.self,methods,stored};
+  return {controller:context.self,methods,stored,context};
 }
+
+test('自动折叠开关保留在外，管理入口与定位方式复用弹窗，窄宽布局均不遮挡', async () => {
+  const run = runtime(), c = run.controller, messages = [];
+  run.context.Application = { sharedInstance: () => ({ showHUD: message => messages.push(message) }) };
+  assert.equal(c.commentFoldSwitch.on, false);
+  assert.equal(c.commentFoldTitle.text, '自动折叠原题评论');
+  assert.equal(c.cardManagementTitle.text, '已导入题卡管理');
+  assert.equal(c.repairCardsButton, undefined); assert.equal(c.foldSourceCommentsButton, undefined); assert.equal(c.unfoldSourceCommentsButton, undefined);
+  run.methods.toggleSourceCommentFold({ on: true }); assert.equal(c.commentFoldSwitch.on, true);
+  const restored = runtime(run.stored); assert.equal(restored.controller.commentFoldSwitch.on, true);
+  run.methods.toggleSourceCommentFold({ on: false });
+  for (const width of [560, 960]) {
+    c.view.frame = { x: 0, y: 0, width, height: 680 }; run.methods.viewDidLayoutSubviews();
+    for (const key of ['commentFoldTitle', 'commentFoldDescription', 'commentFoldSwitch', 'cardManagementTitle', 'cardManagementDescription', 'cardManagementChevron', 'cardManagementButton']) {
+      const r = c[key].frame;
+      assert.ok(r.x + r.width <= c.cardToolsSettingsSection.frame.width);
+      assert.ok(r.y + r.height <= c.cardToolsSettingsSection.frame.height);
+    }
+    assert.ok(c.pluginIntegrationSettingsSection.frame.y > c.cardToolsSettingsSection.frame.y + c.cardToolsSettingsSection.frame.height);
+  }
+  const calls = [];
+  run.context.__DAGUANYUAN_COMMENT_FOLD_GLOBAL__.batch = async (addon, collapsed) => {
+    calls.push(collapsed); return { changed: 1, unchanged: 2, skipped: 0, failed: [] };
+  };
+  c.activePage = 'settings'; run.methods.openImportedCardManagement();
+  let menu = c.cardLocationModeChoice;
+  assert.deepEqual(Array.from(menu.buttons, row => row.title), ['修复题卡格式', '折叠原题评论', '展开原题评论', '取消']);
+  assert.equal(menu.sheet.frame.width, 360); assert.equal(menu.sheet.layer.cornerRadius, 12);
+  assert.equal(menu.sheet.frame.height, 274);
+  assert.equal(c.commentFoldSwitch.superview, c.cardToolsSettingsSection);
+  run.methods.selectImportedCardManagement(menu.buttons[1]);
+  assert.equal(c.cardManagementButton.enabled, false);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(c.cardManagementButton.enabled, true); assert.match(messages.at(-1), /已折叠 1/);
+  run.methods.openImportedCardManagement(); menu = c.cardLocationModeChoice;
+  run.methods.selectImportedCardManagement(menu.buttons[2]); await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(calls, [true, false]); assert.match(messages.at(-1), /已展开 1/);
+  c.categoryImportBusy = true; run.methods.openImportedCardManagement(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls.length, 2); assert.match(messages.at(-1), /请先完成/);
+});
+
+test('管理弹窗修复入口正确分发，取消及旧按钮不触发操作，切换页面清理弹窗', () => {
+  const run = runtime(), c = run.controller; c.activePage = 'settings'; const repairs = [];
+  run.context.__DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ = { repair: target => repairs.push(target), cancel() {} };
+  run.methods.openImportedCardManagement(); let menu = c.cardLocationModeChoice;
+  const old = menu.buttons[0];
+  run.methods.selectImportedCardManagement(menu.buttons[3]); assert.equal(repairs.length, 0); assert.equal(c.cardLocationModeChoice, null);
+  run.methods.openImportedCardManagement(); menu = c.cardLocationModeChoice;
+  run.methods.selectImportedCardManagement(old); assert.equal(repairs.length, 0); assert.equal(c.cardLocationModeChoice, menu);
+  run.methods.selectImportedCardManagement(menu.buttons[0]); assert.deepEqual(repairs, [c]); assert.equal(c.cardLocationModeChoice, null);
+  run.methods.openImportedCardManagement(); run.methods.openDaguanyuan(); assert.equal(c.cardLocationModeChoice, null);
+});
 
 test('设置末尾提供插件联动与默认关闭的 MN Browser 开关，窄宽窗口均可滚动到全部内容', () => {
   const run=runtime(), c=run.controller;

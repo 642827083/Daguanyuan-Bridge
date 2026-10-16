@@ -1,5 +1,5 @@
 #dgy-toolbar{--dgy-tool-surface:#fff;--dgy-tool-ink:#195db5;--dgy-tool-border:#dce3ec;--dgy-tool-hover:#eef4fc;position:fixed;right:16px;bottom:20px;z-index:2147483000;display:flex;flex-direction:column;box-sizing:border-box;width:44px;background:var(--dgy-tool-surface);border:1px solid var(--dgy-tool-border);border-radius:12px;overflow:hidden;box-shadow:0 4px 16px #0002}
-#dgy-toolbar[data-expanded="true"]{width:max-content;min-width:44px}
+#dgy-toolbar[data-expanded="true"]{box-sizing:content-box;width:max-content;min-width:108px}
 #dgy-toolbar button{box-sizing:border-box;font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--dgy-tool-ink);background:var(--dgy-tool-surface);border:0;border-radius:0;min-height:44px;margin:0;cursor:pointer}
 #dgy-toolbar button:disabled{opacity:.45;cursor:default}
 #dgy-toolbar-actions{display:flex;flex-direction:column}
@@ -7,9 +7,10 @@
 #dgy-toolbar-actions button:not([hidden])~button:not([hidden]){border-top:1px solid var(--dgy-tool-border)}
 #dgy-toolbar button:not(:disabled):hover{background:var(--dgy-tool-hover)}
 #dgy-toolbar svg{display:block;width:18px;height:18px;flex-shrink:0;pointer-events:none}
-#dgy-toolbar [data-toggle-import-tools]{display:flex;align-items:center;justify-content:center;width:100%;height:44px;padding:0}
-#dgy-toolbar[data-expanded="true"] [data-toggle-import-tools]{border-top:1px solid var(--dgy-tool-border)}
-#dgy-toolbar [data-toggle-import-tools] svg{width:24px;height:24px}
+#dgy-toolbar-navigation{display:grid;grid-template-columns:minmax(0,1fr)}
+#dgy-toolbar[data-expanded="true"] #dgy-toolbar-navigation{grid-template-columns:repeat(3,minmax(0,1fr))}
+#dgy-toolbar-navigation button{display:flex;align-items:center;justify-content:center;min-width:0;height:44px;padding:0}
+#dgy-toolbar[data-expanded="true"] #dgy-toolbar-navigation{border-top:1px solid var(--dgy-tool-border)}
 #dgy-toolbar [hidden]{display:none!important}
 @media(prefers-color-scheme:dark){#dgy-toolbar{--dgy-tool-surface:#262a30;--dgy-tool-ink:#8bbbff;--dgy-tool-border:#454b57;--dgy-tool-hover:#29364a}}
 #dgy-dialog,#dgy-dialog *{box-sizing:border-box}

@@ -13,7 +13,10 @@ var __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__ = (function () {
       try { controller.webView.evaluateJavaScript(script, finish); } catch (error) { finish(null, error); }
     });
   }
-  function inject(controller) { return evaluate(controller, __DAGUANYUAN_IMPORT_PAGE_SCRIPT__ + ';"ok"'); }
+  function inject(controller) {
+    const navigation = __DAGUANYUAN_WEB_BRIDGE_COMMANDS_GLOBAL__.navigationState(controller);
+    return evaluate(controller, 'window.__DAGUANYUAN_WEBSITE_NAVIGATION__=' + JSON.stringify(navigation) + ';' + __DAGUANYUAN_IMPORT_PAGE_SCRIPT__ + ';"ok"');
+  }
   function call(controller, method, args) {
     return evaluate(controller, PAGE + '&&' + PAGE + '.' + method + '(' + args.map(function (value) { return JSON.stringify(value); }).join(',') + ')').then(function (value) {
       if (String(value) !== 'ok') throw new Error('导入页面已关闭或切换，请重新打开');

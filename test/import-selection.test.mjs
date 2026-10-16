@@ -183,7 +183,7 @@ test('导入工具默认收起，重复点击展开收起，刷新和重复注�
   assert.equal(run.document.querySelector('#dgy-toolbar').getAttribute('data-expanded'), 'false');
 });
 
-test('显示选题导入开关实时隐藏与恢复入口，隐藏后不提交，全部关闭则隐藏工具', async () => {
+test('显示选题导入开关实时隐藏与恢复入口，全部关闭仍可展开网页导航', async () => {
   const run = runtime();
   run.document.body.innerHTML = '<article class="question-document" data-question-id="11">题干</article>';
   const config = { bindEnabled: true, importEnabled: true, selectionEnabled: false };
@@ -197,10 +197,59 @@ test('显示选题导入开关实时隐藏与恢复入口，隐藏后不提交�
   assert.equal(select.hidden, false); assert.equal(select.disabled, false);
   config.bindEnabled = config.importEnabled = config.selectionEnabled = false;
   run.browser.window.__DAGUANYUAN_IMPORT_UI__.refresh();
-  assert.equal(run.document.querySelector('#dgy-toolbar').hidden, true);
+  assert.equal(run.document.querySelector('#dgy-toolbar').hidden, false);
+  assert.equal(run.document.querySelector('[data-toggle-import-tools]').disabled, false);
   config.selectionEnabled = true; run.browser.window.__DAGUANYUAN_IMPORT_UI__.refresh();
   assert.equal(run.document.querySelector('#dgy-toolbar').hidden, false);
-  assert.equal(run.document.querySelector('#dgy-toolbar-actions').hidden, true);
+  assert.equal(run.document.querySelector('#dgy-toolbar-actions').hidden, false);
+});
+
+test('收起只显示省略号，展开底栏三格，无历史时返回置灰，导航调用当前 WebView', async () => {
+  const run = runtime(), view = run.controller.webView, calls = [];
+  view.canGoBack = false;
+  view.goBack = () => { calls.push('back'); view.canGoBack = false; };
+  view.reload = () => calls.push('reload');
+  await run.ui.inject(run.controller);
+  const back = run.document.querySelector('[data-navigate="back"]');
+  const reload = run.document.querySelector('[data-navigate="reload"]');
+  assert.equal(run.document.querySelectorAll('#dgy-toolbar-navigation button').length, 3);
+  assert.equal(back.hidden, true); assert.equal(reload.hidden, true);
+  run.click('[data-toggle-import-tools]');
+  assert.equal(back.hidden, false); assert.equal(reload.hidden, false);
+  assert.equal(back.disabled, true); assert.equal(reload.disabled, false);
+  run.click('[data-navigate="back"]'); await tick(); assert.deepEqual(calls, []);
+  run.click('[data-navigate="reload"]'); await tick(); assert.deepEqual(calls, ['reload']);
+  view.canGoBack = true; await run.ui.inject(run.controller);
+  run.click('[data-toggle-import-tools]'); run.click('[data-toggle-import-tools]');
+  assert.equal(run.document.querySelector('#dgy-toolbar-navigation').hidden, false);
+  assert.equal(back.disabled, false);
+  run.click('[data-navigate="back"]'); await tick();
+  assert.deepEqual(calls, ['reload', 'back']); assert.equal(back.disabled, true);
+  run.click('[data-toggle-import-tools]');
+  assert.equal(back.hidden, true); assert.equal(reload.hidden, true);
+});
+
+test('网页导航不允许打断导入，确认和执行期间均锁定，结束后恢复', async () => {
+  const run = runtime(), view = run.controller.webView;
+  let reloads = 0; view.reload = () => reloads++;
+  const { pending } = await run.open();
+  run.click('[data-toggle-import-tools]');
+  run.browser.window.__DAGUANYUAN_IMPORT_UI__.refresh();
+  assert.equal(run.document.querySelector('[data-navigate="reload"]').disabled, true);
+  run.click('[data-navigate="reload"]'); await tick(); assert.equal(reloads, 0);
+  run.click('[data-action="commit"]'); await pending;
+  const navigate = () => run.commands.commands.navigateWebsite(run.bridgeContext, { action: 'reload' });
+  assert.throws(navigate, /当前任务/);
+  await run.ui.show(run.controller, { total: 4, createdCount: 4, failed: [] });
+  run.browser.window.__DAGUANYUAN_IMPORT_UI__.refresh();
+  assert.equal(run.document.querySelector('[data-navigate="reload"]').disabled, false);
+  run.click('[data-navigate="reload"]'); await tick(); assert.equal(reloads, 1);
+  for (const key of ['categoryImportBusy', 'singleImportBusy', 'questionToolBusy']) {
+    run.controller[key] = true; assert.throws(navigate, /当前任务/); run.controller[key] = false;
+  }
+  run.controller.importWorkspaceTask = { status: 'running' }; assert.throws(navigate, /当前任务/);
+  assert.throws(() => run.commands.commands.navigateWebsite({ ...run.bridgeContext, isImportWorkspace: true }, { action: 'reload' }), /题库网页/);
+  assert.throws(() => run.commands.commands.navigateWebsite(run.bridgeContext, { action: 'bad' }), /操作无效/);
 });
 
 test('选题导入失败可以关闭提示，不留下无法关闭的假任务', async () => {

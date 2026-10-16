@@ -48,13 +48,12 @@ import MNBridge from './lib/mnBridge.js';
     el('stop').hidden = !state.busy; el('stop').disabled = state.stopping;
     el('refresh').disabled = state.busy || !hasSourceSelection();
     ['reset', 'all', 'none'].forEach(function (id) { el(id).disabled = state.busy; });
-    root.querySelectorAll('[data-source], [data-organization], [data-scope], [data-exam-subject], [data-content], #tree input, #tree .knowledge-name, #years input, #types input').forEach(function (node) { node.disabled = state.busy; });
+    root.querySelectorAll('[data-source], [data-organization], [data-scope], [data-exam-subject], [data-content], #tree input, #years input, #types input').forEach(function (node) { node.disabled = state.busy; });
     el('tree').querySelectorAll('[data-category]').forEach(function (input) {
       const selected = state.categories.has(Number(input.dataset.category));
       input.checked = selected;
       const row = input.closest('.knowledge-row');
       row.classList.toggle('is-selected', selected);
-      row.querySelector('.knowledge-name').setAttribute('aria-pressed', String(selected));
     });
     root.querySelectorAll('[data-source]').forEach(function (node) { node.setAttribute('aria-pressed', String(node.dataset.source === state.source)); });
     root.querySelectorAll('[data-organization]').forEach(function (node) { node.setAttribute('aria-pressed', String(node.dataset.organization === state.organization)); });
@@ -91,8 +90,12 @@ import MNBridge from './lib/mnBridge.js';
           const chevron = document.createElement('span'); chevron.className = 'knowledge-chevron';
           chevron.setAttribute('aria-hidden', 'true'); chevron.textContent = '›'; toggle.appendChild(chevron);
         } else toggle.setAttribute('aria-hidden', 'true');
-        const name = document.createElement('button'); name.type = 'button'; name.textContent = r[2]; name.className = 'knowledge-name';
-        name.dataset.viewCategory = String(r[0]);
+        const name = document.createElement(hasChildren ? 'button' : 'span'); name.textContent = r[2]; name.className = 'knowledge-name';
+        if (hasChildren) {
+          name.type = 'button'; name.dataset.toggleCategory = String(r[0]);
+          name.setAttribute('aria-label', '展开分类：' + r[2]); name.setAttribute('aria-expanded', 'false');
+          name.setAttribute('aria-controls', 'category-children-' + r[0]);
+        }
         const label = document.createElement('label'); label.className = 'knowledge-check';
         const input = document.createElement('input'); input.type = 'checkbox'; input.dataset.category = String(r[0]);
         input.setAttribute('aria-label', '选择分类：' + r[2]); input.checked = state.categories.has(r[0]);
@@ -239,17 +242,13 @@ import MNBridge from './lib/mnBridge.js';
       event.preventDefault(); event.stopPropagation();
       const expanded = toggle.getAttribute('aria-expanded') !== 'true';
       el(toggle.getAttribute('aria-controls')).hidden = !expanded;
-      toggle.setAttribute('aria-expanded', String(expanded));
-      const name = toggle.closest('.knowledge-row').querySelector('.knowledge-name').textContent;
-      toggle.setAttribute('aria-label', (expanded ? '收起分类：' : '展开分类：') + name);
+      const row = toggle.closest('.knowledge-row'), name = row.querySelector('.knowledge-name').textContent;
+      row.querySelectorAll('[data-toggle-category]').forEach(function (control) {
+        control.setAttribute('aria-expanded', String(expanded));
+        control.setAttribute('aria-label', (expanded ? '收起分类：' : '展开分类：') + name);
+      });
       return;
     }
-    const name = event.target.closest('[data-view-category]');
-    if (!name) return;
-    event.preventDefault(); event.stopPropagation();
-    if (state.busy || name.disabled) return;
-    state.categories = new Set([Number(name.dataset.viewCategory)]);
-    prepare();
   });
   window.__DAGUANYUAN_IMPORT_WORKSPACE__ = {
     start: function (token, data) { if (token !== state.token) return; text('target', '目标学习集：' + data.target); },

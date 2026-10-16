@@ -267,14 +267,14 @@ test('位置适应屏幕边缘，信息不一致或损坏不显示', () => {
   run.select(card); assert.equal(run.addon.__daguanyuanMasteryToolbar.hidden, true);
   run.select(run.card(), 'broken'); assert.equal(run.addon.__daguanyuanMasteryToolbar.hidden, true);
 });
-test('设置新增题卡工具分组，掌握标记开关和修复入口在同一分组，缺少 MN Utils 提示', () => {
+test('题卡工具分组保留掌握标记、自动折叠和题卡管理入口，缺少 MN Utils 提示', () => {
   const run = nativeUI(), controller = { addon: run.addon, settingsPage: new run.View({ width: 900, height: 600 }), questionToolsSettingsSection: new run.View({ width: 860, height: 406 }) };
   const settings = run.context.__DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__, repair = run.context.__DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__;
-  settings.setup(controller); repair.setup(controller); settings.layout(controller, 860); repair.layout(controller, 860);
+  settings.setup(controller); settings.layout(controller, 860); repair.layout(controller, 860);
   assert.equal(controller.cardToolsTitle.text, '题卡工具'); assert.equal(controller.masteryTitle.text, '掌握标记');
-  assert.equal(controller.repairCardsTitle.superview, controller.cardToolsSettingsSection);
+  assert.equal(controller.cardManagementTitle.superview, controller.cardToolsSettingsSection);
   assert.equal(controller.masterySwitch.on, false);
-  assert.ok(controller.repairCardsButton.frame.y + 40 <= controller.cardToolsSettingsSection.frame.height);
+  assert.ok(controller.cardManagementButton.frame.y + controller.cardManagementButton.frame.height <= controller.cardToolsSettingsSection.frame.height);
   controller.masterySwitch.on = true; settings.toggle(controller); assert.equal(run.ui.enabled(), true);
   run.ui.unregister(run.addon); delete run.context.MNUtil; run.ui.setEnabled(run.addon, false);
   controller.masterySwitch.on = true; settings.toggle(controller);

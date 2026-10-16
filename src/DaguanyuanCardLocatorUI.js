@@ -14,8 +14,9 @@ var __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__ = (function () {
       const bounds = controller.containerView.bounds;
       const width = Math.min(360, Math.max(0, bounds.width - 40));
       const height = Math.max(0, bounds.height - 38);
+      const sheetHeight = 74 + modeChoice.buttons.length * 50;
       modeChoice.overlay.frame = { x: 0, y: 38, width: bounds.width, height };
-      modeChoice.sheet.frame = { x: (bounds.width - width) / 2, y: Math.max(0, (height - 224) / 2), width, height: 224 };
+      modeChoice.sheet.frame = { x: (bounds.width - width) / 2, y: Math.max(0, (height - sheetHeight) / 2), width, height: sheetHeight };
       modeChoice.title.frame = { x: 16, y: 16, width: Math.max(0, width - 32), height: 30 };
       modeChoice.buttons.forEach(function (row, index) { row.frame = { x: 16, y: 62 + index * 50, width: Math.max(0, width - 32), height: 42 }; });
     }
@@ -104,10 +105,10 @@ var __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__ = (function () {
 
   function selectMode(controller, index, sender) {
     const choice = controller && controller.cardLocationModeChoice;
-    if (!choice || !Number.isSafeInteger(index) || index < 0 || index > 2) return;
+    if (!choice || !Number.isSafeInteger(index) || index < 0 || index >= choice.buttons.length) return;
     if (sender && choice.buttons[index] !== sender) return;
     cancelMode(controller);
-    if (index < 2) choice.onSelect(choice.values[index]);
+    if (index < choice.values.length) choice.onSelect(choice.values[index]);
   }
 
   function chooseMode(controller, current, onSelect) {
@@ -129,7 +130,7 @@ var __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__ = (function () {
     title.textColor = UIColor.darkGrayColor();
     sheet.addSubview(title);
     const buttons = labels.concat(["取消"]).map(function (text, index) {
-      const row = button(text + (index < 2 && values[index] === current ? "（当前）" : ""), controller, selector);
+      const row = button(text + (index < values.length && values[index] === current ? "（当前）" : ""), controller, selector);
       row.tag = index;
       row.backgroundColor = UIColor.colorWithRedGreenBlueAlpha(0.94, 0.97, 1, 1);
       row.layer.cornerRadius = 8;

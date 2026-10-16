@@ -346,11 +346,18 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
 
   function importedComment(note, id, provider, role) { return __DAGUANYUAN_CARD_COMMENTS_GLOBAL__.read(note, id, provider, role); }
 
-  function initializeQuestion(note, question, markdown, suffix, url, provider, role) {
+  function initializeQuestion(note, question, markdown, suffix, url, provider, role, context) {
     note.appendMarkdownComment(markdown);
     saveQuestionImages(note, question);
     note.appendMarkdownComment(__DAGUANYUAN_CARD_COMMENTS_GLOBAL__.metadata(question, url, provider, role) + suffix);
     if (nativeItems(note.comments).length !== 2) throw new Error('题卡评论保存失败');
+    if (context && typeof __DAGUANYUAN_COMMENT_FOLD_GLOBAL__ !== 'undefined') __DAGUANYUAN_COMMENT_FOLD_GLOBAL__.enqueue(context, note);
+  }
+
+  function flushCommentFold(context, result) {
+    if (typeof __DAGUANYUAN_COMMENT_FOLD_GLOBAL__ !== 'undefined') {
+      __DAGUANYUAN_COMMENT_FOLD_GLOBAL__.addWarnings(result, __DAGUANYUAN_COMMENT_FOLD_GLOBAL__.flush(context));
+    }
   }
 
   function answerChild(note, id, provider) {
@@ -385,12 +392,12 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
     const answerText = content === 'questionAnswer' ? answerMarkdown(question) : '';
     if (isNew) {
       const markdown = questionMarkdown(question, url, provider);
-      initializeQuestion(note, imagePart(question, markdown), markdown, suffix || '', url, provider);
+      initializeQuestion(note, imagePart(question, markdown), markdown, suffix || '', url, provider, undefined, context);
     }
     if (answerText) {
       const created = createNote('答案与解析', context);
       try {
-        initializeQuestion(created, imagePart(question, answerText), answerText, '', url, provider, 'ANSWER');
+        initializeQuestion(created, imagePart(question, answerText), answerText, '', url, provider, 'ANSWER', context);
         moveImportedQuestion(note, created);
         // 与疾风劲草一致，新建答案子卡时默认折叠题目分支。
         note.mindmapBranchClose = 1;
@@ -452,6 +459,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
     }
     return {
       targetTitle: targetTitle(context),
+      takeCommentFoldWarnings: function () { const warnings = context.commentFoldWarnings || []; context.commentFoldWarnings = []; return warnings; },
       hasQuestion: function (id) { return Boolean(findQuestion(id)); },
       shouldSkip: function (id) { return Boolean(findQuestion(id)); },
       write: function (question, category) {
@@ -468,7 +476,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
           try {
             const selectedParent = currentParent();
             note = createNote(titleFor(question), context);
-            initializeQuestion(note, question, markdown, "\n\n" + marker("DAGUANYUAN_SINGLE_IMPORT:1"), url, provider);
+            initializeQuestion(note, question, markdown, "\n\n" + marker("DAGUANYUAN_SINGLE_IMPORT:1"), url, provider, undefined, context);
             if (position === "sibling") {
               const siblings = nativeItems(value(selectedParent, "childNotes"));
               const index = siblings.findIndex(function (child) { return noteId(child) === selectedId; });
@@ -486,6 +494,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
           }
         });
         context.application.refreshAfterDBChanged(context.topicId);
+        flushCommentFold(context, context);
         return true;
       },
     };
@@ -495,6 +504,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
     const context = notebookContext(addon);
     return {
       targetTitle: targetTitle(context),
+      takeCommentFoldWarnings: function () { const warnings = context.commentFoldWarnings || []; context.commentFoldWarnings = []; return warnings; },
       check: function () { assertCurrentContext(addon, context); },
       hasQuestion: function (id, category) { return hasQuestionAtPath(context, pathFor408(category), id, "408"); },
       shouldSkip: function (id, category, content) {
@@ -541,6 +551,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
           }
         });
         context.application.refreshAfterDBChanged(context.topicId);
+        flushCommentFold(context, context);
         return outcome;
       },
     };
@@ -637,6 +648,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
           });
         });
         context.application.refreshAfterDBChanged(context.topicId);
+        flushCommentFold(context, result);
       }
       return result;
     }).catch(function (error) {
@@ -709,6 +721,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
           result.answerAddedCount += batch.answerAddedCount;
           result.skippedCount += batch.skippedCount;
           Array.prototype.push.apply(result.failed, batch.failed);
+          if (batch.commentFoldWarnings) result.commentFoldWarnings = (result.commentFoldWarnings || []).concat(batch.commentFoldWarnings);
           report({ phase: "importing", processed: Math.min(offset + ids.length, result.total), total: result.total,
             created: result.createdCount, answerAdded: result.answerAddedCount, skipped: result.skippedCount, failed: result.failed.length });
           return writePage(offset + ids.length);

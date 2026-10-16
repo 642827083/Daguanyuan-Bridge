@@ -1,5 +1,5 @@
 var __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ = (function () {
-  const description = '整理注释并补齐第二条“查看原题”';
+  const description = '仅当前学习集：修复格式与原题评论显示';
   function hud(controller, message) { Application.sharedInstance().showHUD(message, controller.addonWindow || controller.addon.window, 3); }
   function label(text, size, bold) {
     const view = new UILabel({ x: 0, y: 0, width: 100, height: 24 });
@@ -12,29 +12,12 @@ var __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ = (function () {
     view.titleLabel.font = UIFont.systemFontOfSize(14); view.layer.cornerRadius = 8;
     view.addTargetActionForControlEvents(controller, selector, 1 << 0); return view;
   }
-  function setup(controller) {
-    controller.repairCardsDivider = new UIView({ x: 0, y: 0, width: 100, height: 1 });
-    controller.repairCardsDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
-    controller.repairCardsTitle = label('修复已导入题卡', 16, true);
-    controller.repairCardsDescription = label(description, 12, false);
-    controller.repairCardsDescription.textColor = UIColor.grayColor();
-    controller.repairCardsButton = button(controller, '修复', 'repairImportedCards:');
-    [controller.repairCardsDivider, controller.repairCardsTitle, controller.repairCardsDescription, controller.repairCardsButton]
-      .forEach(view => (controller.cardToolsSettingsSection || controller.questionToolsSettingsSection).addSubview(view));
-  }
   function cancel(controller) {
     const state = controller.cardRepairState; controller.cardRepairState = null;
     if (state && state.overlay) state.overlay.removeFromSuperview();
-    if (controller.repairCardsDescription) controller.repairCardsDescription.text = description;
+    if (controller.cardManagementDescription) controller.cardManagementDescription.text = description;
   }
   function layout(controller, width) {
-    if (controller.repairCardsTitle) {
-      const offset = controller.cardToolsSettingsSection ? 118 : 406;
-      controller.repairCardsDivider.frame = { x: 20, y: offset, width: Math.max(0, width - 40), height: 1 };
-      controller.repairCardsTitle.frame = { x: 20, y: offset + 13, width: Math.max(0, width - 120), height: 24 };
-      controller.repairCardsDescription.frame = { x: 20, y: offset + 39, width: Math.max(0, width - 120), height: 18 };
-      controller.repairCardsButton.frame = { x: Math.max(20, width - 88), y: offset + 16, width: 68, height: 40 };
-    }
     const state = controller.cardRepairState; if (!state || !state.overlay) return;
     const bounds = controller.containerView.bounds, sheetWidth = Math.min(440, Math.max(0, bounds.width - 24));
     const height = Math.max(0, bounds.height - 38), sheetHeight = Math.min(300, height);
@@ -52,7 +35,7 @@ var __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ = (function () {
     state.cancel.frame = { x: sheetWidth / 2 + 6, y: sheetHeight - 52, width: Math.max(0, (sheetWidth - 44) / 2), height: 40 };
   }
   function busy(controller) {
-    return controller.categoryImportBusy || controller.singleImportBusy || controller.questionToolBusy
+    return controller.commentFoldOperation || controller.categoryImportBusy || controller.singleImportBusy || controller.questionToolBusy
       || controller.importWorkspaceTask && controller.importWorkspaceTask.status === 'running'
       || controller.importTask && controller.importTask.status === 'running';
   }
@@ -61,7 +44,7 @@ var __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ = (function () {
     if (busy(controller)) { hud(controller, '正在导入或读取题目，请稍后修复'); return; }
     __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.cancelMode(controller);
     const state = {}; controller.cardRepairState = state;
-    controller.repairCardsDescription.text = '正在统计当前学习集的题卡…';
+    controller.cardManagementDescription.text = '正在统计当前学习集的题卡…';
     Promise.resolve().then(() => __DAGUANYUAN_CARD_REPAIR_GLOBAL__.preview(controller.addon || { window: controller.addonWindow })).then(function (prepared) {
       if (controller.cardRepairState !== state) return;
       state.prepared = prepared;
@@ -72,7 +55,7 @@ var __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ = (function () {
       state.overlay.backgroundColor = UIColor.colorWithWhiteAlpha(0, 0.2);
       state.sheet = new UIView({ x: 0, y: 0, width: 100, height: 100 });
       state.sheet.backgroundColor = UIColor.whiteColor(); state.sheet.layer.cornerRadius = 12;
-      state.title = label('修复已导入题卡', 17, true);
+      state.title = label('修复题卡格式', 17, true);
       state.message = label('当前学习集需要修复：\n题目卡 ' + prepared.questionCount + ' 张，答案卡 ' + prepared.answerCount + ' 张。\n'
         + (prepared.skipped.length ? '跳过 ' + prepared.skipped.length + ' 张：' + prepared.skipped[0].reason + '\n' : '')
         + '将把注释移到第二条“查看原题”链接后，去除重复的网址、入口标记及两条内容校验注释，缺少链接时自动补齐。保留正文、个人评论、手写和卡片位置，可在 MN 中撤销。', 13, false);
@@ -82,7 +65,7 @@ var __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ = (function () {
       state.confirm = button(controller, '确认修复', 'confirmCardRepair:'); state.cancel = button(controller, '取消', 'cancelCardRepair:');
       [state.title, state.messageScroll, state.confirm, state.cancel].forEach(view => state.sheet.addSubview(view));
       state.overlay.addSubview(state.sheet); controller.containerView.addSubview(state.overlay);
-      controller.repairCardsDescription.text = '等待确认：' + prepared.jobs.length + ' 张卡片';
+      controller.cardManagementDescription.text = '等待确认：' + prepared.jobs.length + ' 张卡片';
       layout(controller, (controller.cardToolsSettingsSection || controller.questionToolsSettingsSection).bounds.width);
     }).catch(function (error) {
       if (controller.cardRepairState !== state) return;
@@ -97,8 +80,9 @@ var __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ = (function () {
     try {
       const result = __DAGUANYUAN_CARD_REPAIR_GLOBAL__.apply(controller.addon || { window: controller.addonWindow }, state.prepared);
       hud(controller, '已修复 ' + result.repairedCount + ' 张卡片' + (result.skippedCount ? '，跳过 ' + result.skippedCount + ' 张' : '')
-        + (result.failed.length ? '，失败 ' + result.failed.length + ' 张：' + result.failed[0].reason : ''));
+        + (result.failed.length ? '，失败 ' + result.failed.length + ' 张：' + result.failed[0].reason : '')
+        + (result.commentFoldWarnings && result.commentFoldWarnings.length ? '；原题评论未折叠：' + result.commentFoldWarnings[0].reason : ''));
     } catch (error) { hud(controller, '修复未完成：' + String(error.message || error)); }
   }
-  return { setup, layout, repair, confirm, cancel };
+  return { layout, repair, confirm, cancel };
 })();

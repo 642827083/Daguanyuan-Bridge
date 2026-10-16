@@ -34,19 +34,35 @@ var __DAGUANYUAN_SOURCE_LINK_GLOBAL__ = (function () {
     const address = links[0].trim().slice('[查看原题]('.length, -1);
     return parse(address.slice('marginnote4app://addon/'.length));
   }
+  function notificationCenter() {
+    if (typeof NSNotificationCenter === 'undefined' || !NSNotificationCenter || typeof NSNotificationCenter.defaultCenter !== 'function') return null;
+    return NSNotificationCenter.defaultCenter();
+  }
   function register(addon) {
     if (addon.__daguanyuanSourceLinkObserver) return true;
-    if (typeof MNUtil === 'undefined' || typeof MNUtil.addObserver !== 'function' || typeof MNUtil.removeObserver !== 'function') {
-      console.log('[Daguanyuan Bridge] 查看原题需要 MN Utils 的通知接口，请安装并启用最新版 MN Utils');
+    if (typeof MNUtil !== 'undefined' && MNUtil && typeof MNUtil.addObserver === 'function' && typeof MNUtil.removeObserver === 'function') {
+      MNUtil.addObserver(addon, 'onSourceLink:', EVENT);
+      addon.__daguanyuanSourceLinkObserver = 'utils';
+      return true;
+    }
+    const center = notificationCenter();
+    if (!center || typeof center.addObserverSelectorName !== 'function' || typeof center.removeObserverName !== 'function') {
+      console.log('[Daguanyuan Bridge] 当前 MarginNote 版本缺少插件链接通知接口');
       return false;
     }
-    MNUtil.addObserver(addon, 'onSourceLink:', EVENT);
-    addon.__daguanyuanSourceLinkObserver = true;
+    // MN Utils 未启用时，直接监听 MN 原生的插件链接广播。
+    center.addObserverSelectorName(addon, 'onSourceLink:', EVENT);
+    addon.__daguanyuanSourceLinkObserver = 'native';
     return true;
   }
   function unregister(addon) {
-    if (addon.__daguanyuanSourceLinkObserver && typeof MNUtil !== 'undefined' && typeof MNUtil.removeObserver === 'function') {
+    const backend = addon.__daguanyuanSourceLinkObserver;
+    if (!backend) return;
+    if (backend === 'utils' && typeof MNUtil !== 'undefined' && MNUtil && typeof MNUtil.removeObserver === 'function') {
       MNUtil.removeObserver(addon, EVENT);
+    } else {
+      const center = notificationCenter();
+      if (center && typeof center.removeObserverName === 'function') center.removeObserverName(addon, EVENT);
     }
     addon.__daguanyuanSourceLinkObserver = false;
   }

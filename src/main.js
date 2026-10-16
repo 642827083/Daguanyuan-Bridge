@@ -12,6 +12,7 @@ JSB.require("DaguanyuanCardLocator");
 JSB.require("DaguanyuanCardLocatorUI");
 JSB.require("DaguanyuanSourceLink");
 JSB.require("DaguanyuanCardComments");
+JSB.require("DaguanyuanCommentFold");
 JSB.require("DaguanyuanMathImport");
 JSB.require("DaguanyuanMathSelection");
 JSB.require("DaguanyuanCardRepair");

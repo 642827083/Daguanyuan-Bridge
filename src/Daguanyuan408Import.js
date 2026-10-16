@@ -182,6 +182,10 @@ var __DAGUANYUAN_408_IMPORT_GLOBAL__ = (function () {
             stage = "MarginNote 建卡";
             if (beforeImport && beforeImport.check) beforeImport.check();
             const outcome = session.write(payload.question, listing.category, content);
+            if (session.takeCommentFoldWarnings) {
+              const warnings = session.takeCommentFoldWarnings();
+              if (warnings.length) result.commentFoldWarnings = (result.commentFoldWarnings || []).concat(warnings);
+            }
             if (outcome === 'answerAdded') result.answerAddedCount += 1;
             else if (outcome) result.createdCount += 1;
             else result.skippedCount += 1;

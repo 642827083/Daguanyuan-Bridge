@@ -3,9 +3,15 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-function runtime() {
+function runtime(options = {}) {
   const calls = [], windows = [{}, {}], application = { focusWindow: windows[0] };
+  const observers = new Map();
+  const center = {
+    addObserverSelectorName(addon, selector, event) { calls.push(['native-add', addon, selector, event]); observers.set(addon, { selector, event }); },
+    removeObserverName(addon, event) { calls.push(['native-remove', addon, event]); if (observers.get(addon)?.event === event) observers.delete(addon); },
+  };
   const context = { console, Application: { sharedInstance() { return application; } },
+    NSNotificationCenter: { defaultCenter() { return center; } },
     MNUtil: { currentWindow: windows[0], addObserver(...args) { calls.push(['add', ...args]); }, removeObserver(...args) { calls.push(['remove', ...args]); } },
     __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__: { enabled() { return true; }, showMessage(addon, message) { calls.push(['message', message]); } },
     __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__: { show() {}, hide() {}, remove() {}, syncQuestionLocator() {} },
@@ -16,9 +22,17 @@ function runtime() {
     },
     JSB: { defineClass(name, methods) { return methods; } },
   };
+  if (options.utils === false) delete context.MNUtil;
   vm.createContext(context);
   for (const file of ['DaguanyuanSourceLink', 'WebAddon']) vm.runInContext(fs.readFileSync(new URL('../src/' + file + '.js', import.meta.url), 'utf8'), context);
-  return { context, calls, windows, application, source: context.__DAGUANYUAN_SOURCE_LINK_GLOBAL__ };
+  function broadcast(methods, message) {
+    for (const [addon, entry] of observers) {
+      if (entry.event !== 'AddonBroadcast') continue;
+      context.self = addon;
+      methods[entry.selector.slice(0, -1)]({ userInfo: { message } });
+    }
+  }
+  return { context, calls, windows, application, center, observers, broadcast, source: context.__DAGUANYUAN_SOURCE_LINK_GLOBAL__ };
 }
 
 for (const [provider, id, url, year] of [
@@ -76,15 +90,69 @@ test('窗口生命周期注册一次通知，关闭时移除，重开可以再�
   assert.equal(run.calls.filter(call => call[0] === 'add').length, 2);
 });
 
-test('缺少 MN Utils 通知接口时明确提示，定位异常通过现有提示入口显示', () => {
+test('两种通知接口都缺失时提示 MN 版本问题，定位异常通过现有提示入口显示', () => {
   const run = runtime(), addon = { window: run.windows[0] };
   run.context.self = addon; delete run.context.MNUtil.addObserver;
+  delete run.context.NSNotificationCenter;
   const methods = run.context.createDaguanyuanBridgeAddon(); methods.sceneWillConnect();
-  assert.match(run.calls.find(call => call[0] === 'message')[1], /安装并启用.*MN Utils/);
+  const messageCall = run.calls.find(call => call[0] === 'message');
+  assert.match(messageCall[1], /MarginNote.*链接通知接口/);
+  assert.doesNotMatch(messageCall[1], /MN Utils/);
   run.context.__DAGUANYUAN_WEB_PANEL_GLOBAL__.openDaguanyuanQuestion = () => { throw Error('定位失败'); };
   const message = run.source.link('math', 7, 'https://www.cxyonly.fans/math/practice/1').replace('marginnote4app://addon/', '');
   methods.onSourceLink({ userInfo: { message } });
   assert.equal(run.calls.at(-1)[1], '定位失败');
+});
+
+for (const [provider, id, url, year] of [
+  ['math', 1214, 'https://www.cxyonly.fans/math/practice/categories/345?questionId=1214', 0],
+  ['408', 843, 'https://www.408os.cn/exercise?year=2026&questionId=843', 2026],
+]) test(provider + ' 未启用 MN Utils 时通过原生广播打开原题，关闭后移除且可重新注册', () => {
+  const run = runtime({ utils: false }), addon = { window: run.windows[0] };
+  run.context.self = addon;
+  const methods = run.context.createDaguanyuanBridgeAddon();
+  methods.sceneWillConnect(); methods.notebookWillOpen();
+  assert.equal(addon.__daguanyuanSourceLinkObserver, 'native');
+  assert.equal(run.calls.filter(call => call[0] === 'native-add').length, 1);
+  assert.equal(run.calls.filter(call => call[0] === 'message').length, 0);
+  const message = run.source.link(provider, id, url, year).replace('marginnote4app://addon/', '');
+  run.application.focusWindow = run.windows[1]; run.broadcast(methods, message);
+  assert.equal(run.calls.filter(call => call[0] === 'open').length, 0);
+  run.application.focusWindow = run.windows[0]; run.broadcast(methods, message);
+  const opened = run.calls.filter(call => call[0] === 'open');
+  assert.equal(opened.length, 1); assert.equal(opened[0][2].questionId, id); assert.equal(opened[0][2].url, url);
+  assert.equal(opened[0][2].provider, provider); assert.equal(opened[0][2].year, year);
+  methods.sceneDidDisconnect(); run.source.unregister(addon);
+  assert.equal(run.calls.filter(call => call[0] === 'native-remove').length, 1);
+  run.broadcast(methods, message); assert.equal(run.calls.filter(call => call[0] === 'open').length, 1);
+  methods.sceneWillConnect();
+  assert.equal(run.calls.filter(call => call[0] === 'native-add').length, 2);
+  run.broadcast(methods, message); assert.equal(run.calls.filter(call => call[0] === 'open').length, 2);
+});
+
+test('MN Utils 为空或仅有部分通知接口时回退原生，原生监听始终按原通道移除', () => {
+  for (const utils of [null, {}, { addObserver() {} }, { removeObserver() {} }]) {
+    const run = runtime(), addon = { window: run.windows[0] };
+    run.context.MNUtil = utils;
+    assert.equal(run.source.register(addon), true); assert.equal(addon.__daguanyuanSourceLinkObserver, 'native');
+    run.context.MNUtil = { removeObserver() { throw Error('不应移除其他通道'); } };
+    run.source.unregister(addon);
+    assert.equal(run.observers.size, 0); assert.equal(run.calls.at(-1)[0], 'native-remove');
+  }
+});
+
+test('原生接口不完整时不留下注册标记，MN Utils 消失后仍可通过原生清理监听', () => {
+  for (const missing of ['addObserverSelectorName', 'removeObserverName']) {
+    const run = runtime({ utils: false }), addon = { window: run.windows[0] };
+    delete run.center[missing];
+    assert.equal(run.source.register(addon), false); assert.equal(run.observers.size, 0);
+    assert.equal(Boolean(addon.__daguanyuanSourceLinkObserver), false);
+  }
+  const run = runtime(), addon = { window: run.windows[0] };
+  assert.equal(run.source.register(addon), true); assert.equal(addon.__daguanyuanSourceLinkObserver, 'utils');
+  delete run.context.MNUtil;
+  run.source.unregister(addon); run.source.unregister(addon);
+  assert.equal(run.calls.filter(call => call[0] === 'native-remove').length, 1);
 });
 
 test('从查看原题评论读取唯一网址、题库和题号，无需 SOURCE_LINK 或 URL 注释', () => {

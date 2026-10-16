@@ -4,7 +4,28 @@ var __DAGUANYUAN_WEB_BRIDGE_COMMANDS_GLOBAL__ = (function () {
     if (!context.isImportWorkspace || context.controller.activePage !== 'import') throw new Error('请在导入页执行此操作');
     return __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__;
   }
+  function navigationState(controller) {
+    const view = controller.webView;
+    const back = view && view.canGoBack;
+    return { canGoBack: Boolean(view && typeof view.goBack === 'function' && (typeof back === 'function' ? back.call(view) : back)), canReload: Boolean(view && typeof view.reload === 'function') };
+  }
   const commands = {
+    getWebsiteNavigation: function (context) {
+      if (context.isImportWorkspace) throw new Error('请从题库网页使用导航');
+      return navigationState(context.controller);
+    },
+    navigateWebsite: function (context, payload) {
+      if (context.isImportWorkspace) throw new Error('请从题库网页使用导航');
+      if (!payload || ['back', 'reload'].indexOf(payload.action) < 0) throw new Error('网页导航操作无效');
+      const controller = context.controller, task = controller.importTask, workspaceTask = controller.importWorkspaceTask;
+      if (controller.categoryImportBusy || controller.singleImportBusy || controller.questionToolBusy ||
+          (task && !task.cancelled && ['loading', 'confirm', 'running'].indexOf(task.status) >= 0) ||
+          (workspaceTask && !workspaceTask.cancelled && workspaceTask.status === 'running')) throw new Error('当前任务尚未结束，请稍后使用网页导航');
+      const state = navigationState(controller);
+      if (payload.action === 'back' ? !state.canGoBack : !state.canReload) return state;
+      controller.webView[payload.action === 'back' ? 'goBack' : 'reload']();
+      return navigationState(controller);
+    },
     importCurrentQuestions: function (context) {
       if (context.isImportWorkspace || typeof context.openCategory !== 'function') throw new Error('请从题库网页导入题目');
       if (context.controller.categoryImportBusy || context.controller.singleImportBusy || context.controller.questionToolBusy) throw new Error('当前任务尚未结束，请稍后导入');
@@ -48,5 +69,5 @@ var __DAGUANYUAN_WEB_BRIDGE_COMMANDS_GLOBAL__ = (function () {
     } catch (error) { reply(null, error); }
     return true;
   }
-  return { handle, commands };
+  return { handle, commands, navigationState };
 })();

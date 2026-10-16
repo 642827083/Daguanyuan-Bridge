@@ -125,10 +125,17 @@ var __DAGUANYUAN_CARD_REPAIR_GLOBAL__ = (function () {
           try { parent = identity(live.get(job.parentId)); } catch (error) { result.skippedCount++; return; }
           if (!parent || parent.role || parent.provider !== job.provider || parent.id !== job.questionId || parent.url !== job.parentURL) { result.skippedCount++; return; }
         }
-        try { C.apply(note, job.output); result.repairedCount++; } catch (error) { result.failed.push({ noteId: job.noteId, reason: String(error.message || error) }); }
+        try {
+          C.apply(note, job.output); result.repairedCount++;
+          if (typeof __DAGUANYUAN_COMMENT_FOLD_GLOBAL__ !== 'undefined') __DAGUANYUAN_COMMENT_FOLD_GLOBAL__.enqueue(current, note);
+        } catch (error) { result.failed.push({ noteId: job.noteId, reason: String(error.message || error) }); }
       });
     }, current.topicId);
     current.app.refreshAfterDBChanged(current.topicId);
+    if (typeof __DAGUANYUAN_COMMENT_FOLD_GLOBAL__ !== 'undefined') {
+      current.database = Database.sharedInstance();
+      __DAGUANYUAN_COMMENT_FOLD_GLOBAL__.addWarnings(result, __DAGUANYUAN_COMMENT_FOLD_GLOBAL__.flush(current));
+    }
     return result;
   }
   return { preview, apply };

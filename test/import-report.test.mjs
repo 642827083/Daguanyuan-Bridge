@@ -5,6 +5,12 @@ import vm from "node:vm";
 
 const source = readFileSync(new URL("../src/DaguanyuanImportReport.js", import.meta.url), "utf8");
 
+test('折叠警告与导入失败分开显示，不把已保存题卡记为失败', () => {
+  const context = {}; vm.createContext(context); vm.runInContext(source, context);
+  const text = context.__DAGUANYUAN_IMPORT_REPORT_GLOBAL__.textFor({ createdCount: 1, failed: [], commentFoldWarnings: [{ reason: '接口不支持' }] });
+  assert.match(text, /新建 1 道/); assert.match(text, /失败 0 道/); assert.match(text, /题卡已保存，原题评论未折叠：接口不支持/);
+});
+
 function runtime() {
   class View {
     constructor(frame) { this.frame = frame; this.layer = {}; this.children = []; this.titleLabel = {}; }

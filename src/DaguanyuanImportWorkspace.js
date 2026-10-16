@@ -254,6 +254,10 @@ var __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__ = (function () {
             return prepared.readQuestion(q.id, content).then(function (question) {
               check(controller, task);
               const outcome = task.session.write(question, category, content, q.legacyCategories);
+              if (task.session.takeCommentFoldWarnings) {
+                const warnings = task.session.takeCommentFoldWarnings();
+                if (warnings.length) result.commentFoldWarnings = (result.commentFoldWarnings || []).concat(warnings);
+              }
               if (outcome === 'answerAdded') result.answerAddedCount += 1;
               else if (outcome) result.createdCount += 1;
               else result.skippedCount += 1;
@@ -306,6 +310,7 @@ var __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__ = (function () {
         }, function () { check(controller, task); }).then(function (part) {
           result.createdCount += part.createdCount; result.answerAddedCount += part.answerAddedCount;
           result.skippedCount += part.skippedCount; result.failed.push.apply(result.failed, part.failed);
+          if (part.commentFoldWarnings) result.commentFoldWarnings = (result.commentFoldWarnings || []).concat(part.commentFoldWarnings);
           return publish(controller, task, 'progress', { phase: 'importing', processed: offset + batch.length, total: count })
             .then(function () { return write(offset + batch.length); });
         });
@@ -315,6 +320,7 @@ var __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__ = (function () {
       if (error.importResult) {
         result.createdCount += error.importResult.createdCount; result.answerAddedCount += error.importResult.answerAddedCount;
         result.skippedCount += error.importResult.skippedCount; result.failed.push.apply(result.failed, error.importResult.failed);
+        if (error.importResult.commentFoldWarnings) result.commentFoldWarnings = (result.commentFoldWarnings || []).concat(error.importResult.commentFoldWarnings);
       }
       result.interrupted = String(error.message || error);
     }).then(function () {

@@ -6,7 +6,8 @@ import vm from 'node:vm';
 function runtime(options = {}) {
   const notebook = { topicId: 'study', notebookId: 'study', notes: [] };
   const selection = { notebookId: 'study' };
-  const notes = new Map(), creations = [], refreshes = [];
+  const notes = new Map(), creations = [], refreshes = [], foldWrites = [], stored = new Map();
+  let inUndo = false;
   let serial = 0, requests = 0;
   const question = { id: 123, source: '2026年 第1题', categoryId: 1, stem: '题干', options: ['甲'] };
   function create(title, topic) {
@@ -14,6 +15,14 @@ function runtime(options = {}) {
     creations.push({ title, topic });
     const note = { noteId: `n${++serial}`, notebookId: topic, noteTitle: title, comments: [], childNotes: [],
       appendMarkdownComment(text) { this.comments.push({ text }); },
+      commentState() { return { ok: true, revision: 'revision-' + this.noteId, comments: this.comments.map((c, i) => ({ ...c, index: i + 1, collapsed: Boolean(c.collapsed) })) }; },
+      setCommentsCollapsed(targets, collapsed, revision) {
+        assert.equal(inUndo, false, '折叠接口应在导入撤销组外执行');
+        assert.ok(refreshes.length, '题卡必须先保存刷新');
+        foldWrites.push({ noteId: this.noteId, targets: JSON.parse(JSON.stringify(targets)), collapsed, revision });
+        if (options.foldError) return { ok: false, error: { code: 'SAVE_FAILED', message: '折叠保存失败' } };
+        this.comments[targets[0].index - 1].collapsed = collapsed; return { ok: true, persisted: true };
+      },
       addChild(child) { child.parentNote = this; this.childNotes.push(child); notebook.notes = notebook.notes.filter(n => n !== child); },
     };
     notes.set(note.noteId, note); notebook.notes.push(note); return note;
@@ -26,7 +35,8 @@ function runtime(options = {}) {
     Database: { sharedInstance() { return database; } },
     Note: { createWithTitleNotebookDocument() { throw new Error('导入不应使用文档工厂'); } },
     MNUtil: { getNoteById(id) { return notes.get(id); } },
-    UndoManager: { sharedInstance() { return { undoGrouping(label, topic, fn) { assert.equal(topic, 'study'); fn(); } }; } },
+    UndoManager: { sharedInstance() { return { undoGrouping(label, topic, fn) { assert.equal(topic, 'study'); inUndo = true; try { fn(); } finally { inUndo = false; } } }; } },
+    NSUserDefaults: { standardUserDefaults() { return { objectForKey: key => stored.get(key), setObjectForKey: (v, k) => stored.set(k, v) }; } },
     __DAGUANYUAN_MATH_API_GLOBAL__: { positiveInteger: Number, questionScope: String,
       async questionPage() { requests++; return { total: 1, pageSize: 20, questions: [question] }; },
       async questionDetail() { return question; },
@@ -36,10 +46,34 @@ function runtime(options = {}) {
   vm.createContext(context);
   vm.runInContext(readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8'), context);
   vm.runInContext(readFileSync(new URL('../src/DaguanyuanCardComments.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(readFileSync(new URL('../src/DaguanyuanCommentFold.js', import.meta.url), 'utf8'), context);
+  context.__DAGUANYUAN_COMMENT_FOLD_GLOBAL__.setEnabled(Boolean(options.fold));
   vm.runInContext(readFileSync(new URL('../src/DaguanyuanMathImport.js', import.meta.url), 'utf8'), context);
-  return { context, notebook, selection, notes, creations, refreshes, question, database,
+  return { context, notebook, selection, notes, creations, refreshes, question, database, foldWrites,
     writer: context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__, addon: { window: {} }, get requests() { return requests; } };
 }
+
+test('数学、408、导入本题均在建卡保存后折叠原题评论，关闭时不调用折叠接口', async () => {
+  for (const provider of ['math', '408', 'single']) for (const enabled of [false, true]) {
+    const r = runtime({ fold: enabled });
+    if (provider === 'single') {
+      const parent = r.database.createNoteWithTitleTopicid('父卡', 'study'); r.selection.focusNote = parent;
+      r.writer.preparedSingleSession(r.addon, 'math').write(r.question);
+    } else await importOnce(r, provider);
+    assert.equal(r.foldWrites.length, enabled ? 1 : 0);
+    if (enabled) assert.deepEqual(r.foldWrites[0].targets, [{ index: 2 }]);
+  }
+});
+
+test('新建题卡与答案子卡分别折叠，折叠失败保留导入计数并返回独立警告', async () => {
+  const r = runtime({ fold: true }); r.question.answer = '答案'; r.question.explanation = '解析';
+  const result = await r.writer.preparedMathSession(r.addon).importQuestions([123], { 123: 1 }, 'questionAnswer');
+  assert.equal(result.createdCount, 1); assert.equal(r.foldWrites.length, 2);
+  const failed = runtime({ fold: true, foldError: true });
+  const outcome = await importOnce(failed, 'math');
+  assert.equal(outcome.createdCount, 1); assert.equal(outcome.failed.length, 0); assert.equal(outcome.commentFoldWarnings.length, 1);
+  assert.ok([...failed.notes.values()].some(n => failed.writer.linkedQuestion(n)?.id === 123));
+});
 
 async function importOnce(run, provider) {
   return provider === 'math' ? run.writer.importCategory(run.addon, 1, 'complete')

@@ -14,10 +14,12 @@ test("测试构建固定使用 Daguanyuan Bridge Test.mnaddon", () => {
   assert.doesNotMatch(packageJson, /version:patch/);
 });
 
-test("正式版本统一为 1.1.9", () => {
-  assert.match(packageJson, /"version": "1\.1\.9"/);
-  assert.match(packageLock, /"version": "1\.1\.9"/);
-  assert.match(addonManifest, /"version": "1\.1\.9"/);
+test("正式版本在清单与锁文件中保持一致", () => {
+  const version = JSON.parse(packageJson).version, lock = JSON.parse(packageLock);
+  assert.match(version, /^\d+\.\d+\.\d+$/);
+  assert.equal(lock.version, version);
+  assert.equal(lock.packages[''].version, version);
+  assert.equal(JSON.parse(addonManifest).version, version);
 });
 
 test("正式构建使用版本包名并拒绝覆盖已有文件", () => {

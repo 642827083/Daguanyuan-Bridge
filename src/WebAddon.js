@@ -6,7 +6,7 @@ function createDaguanyuanBridgeAddon() {
       self.panelController = __DAGUANYUAN_WEB_PANEL_GLOBAL__.createController(self);
       if (typeof __DAGUANYUAN_MASTERY_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_MASTERY_UI_GLOBAL__.register(self);
       if (typeof __DAGUANYUAN_SOURCE_LINK_GLOBAL__ !== 'undefined' && !__DAGUANYUAN_SOURCE_LINK_GLOBAL__.register(self)) {
-        __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.showMessage(self, '查看原题需要 MN Utils，请安装并启用最新版 MN Utils');
+        __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.showMessage(self, '当前 MarginNote 版本缺少“查看原题”所需的链接通知接口');
       }
       console.log("[Daguanyuan Bridge] 插件已初始化");
     },

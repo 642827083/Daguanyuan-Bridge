@@ -48,6 +48,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     if (controller.importTask) __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__.close(controller);
     __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.cancelMode(controller);
     if (typeof __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__.cancel(controller);
+    if (typeof __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.cancelFold(controller);
     controller.panelVisible = false;
     controller.view.hidden = true;
     controller.view.removeFromSuperview();
@@ -189,6 +190,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     }
     if (page !== "settings") __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.cancelMode(controller);
     if (page !== 'settings' && typeof __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__.cancel(controller);
+    if (page !== 'settings' && typeof __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.cancelFold(controller);
     controller.activePage = page;
     if (page === 'import' && controller.importReportView) controller.importReportView.hidden = true;
     const nativePage = page === "settings" || page === "category-manager";
@@ -560,7 +562,6 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.singleImportPositionButton = button("", controller, "chooseSingleImportPosition:");
     controller.questionToolsSettingsSection.addSubview(controller.singleImportPositionButton);
     if (typeof __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.setup(controller);
-    if (typeof __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__.setup(controller);
     if (typeof __DAGUANYUAN_PLUGIN_INTEGRATION_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_PLUGIN_INTEGRATION_SETTINGS_GLOBAL__.setup(controller);
 
     controller.resizeHandle = new UIView({ x: DEFAULT_WIDTH - 30, y: DEFAULT_HEIGHT - 30, width: 30, height: 30 });
@@ -855,7 +856,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   function showCategoryImportResult(controller, result, emptyMessage, selectionTask) {
     if (selectionTask) { showImportReport(controller, result, selectionTask); return; }
     if (!result.total) { showMessage(controller, emptyMessage); return; }
-    if (result.failed.length) { showImportReport(controller, result); return; }
+    if (result.failed.length || result.commentFoldWarnings && result.commentFoldWarnings.length) { showImportReport(controller, result); return; }
     showMessage(controller, `导入完成：新建 ${result.createdCount} 道，补答案 ${result.answerAddedCount || 0} 道，跳过 ${result.skippedCount} 道，失败 0 道`);
   }
 
@@ -1266,8 +1267,10 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       setActivePage(self, "settings");
     },
 
-    repairImportedCards: function (sender) { __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__.repair(self); },
     toggleMasteryMarking: function () { __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.toggle(self); },
+    toggleSourceCommentFold: function (sender) { __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.toggleFold(self, sender); },
+    openImportedCardManagement: function () { __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.openManagement(self); },
+    selectImportedCardManagement: function (sender) { __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.selectMode(self, Number(sender && sender.tag), sender); },
     confirmCardRepair: function (sender) { __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__.confirm(self, sender); },
     cancelCardRepair: function (sender) { __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__.cancel(self); },
 

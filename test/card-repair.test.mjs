@@ -33,7 +33,7 @@ function runtime() {
     MNUtil: { undoGrouping(fn, topic) { groups.push(topic); fn(); }, getNoteById: id => notes.get(id) },
   };
   vm.createContext(context);
-  for (const name of ['DaguanyuanSourceLink', 'DaguanyuanCardComments', 'DaguanyuanMathImport', 'DaguanyuanCardRepair']) {
+  for (const name of ['DaguanyuanSourceLink', 'DaguanyuanCardComments', 'DaguanyuanCommentFold', 'DaguanyuanMathImport', 'DaguanyuanCardRepair']) {
     vm.runInContext(readFileSync(new URL('../src/' + name + '.js', import.meta.url), 'utf8'), context);
   }
   const C = context.__DAGUANYUAN_CARD_COMMENTS_GLOBAL__, repair = context.__DAGUANYUAN_CARD_REPAIR_GLOBAL__, addon = { window: {} };
@@ -55,6 +55,23 @@ function runtime() {
   return { context, C, repair, addon, notes, notebook, selection, failure, create, legacy, groups, refreshes,
     preview: () => repair.preview(addon), apply: prepared => repair.apply(addon, prepared), fix: () => repair.apply(addon, repair.preview(addon)) };
 }
+
+test('修复保存后按开关折叠新生成的原题评论，失败单独提示且保留修复内容', () => {
+  for (const fail of [false, true]) {
+    const r = runtime(), entry = r.legacy(), writes = [];
+    r.context.NSUserDefaults = { standardUserDefaults() { return { objectForKey() { return true; } }; } };
+    entry.note.commentState = function () { return { ok: true, revision: 'r', comments: this.comments.map((c, i) => ({ ...c, index: i + 1, collapsed: false })) }; };
+    entry.note.setCommentsCollapsed = function (targets, collapsed, revision) {
+      assert.deepEqual(r.refreshes, ['study']); assert.equal(r.groups.length, 1);
+      writes.push({ targets: JSON.parse(JSON.stringify(targets)), collapsed, revision });
+      return fail ? { ok: false, error: { message: '未能折叠' } } : { ok: true, persisted: true };
+    };
+    const result = r.fix(); assert.equal(result.repairedCount, 1); assert.equal(result.failed.length, 0);
+    assert.deepEqual(writes, [{ targets: [{ index: 2 }], collapsed: true, revision: 'r' }]);
+    assert.equal(result.commentFoldWarnings?.length || 0, fail ? 1 : 0);
+    assert.match(entry.note.comments[1].text, /^\[查看原题\]/);
+  }
+});
 
 for (const provider of ['math', '408']) for (const withLink of [false, true]) {
   test(provider + ' 修复旧题目和答案，补齐第二条链接并清除校验注释并保留图文、对象和卡片属性，重复修复无变化 ' + withLink, () => {

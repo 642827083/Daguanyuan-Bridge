@@ -8,6 +8,9 @@ var __DAGUANYUAN_IMPORT_REPORT_GLOBAL__ = (function () {
   function textFor(result) {
     const lines = [`导入结果：新建 ${result.createdCount || 0} 道，补答案 ${result.answerAddedCount || 0} 道，跳过 ${result.skippedCount || 0} 道，失败 ${(result.failed || []).length} 道`];
     if (result.interrupted) lines.push(`导入中断：${safeText(result.interrupted)}`);
+    (result.commentFoldWarnings || []).forEach(function (warning) {
+      lines.push('题卡已保存，原题评论未折叠：' + safeText(warning.reason));
+    });
     (result.failed || []).forEach(function (failure, index) {
       lines.push("", `${index + 1}. ${safeText(failure.source || "题目 ID " + failure.questionId)}`,
         `题目 ID：${failure.questionId}`, `失败阶段：${safeText(failure.stage || "题目处理")}`,

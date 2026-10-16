@@ -425,20 +425,26 @@ test('持续限流中止剩余批次，保留已经完成的题卡，并显示�
 });
 
 
-test('点击分类文字读取该分类题目，不展开其下级', async () => {
+test('点击分类文字只展开收起，箭头状态同步，不勾选也不读取题目', async () => {
   const run = runtime(); await tick();
   run.requests.length = 0;
   run.document.querySelector('#tree .knowledge-name').dispatchEvent(new run.document.defaultView.Event('click', { bubbles: true }));
   await tick(); await run.controller.importWorkspaceTask?.done; await tick();
-  assert.ok(run.requests.length > 0, '分类文字必须触发读取题目');
-  assert.equal(run.document.querySelectorAll('.question-card').length, 3);
-  assert.equal(run.document.querySelector('[data-category="1"]').checked, true);
+  assert.equal(run.requests.length, 0);
+  assert.equal(run.document.querySelectorAll('.question-card').length, 0);
+  assert.equal(run.document.querySelector('[data-category="1"]').checked, false);
   const toggle=run.document.querySelector('[data-toggle-category="1"]');
-  assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+  assert.equal(toggle.closest('.knowledge-node').querySelector('.knowledge-tree').hidden, false);
+  const name = toggle.closest('.knowledge-row').querySelector('.knowledge-name');
+  assert.equal(name.getAttribute('aria-expanded'), 'true');
+  run.click('#tree .knowledge-name');
+  assert.equal(toggle.getAttribute('aria-expanded'), 'false'); assert.equal(name.getAttribute('aria-expanded'), 'false');
   assert.equal(toggle.closest('.knowledge-node').querySelector('.knowledge-tree').hidden, true);
+  assert.equal(run.document.querySelectorAll('#tree input:checked').length, 0);
 });
 
-test('分类箭头仅展开收起，勾选框不触发展开，点击名称替换为该分类', async () => {
+test('只有方框更改分类选择，勾选不触发展开，点击末级文字保持原有勾选与题目', async () => {
   const run = runtime(); await tick();
   run.requests.length=0;
   run.click('[data-toggle-category="1"]');
@@ -449,22 +455,24 @@ test('分类箭头仅展开收起，勾选框不触发展开，点击名称替�
   run.select('[data-category="2"]', true); await tick(); await run.controller.importWorkspaceTask.done; await tick();
   assert.equal(toggle.getAttribute('aria-expanded'), 'true');
   run.requests.length=0;
-  run.click('[data-view-category="4"]'); await tick(); await run.controller.importWorkspaceTask.done; await tick();
-  assert.equal(run.document.querySelector('[data-category="2"]').checked, false);
-  assert.equal(run.document.querySelector('[data-category="4"]').checked, true);
-  assert.ok(run.requests.length>0);
+  run.document.querySelector('[data-category="4"]').closest('.knowledge-row').querySelector('.knowledge-name').dispatchEvent(new run.document.defaultView.Event('click', { bubbles: true }));
+  await tick();
+  assert.equal(run.document.querySelector('[data-category="2"]').checked, true);
+  assert.equal(run.document.querySelector('[data-category="4"]').checked, false);
+  assert.equal(run.requests.length, 0);
+  assert.equal(run.document.querySelectorAll('.question-card').length, 3);
   run.requests.length=0; run.click('[data-toggle-category="1"]');
   assert.equal(toggle.getAttribute('aria-expanded'), 'false');
   assert.equal(run.requests.length, 0);
 });
 
-test('同层级末级分类与分支分类共用箭头占位，名称不再充当展开控件', async () => {
+test('同层级名称对齐，分支名称为展开按钮，末级名称是普通文字', async () => {
   const run=runtime(); await tick();
   const branch=run.document.querySelector('[data-category="2"]').closest('.knowledge-row');
   const leaf=run.document.querySelector('[data-category="4"]').closest('.knowledge-row');
   assert.equal(branch.firstElementChild.className, 'knowledge-toggle');
   assert.equal(leaf.firstElementChild.className, 'knowledge-toggle-placeholder');
   assert.equal(branch.querySelector('.knowledge-name').tagName, 'BUTTON');
-  assert.equal(leaf.querySelector('.knowledge-name').tagName, 'BUTTON');
+  assert.equal(leaf.querySelector('.knowledge-name').tagName, 'SPAN');
   assert.equal(run.document.querySelectorAll('summary.knowledge-row').length, 0);
 });

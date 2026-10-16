@@ -75,6 +75,10 @@ var __DAGUANYUAN_SINGLE_IMPORT_GLOBAL__ = (function () {
         if (beforeImport && beforeImport.check) beforeImport.check();
         stage = "MarginNote 建卡";
         const outcome = session.write(question, { url: target.url.split(/[?#]/)[0] });
+        if (session.takeCommentFoldWarnings) {
+          const warnings = session.takeCommentFoldWarnings();
+          if (warnings.length) result.commentFoldWarnings = warnings;
+        }
         if (outcome) result.createdCount = 1;
         else result.skippedCount = 1;
         return result;
