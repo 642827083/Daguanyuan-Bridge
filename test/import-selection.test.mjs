@@ -41,7 +41,7 @@ function runtime(url = 'https://www.cxyonly.fans/math/practice/1') {
   function click(selector) { const node = document.querySelector(selector); assert.ok(node, selector); node.dispatchEvent(new Event('click', { bubbles: true })); }
   function select(id, value) { const node = document.getElementById('dgy-check-' + id); node.checked = value; node.dispatchEvent(new Event('change', { bubbles: true })); }
   async function open(scope = 'selected', size = 4) {
-    ui.begin(controller, '', scope);
+    ui.begin(controller, scope);
     const confirm = ui.confirmation(controller);
     const pending = confirm({ source: '数学 / 极限', target: '考研学习集', questions: Array.from({ length: size }, (_, i) => ({ id: i + 1, title: '第' + (i + 1) + '题', summary: '<img src="bad" onerror="bad()">题干' })) });
     await tick();
@@ -137,7 +137,7 @@ test('篡改 ID、重复 ID、短缺分块都不授权，错误后仍可取消',
 
 test('读取期间关闭后迟到的确认不会重新打开，原生回调超时明确失败', async () => {
   const run = runtime();
-  run.ui.begin(run.controller, '', 'all'); await run.controller.importTask.ready;
+  run.ui.begin(run.controller, 'all'); await run.controller.importTask.ready;
   run.ui.close(run.controller);
   assert.equal(await run.ui.confirmation(run.controller)({ questions: [] }), false);
   assert.equal(run.document.getElementById('dgy-dialog').hidden, true);

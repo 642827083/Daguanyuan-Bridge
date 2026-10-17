@@ -103,11 +103,6 @@ var __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = (function () {
     };
   }
 
-
-  function pathKey(path) {
-    return (path || []).map(normalizeSegment).filter(Boolean).join("\u001f");
-  }
-
   function resultForCategoryId(categoryId) {
     const record = recordsById[Number(categoryId)];
     if (!record) return { status: "missing", candidates: [] };
@@ -121,19 +116,6 @@ var __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = (function () {
       path: recordPath.map(function (item) { return item.name; }),
       matchedSegments: recordPath.length,
     };
-  }
-
-  function allCategories() {
-    return records.map(function (record) {
-      const path = pathFor(record).map(function (item) { return item.name; });
-      return {
-        id: record.id,
-        parentId: record.parentId,
-        name: record.name,
-        path,
-        searchText: path.join(" / ").toLowerCase(),
-      };
-    });
   }
 
   function categoryIdFromURL(urlString) {
@@ -170,10 +152,8 @@ var __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = (function () {
 
   return {
     normalizeSegment,
-    pathKey,
     resolve,
     resultForCategoryId,
-    allCategories,
     categoryIdFromURL,
     urlFor,
     questionRouteFor,

@@ -84,7 +84,7 @@ document.querySelector('#run').onclick = async function () {
           check(question.stem.includes('$' + expression + '$'), '第 42 题数列和关系还原为 LaTeX：' + expression);
         }
         check(!question.hasBase64Image && !question.stem.includes('![公式]'), '第 42 题完整转换不使用公式图片');
-        const saved = __DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown(question, location.href, '408');
+        const saved = __DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown(question);
         check(saved.startsWith(question.stem + '\n\n') && !saved.includes('data:image'), '第 42 题建卡内容保留 LaTeX');
         continue;
       }
@@ -94,14 +94,14 @@ document.querySelector('#run').onclick = async function () {
           check(question.stem.includes('$' + expression + '$'), '第 27 题集合条件还原为 LaTeX：' + expression);
         }
         check(!question.hasBase64Image && !question.stem.includes('![公式]'), '第 27 题完整转换不使用公式图片');
-        const saved = __DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown(question, location.href, '408');
+        const saved = __DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown(question);
         check(saved.startsWith(question.stem + '\n\n') && !saved.includes('data:image'), '第 27 题建卡内容保留 LaTeX');
         continue;
       }
       if (index >= 16) {
         check(!question.hasBase64Image && !question.stem.includes('![公式]'), '原题简单公式不转图片：' + question.source);
         check(!question.stem.includes('\n'), '原题行内公式与正文保持同段：' + question.source);
-        const savedMarkdown = __DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown(question, location.href, '408');
+        const savedMarkdown = __DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown(question);
         check(savedMarkdown.startsWith(question.stem + '\n\n'), '建卡保留原题公式：' + question.source);
         if (index === 16) {
           check(question.stem.includes('\\alpha') && question.stem.includes('\\beta'), '2024 第 14 题希腊字母还原为 LaTeX');
@@ -119,7 +119,7 @@ document.querySelector('#run').onclick = async function () {
       }
       if (index >= 8 && index <= 12) {
         check(index === 11 ? question.hasBase64Image : !question.hasBase64Image, '仅表格保存为图片，简单表达式和文字不转图片：' + question.source);
-        const savedMarkdown = __DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown(question, location.href, '408');
+        const savedMarkdown = __DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown(question);
         check(savedMarkdown.startsWith(question.stem + '\n\n'), '建卡整理保留转换后的正文：' + question.source);
         if (index === 8) {
           check(!question.stem.includes('\n') && question.stem.includes('$a=1$') && question.stem.includes('$g=12$'), '第 5 题行内赋值完整并保持同段');

@@ -27,7 +27,7 @@ function runtime(width = 560, height = 420) {
     __DAGUANYUAN_CARD_REPAIR_GLOBAL__: { preview() { return prepared; }, apply(addon, input) { applied.push(input); return { repairedCount: 3, skippedCount: 0, failed: [] }; } },
   };
   vm.createContext(context); vm.runInContext(readFileSync(new URL('../src/DaguanyuanCardRepairUI.js', import.meta.url), 'utf8'), context);
-  const ui = context.__DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__; ui.layout(controller, width - 40);
+  const ui = context.__DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__; ui.layout(controller);
   return { controller, context, prepared, messages, applied, cancelled, ui };
 }
 
@@ -72,7 +72,7 @@ test('不同面板尺寸中修复确认内容可滚动，按钮和设置行在�
     const { ui, controller } = runtime(width, height); ui.repair(controller); await tick();
     const state = controller.cardRepairState;
     assert.ok(state.sheet.frame.x >= 0); assert.ok(state.sheet.frame.y >= 0);
-    assert.ok(state.sheet.frame.x + state.sheet.frame.width <= width); assert.ok(state.sheet.frame.height <= height - 38);
+    assert.ok(state.sheet.frame.x + state.sheet.frame.width <= width); assert.ok(state.sheet.frame.height <= height - 44);
     assert.ok(state.messageScroll.contentSize.height >= state.messageScroll.frame.height);
     assert.ok(state.confirm.frame.y >= state.messageScroll.frame.y + state.messageScroll.frame.height);
   }
@@ -83,6 +83,6 @@ test('入口模块及面板接通修复设置、确认、取消、关闭和布�
   for (const name of ['DaguanyuanCardComments', 'DaguanyuanCardRepair', 'DaguanyuanCardRepairUI']) assert.ok(main.includes('JSB.require("' + name + '")'));
   for (const selector of ['openImportedCardManagement:', 'selectImportedCardManagement:', 'confirmCardRepair:', 'cancelCardRepair:']) assert.ok(panel.includes(selector));
   assert.match(panel, /__DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__\.openManagement\(self\)/);
-  assert.match(panel, /__DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__\.layout\(controller, sectionWidth\)/);
+  assert.match(panel, /__DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__\.layout\(controller\)/);
   assert.ok(panel.match(/__DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__\.cancel\(controller\)/g).length >= 2);
 });

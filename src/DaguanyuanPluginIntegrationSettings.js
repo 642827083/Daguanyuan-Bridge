@@ -3,7 +3,7 @@ var __DAGUANYUAN_PLUGIN_INTEGRATION_SETTINGS_GLOBAL__ = (function () {
     const view = new UILabel({ x: 0, y: 0, width: 100, height: 24 });
     view.text = text;
     view.font = bold ? UIFont.boldSystemFontOfSize(size) : UIFont.systemFontOfSize(size);
-    view.textColor = bold ? UIColor.darkGrayColor() : UIColor.grayColor();
+    view.textColor = bold ? UIColor.colorWithRedGreenBlueAlpha(37 / 255, 40 / 255, 48 / 255, 1) : UIColor.colorWithRedGreenBlueAlpha(122 / 255, 129 / 255, 139 / 255, 1);
     return view;
   }
 
@@ -14,7 +14,7 @@ var __DAGUANYUAN_PLUGIN_INTEGRATION_SETTINGS_GLOBAL__ = (function () {
   function setup(controller) {
     const section = controller.questionToolsSettingsSection;
     controller.pluginIntegrationDivider = new UIView({ x: 20, y: 546, width: 100, height: 1 });
-    controller.pluginIntegrationDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
+    controller.pluginIntegrationDivider.backgroundColor = UIColor.colorWithRedGreenBlueAlpha(227 / 255, 231 / 255, 237 / 255, 1);
     controller.mnBrowserTitle = label("MN Browser", 16, true);
     controller.mnBrowserDescription = label("开启使用 MN Browser 播放视频，关闭跳转哔哩哔哩 App", 12, false);
     controller.mnBrowserDescription.numberOfLines = 2;

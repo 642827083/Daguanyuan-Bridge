@@ -75,6 +75,7 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
         if (nextRequestAt > Date.now()) return attempt(number);
         return requestOnce(url);
       }).catch(function (error) {
+        if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.error('math.request', error, { httpStatus: error.httpStatus, stage: url.indexOf('/api/categories') >= 0 ? '读取分类目录' : '读取题目' });
         if (error.httpStatus !== 429) throw error;
         const waiting = retryAfter(error.response, number);
         nextRequestAt = Math.max(nextRequestAt, Date.now() + waiting);
@@ -176,38 +177,6 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
     });
   }
 
-  // 新版练题页按题单和多个分类筛选，选题导入沿用网站的范围及顺序。
-  function selectedQuestionPage(selection, rawPage, check, request) {
-    const options = selection || {}, page = positiveInteger(rawPage, '页码');
-    if (page > 1000) return Promise.reject(new Error('页码超出范围'));
-    const parameters = ['include_children=true', 'page=' + page, 'per_page=' + PAGE_SIZE,
-      'scope=' + questionScope(options.scope), 'exam_subject=' + examSubject(options.examSubject)];
-    function add(name, value) {
-      if (value === undefined || value === null || value === '') return;
-      if (String(value).length > 4096) throw new Error('筛选内容过长');
-      parameters.push(name + '=' + encodeURIComponent(String(value)).replace(/[!'()*]/g, function (character) {
-        return '%' + character.charCodeAt(0).toString(16).toUpperCase();
-      }));
-    }
-    if (options.categoryId) add('category_id', positiveInteger(options.categoryId, '分类 ID'));
-    if (options.categoryIds) String(options.categoryIds).split(',').forEach(function (id) { add('category_id', positiveInteger(id, '分类 ID')); });
-    if (options.listId) {
-      if (!/^[\w-]{1,128}$/.test(options.listId)) throw new Error('题单 ID 无效');
-      add('question_list_id', options.listId);
-    }
-    if (options.revision) add('question_list_revision', positiveInteger(options.revision, '题单版次'));
-    if (options.conceptId) add('concept_id', positiveInteger(options.conceptId, '知识点 ID'));
-    add('q', options.query); add('sort', options.sort); add('filters', options.filters); add('mastery', options.mastery);
-    if (options.favorite) add('favorite', 'true');
-    if (options.hasNote) add('has_note', 'true');
-    add('external_categories', options.externalCategories || 'none');
-    return (request || requestJSON)(API_ROOT + '?' + parameters.join('&'), check).then(function (payload) {
-      const data = payload && payload.data;
-      if (!data || !Array.isArray(data.items)) throw new Error('题目列表格式无效');
-      return { page: page, pageSize: PAGE_SIZE, total: Math.max(0, Number(data.total) || 0), questions: data.items.map(summary) };
-    });
-  }
-
   function questionDetail(questionId, content, readImage, check) {
     const id = positiveInteger(questionId, "题目 ID");
     return requestJSON(`${API_ROOT}/${id}`, check).then(function (item) {
@@ -278,5 +247,5 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
     });
   }
 
-  return { questionPage, selectedQuestionPage, questionDetail, positiveInteger, questionScope, examSubject, categoryRecords, summary };
+  return { questionPage, questionDetail, positiveInteger, questionScope, examSubject, categoryRecords, summary };
 })();

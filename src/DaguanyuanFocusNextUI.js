@@ -44,7 +44,7 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     return undefined;
   }
 
-  function buttonWidth(addon, button) {
+  function buttonWidth(button) {
     const preferredWidth = finiteNumber(button && button.__daguanyuanContentWidth);
     if (preferredWidth !== undefined) return Math.max(BUTTON_WIDTH, Math.min(MAX_BUTTON_WIDTH, preferredWidth));
     return BUTTON_WIDTH;
@@ -93,7 +93,7 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     const view = viewFor(addon);
     if (!button || !view || !view.bounds) return false;
     const saved = readSavedPosition(positionKey);
-    const width = buttonWidth(addon, button);
+    const width = buttonWidth(button);
     const availableWidth = Math.max(0, view.bounds.width - width);
     const availableHeight = Math.max(0, view.bounds.height - BUTTON_HEIGHT);
     const savedXRatio = finiteNumber(saved && saved.xRatio);
@@ -125,14 +125,14 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
       addon,
       category,
       CATEGORY_POSITION_KEY,
-      Math.max(0, view.bounds.width - buttonWidth(addon, category) - RIGHT_MARGIN),
+      Math.max(0, view.bounds.width - buttonWidth(category) - RIGHT_MARGIN),
       Math.max(0, (view.bounds.height - BUTTON_HEIGHT) / 2 - BUTTON_HEIGHT - 10)
     );
     const questionLocatorPlaced = placeButton(
       addon,
       questionLocator,
       QUESTION_LOCATOR_POSITION_KEY,
-      Math.max(0, view.bounds.width - buttonWidth(addon, questionLocator) - RIGHT_MARGIN),
+      Math.max(0, view.bounds.width - buttonWidth(questionLocator) - RIGHT_MARGIN),
       Math.max(0, (view.bounds.height - BUTTON_HEIGHT) / 2 - (BUTTON_HEIGHT + 10) * 2)
     );
     return categoryPlaced || questionLocatorPlaced;
@@ -142,7 +142,7 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     if (!button || !button.frame) return;
     const view = viewFor(addon);
     if (!view || !view.bounds) return;
-    const width = buttonWidth(addon, button);
+    const width = buttonWidth(button);
     const availableWidth = Math.max(1, view.bounds.width - width);
     const availableHeight = Math.max(1, view.bounds.height - BUTTON_HEIGHT);
     const position = {
@@ -181,7 +181,7 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     if (state === 2) {
       const translation = recognizer.translationInView(view);
       const frame = button.frame;
-      const width = buttonWidth(addon, button);
+      const width = buttonWidth(button);
       button.frame = {
         x: Math.max(0, Math.min(view.bounds.width - width, frame.x + Number(translation.x || 0))),
         y: Math.max(0, Math.min(view.bounds.height - BUTTON_HEIGHT, frame.y + Number(translation.y || 0))),
@@ -207,7 +207,7 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     const focusNote = note || (addon && addon.__daguanyuanFocusNextLastFocus);
     const title = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.parentTitle(focusNote);
     const widthChanged = setAdaptiveTitle(button, title);
-    if (widthChanged || Number(button.frame && button.frame.width) !== buttonWidth(addon, button)) place(addon);
+    if (widthChanged || Number(button.frame && button.frame.width) !== buttonWidth(button)) place(addon);
     return title;
   }
 
@@ -329,11 +329,6 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
   function remove(addon) {
     hide(addon);
     if (addon) {
-      const questionLocator = addon.__daguanyuanQuestionLocatorButton;
-      if (questionLocator) {
-        questionLocator.hidden = true;
-        if (questionLocator.superview) questionLocator.removeFromSuperview();
-      }
       addon.__daguanyuanFocusCategoryButton = null;
       addon.__daguanyuanQuestionLocatorButton = null;
     }

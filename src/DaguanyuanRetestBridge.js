@@ -4,10 +4,10 @@ var __DAGUANYUAN_RETEST_BRIDGE_GLOBAL__ = (function () {
       var state = window.__DAGUANYUAN_RETEST_CARD_BUTTONS__;
       var visible = ${enabled === false ? "false" : "true"};
       var noteVisible = ${noteEnabled ? "true" : "false"};
-      if (state && state.version === 3) { state.enabled = visible; state.noteEnabled = noteVisible; state.schedule(); return true; }
+      if (state && state.version === 4) { state.enabled = visible; state.noteEnabled = noteVisible; state.schedule(); return true; }
       var previous = state;
       if (previous) previous.timer = -1;
-      state = { version: 3, enabled: visible, noteEnabled: noteVisible, timer: null, schedule: null };
+      state = { version: 4, enabled: visible, noteEnabled: noteVisible, timer: null, schedule: null };
       window.__DAGUANYUAN_RETEST_CARD_BUTTONS__ = state;
       function sync() {
         state.timer = null;
@@ -50,10 +50,13 @@ var __DAGUANYUAN_RETEST_BRIDGE_GLOBAL__ = (function () {
             noteButton.textContent = '添加笔记';
             connect(noteButton, 'add-note', 'data-daguanyuan-retest-add-note');
           }
-          var style = 'margin:8px 4px;padding:5px 10px;border:1px solid #7692bc;border-radius:7px;background:#fff;color:#23528f;font-size:12px;cursor:pointer';
-          var anchor = row.querySelector('button[aria-expanded], button[aria-label^="将第 "]');
+          var style = 'display:inline-flex;align-items:center;flex:none;margin:0 4px;padding:5px 10px;border:1px solid #7692bc;border-radius:7px;background:#fff;color:#23528f;font-size:12px;line-height:1.4;white-space:nowrap;cursor:pointer';
+          var source = row.querySelector('[data-question-source]');
+          var anchor = source || row.querySelector('button[aria-expanded], button[aria-label^="将第 "]');
           var parent = anchor && anchor.parentNode && anchor.parentNode.insertBefore ? anchor.parentNode : row;
-          var position = anchor && anchor.parentNode === parent ? anchor : null;
+          var position = source ? source.nextSibling : anchor && anchor.parentNode === parent ? anchor : null;
+          // 跳过已插入的工具，重复同步时保持位置稳定。
+          while (position && (position === button || position === noteButton)) position = position.nextSibling;
           if (state.noteEnabled) {
             noteButton.setAttribute('data-daguanyuan-retest-add-note', String(id));
             noteButton.style.cssText = style;

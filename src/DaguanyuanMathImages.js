@@ -47,7 +47,11 @@ var __DAGUANYUAN_MATH_IMAGES_GLOBAL__ = (function () {
         if (String(accepted) !== 'accepted') throw new Error('题目图片读取未启动');
         return poll();
       }).then(function (data) { return release().then(function () { return data; }); }, function (error) {
-        return release().then(function () { error.stage = '读取题目图片'; throw error; });
+        return release().then(function () {
+          error.stage = '读取题目图片';
+          if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.error('image.read', error, { stage: error.stage });
+          throw error;
+        });
       });
     };
   }

@@ -312,7 +312,6 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
     if (status === "changed") return "408 当前题目已切换，图片未继续添加";
     if (status === "permission") return "当前 408 账号尚未开放笔记图片功能";
     if (status === "limit") return "图片超出 408 网站的数量或大小限制，请查看网站提示";
-    if (status === "upload") return "408 题目笔记图片上传失败，请重试";
     return "图片未能添加，请查看题目笔记后重试";
   }
 

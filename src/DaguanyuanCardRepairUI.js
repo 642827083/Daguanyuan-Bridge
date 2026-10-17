@@ -4,7 +4,8 @@ var __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ = (function () {
   function label(text, size, bold) {
     const view = new UILabel({ x: 0, y: 0, width: 100, height: 24 });
     view.text = text; view.font = bold ? UIFont.boldSystemFontOfSize(size) : UIFont.systemFontOfSize(size);
-    view.textColor = UIColor.darkGrayColor(); return view;
+    view.textColor = bold ? UIColor.colorWithRedGreenBlueAlpha(37 / 255, 40 / 255, 48 / 255, 1)
+      : UIColor.colorWithRedGreenBlueAlpha(122 / 255, 129 / 255, 139 / 255, 1); return view;
   }
   function button(controller, text, selector) {
     const view = new UIButton({ x: 0, y: 0, width: 100, height: 40 });
@@ -17,11 +18,12 @@ var __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ = (function () {
     if (state && state.overlay) state.overlay.removeFromSuperview();
     if (controller.cardManagementDescription) controller.cardManagementDescription.text = description;
   }
-  function layout(controller, width) {
+  function layout(controller) {
     const state = controller.cardRepairState; if (!state || !state.overlay) return;
     const bounds = controller.containerView.bounds, sheetWidth = Math.min(440, Math.max(0, bounds.width - 24));
-    const height = Math.max(0, bounds.height - 38), sheetHeight = Math.min(300, height);
-    state.overlay.frame = { x: 0, y: 38, width: bounds.width, height };
+    const top = controller.titleBar ? controller.titleBar.frame.height : 44;
+    const height = Math.max(0, bounds.height - top), sheetHeight = Math.min(300, height);
+    state.overlay.frame = { x: 0, y: top, width: bounds.width, height };
     state.sheet.frame = { x: (bounds.width - sheetWidth) / 2, y: (height - sheetHeight) / 2, width: sheetWidth, height: sheetHeight };
     state.title.frame = { x: 16, y: 12, width: Math.max(0, sheetWidth - 32), height: 28 };
     const messageWidth = Math.max(0, sheetWidth - 32), messageHeight = Math.max(0, sheetHeight - 106);
@@ -55,6 +57,8 @@ var __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ = (function () {
       state.overlay.backgroundColor = UIColor.colorWithWhiteAlpha(0, 0.2);
       state.sheet = new UIView({ x: 0, y: 0, width: 100, height: 100 });
       state.sheet.backgroundColor = UIColor.whiteColor(); state.sheet.layer.cornerRadius = 12;
+      state.sheet.layer.borderWidth = 0.5;
+      state.sheet.layer.borderColor = UIColor.colorWithRedGreenBlueAlpha(227 / 255, 231 / 255, 237 / 255, 1);
       state.title = label('修复题卡格式', 17, true);
       state.message = label('当前学习集需要修复：\n题目卡 ' + prepared.questionCount + ' 张，答案卡 ' + prepared.answerCount + ' 张。\n'
         + (prepared.skipped.length ? '跳过 ' + prepared.skipped.length + ' 张：' + prepared.skipped[0].reason + '\n' : '')
@@ -66,7 +70,7 @@ var __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ = (function () {
       [state.title, state.messageScroll, state.confirm, state.cancel].forEach(view => state.sheet.addSubview(view));
       state.overlay.addSubview(state.sheet); controller.containerView.addSubview(state.overlay);
       controller.cardManagementDescription.text = '等待确认：' + prepared.jobs.length + ' 张卡片';
-      layout(controller, (controller.cardToolsSettingsSection || controller.questionToolsSettingsSection).bounds.width);
+      layout(controller);
     }).catch(function (error) {
       if (controller.cardRepairState !== state) return;
       cancel(controller); hud(controller, '无法统计题卡：' + String(error.message || error));

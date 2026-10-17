@@ -354,7 +354,6 @@ test("新导入题卡使用默认字号", () => {
   vm.runInContext(importSource, context);
   const markdown = context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown(
     { id: 3356, stem: "题干", options: ["选项一", "选项二"] },
-    "https://www.cxyonly.fans/math/practice/855?questionId=3356",
   );
   assert.match(markdown, /题干\n\nA\. 选项一/);
   assert.doesNotMatch(markdown, /<small>/);
@@ -368,7 +367,7 @@ test("408 建卡整理格式时保留代码块缩进、连续空行和美元符�
   const code = '```\nwhile (x) {\n  x--;\n\n\n  price = "$ value $";  \n}\n```';
   const markdown = context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown({
     id: 806, stem: '若 $ G $ 无环。\n\n' + code, options: ['代码选项\n\n' + code, code],
-  }, 'https://www.408os.cn/exercise?year=2026', '408');
+  });
   assert.equal(markdown.split(code).length, 4);
   assert.ok(markdown.includes('B.\n\n' + code));
   assert.ok(markdown.includes('若 $G$ 无环。'));
@@ -384,7 +383,7 @@ test("新题卡规范网站公式边界空格并保留公式内部内容", () =>
     id: 3382,
     stem: String.raw`设 $ f(u) $ 为偶函数，求 $ \int_{0}^{x} f(t)\,dt $；另有 $$\int_0^x f(t)dt$$`,
     options: [String.raw`$ \int_{a}^{x}\left[\int_{0}^{u}tf(t)dt\right]du $ 为偶函数`, "$f(x)$ 不变"],
-  }, "https://www.cxyonly.fans/math/practice/345?questionId=3382");
+  });
   assert.match(markdown, /\$f\(u\)\$/);
   assert.match(markdown, /\$\\int_\{0\}\^\{x\} f\(t\)\\,dt\$/);
   assert.match(markdown, /\$\$\n\\int_0\^x f\(t\)dt\n\$\$/);
@@ -408,7 +407,7 @@ $$
     options: [String.raw`$$
 \begin{cases}-x^2, & x\le 0,\\-x^2-x, & x\gt 0.\end{cases}
 $$`, String.raw`文字 $$\begin{cases}x, & x\le 0\end{cases}$$ 结束`],
-  }, "https://www.cxyonly.fans/math/practice/321?resumeCategoryId=331&questionId=3359");
+  });
   assert.match(markdown, /A\.\n\n\$\$\n\\begin\{cases\}-x\^2/);
   assert.match(markdown, /B\. 文字\n\n\$\$\n\\begin\{cases\}x/);
   assert.match(markdown, /\n\$\$\n\n结束/);

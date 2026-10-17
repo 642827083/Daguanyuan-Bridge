@@ -26,22 +26,22 @@ var __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__ = (function () {
   function card() {
     const result = new UIView({ x: 0, y: 0, width: 100, height: 100 });
     result.backgroundColor = UIColor.whiteColor();
-    result.layer.cornerRadius = 10;
-    result.layer.borderWidth = 0.5;
-    result.layer.borderColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.45);
+    result.layer.cornerRadius = 12;
+    result.layer.borderWidth = 1;
+    result.layer.borderColor = UIColor.colorWithRedGreenBlueAlpha(227 / 255, 231 / 255, 237 / 255, 1);
     result.layer.masksToBounds = true;
     return result;
   }
 
   function divider() {
     const result = new UIView({ x: 0, y: 0, width: 100, height: 1 });
-    result.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.35);
+    result.backgroundColor = UIColor.colorWithRedGreenBlueAlpha(227 / 255, 231 / 255, 237 / 255, 1);
     return result;
   }
 
   function setup(controller) {
-    controller.categoryManagerPage = new UIView({ x: 0, y: 38, width: 960, height: 642 });
-    controller.categoryManagerPage.backgroundColor = UIColor.colorWithWhiteAlpha(0.96, 1);
+    controller.categoryManagerPage = new UIView({ x: 0, y: 44, width: 960, height: 636 });
+    controller.categoryManagerPage.backgroundColor = UIColor.colorWithRedGreenBlueAlpha(247 / 255, 248 / 255, 250 / 255, 1);
     controller.categoryManagerPage.hidden = true;
     controller.containerView.addSubview(controller.categoryManagerPage);
 
@@ -49,7 +49,7 @@ var __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__ = (function () {
     controller.categoryManagerBackButton.titleLabel.font = UIFont.systemFontOfSize(15);
     controller.categoryManagerPage.addSubview(controller.categoryManagerBackButton);
 
-    controller.categoryManagerPageTitle = label("题型分类管理", UIFont.boldSystemFontOfSize(18), UIColor.darkGrayColor());
+    controller.categoryManagerPageTitle = label("题型分类管理", UIFont.boldSystemFontOfSize(18), UIColor.colorWithRedGreenBlueAlpha(37 / 255, 40 / 255, 48 / 255, 1));
     controller.categoryManagerPageTitle.textAlignment = 1;
     controller.categoryManagerPage.addSubview(controller.categoryManagerPageTitle);
 
@@ -62,31 +62,31 @@ var __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__ = (function () {
     controller.categoryCatalogCard = card();
     controller.categoryManagerContentScroll.addSubview(controller.categoryCatalogCard);
 
-    controller.categoryCatalogTitle = label("分类数据", UIFont.boldSystemFontOfSize(17), UIColor.darkGrayColor());
+    controller.categoryCatalogTitle = label("分类数据", UIFont.boldSystemFontOfSize(17), UIColor.colorWithRedGreenBlueAlpha(37 / 255, 40 / 255, 48 / 255, 1));
     controller.categoryCatalogCard.addSubview(controller.categoryCatalogTitle);
 
-    controller.categoryCatalogStatus = label("", UIFont.systemFontOfSize(13), UIColor.grayColor());
+    controller.categoryCatalogStatus = label("", UIFont.systemFontOfSize(13), UIColor.colorWithRedGreenBlueAlpha(122 / 255, 129 / 255, 139 / 255, 1));
     controller.categoryCatalogStatus.numberOfLines = 2;
     controller.categoryCatalogCard.addSubview(controller.categoryCatalogStatus);
 
     controller.categoryCatalogUpdateButton = button("立即更新", controller, "updateCategoryCatalog:");
-    controller.categoryCatalogUpdateButton.backgroundColor = UIColor.colorWithRedGreenBlueAlpha(0.92, 0.96, 1, 1);
+    controller.categoryCatalogUpdateButton.backgroundColor = UIColor.colorWithRedGreenBlueAlpha(238 / 255, 244 / 255, 252 / 255, 1);
     controller.categoryCatalogUpdateButton.layer.cornerRadius = 8;
     controller.categoryCatalogCard.addSubview(controller.categoryCatalogUpdateButton);
 
     controller.categoryBindingsCard = card();
     controller.categoryManagerContentScroll.addSubview(controller.categoryBindingsCard);
 
-    controller.categoryBindingsTitle = label("人工绑定（0）", UIFont.boldSystemFontOfSize(17), UIColor.darkGrayColor());
+    controller.categoryBindingsTitle = label("人工绑定（0）", UIFont.boldSystemFontOfSize(17), UIColor.colorWithRedGreenBlueAlpha(37 / 255, 40 / 255, 48 / 255, 1));
     controller.categoryBindingsCard.addSubview(controller.categoryBindingsTitle);
 
-    controller.categoryBindingsDescription = label("在数学或 408 页进入目标分类后创建绑定", UIFont.systemFontOfSize(12), UIColor.grayColor());
+    controller.categoryBindingsDescription = label("在数学或 408 页进入目标分类后创建绑定", UIFont.systemFontOfSize(12), UIColor.colorWithRedGreenBlueAlpha(122 / 255, 129 / 255, 139 / 255, 1));
     controller.categoryBindingsCard.addSubview(controller.categoryBindingsDescription);
 
     controller.categoryBindingsHeaderDivider = divider();
     controller.categoryBindingsCard.addSubview(controller.categoryBindingsHeaderDivider);
 
-    controller.categoryBindingsEmpty = label("尚未建立人工绑定", UIFont.systemFontOfSize(14), UIColor.grayColor());
+    controller.categoryBindingsEmpty = label("尚未建立人工绑定", UIFont.systemFontOfSize(14), UIColor.colorWithRedGreenBlueAlpha(122 / 255, 129 / 255, 139 / 255, 1));
     controller.categoryBindingsEmpty.textAlignment = 1;
     controller.categoryBindingsCard.addSubview(controller.categoryBindingsEmpty);
 
@@ -113,8 +113,8 @@ var __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__ = (function () {
   function buildRow(controller, binding, index) {
     const rowView = new UIView({ x: 0, y: 0, width: 100, height: ROW_HEIGHT });
     rowView.backgroundColor = UIColor.whiteColor();
-    const title = label(binding.parentTitle || "未命名题型", UIFont.boldSystemFontOfSize(15), UIColor.darkGrayColor());
-    const source = label((binding.sourcePath || []).join(" / ") || "未记录本地路径", UIFont.systemFontOfSize(11), UIColor.grayColor());
+    const title = label(binding.parentTitle || "未命名题型", UIFont.boldSystemFontOfSize(15), UIColor.colorWithRedGreenBlueAlpha(37 / 255, 40 / 255, 48 / 255, 1));
+    const source = label((binding.sourcePath || []).join(" / ") || "未记录本地路径", UIFont.systemFontOfSize(11), UIColor.colorWithRedGreenBlueAlpha(122 / 255, 129 / 255, 139 / 255, 1));
     source.numberOfLines = 2;
     const target = binding.provider === "408"
       ? { status: "resolved", path: [] }

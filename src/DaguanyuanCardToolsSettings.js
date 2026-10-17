@@ -4,7 +4,7 @@ var __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__ = (function () {
   function label(text, size, bold) {
     const view = new UILabel({ x: 0, y: 0, width: 100, height: 24 });
     view.text = text; view.font = bold ? UIFont.boldSystemFontOfSize(size) : UIFont.systemFontOfSize(size);
-    view.textColor = bold ? UIColor.darkGrayColor() : UIColor.grayColor(); return view;
+    view.textColor = bold ? UIColor.colorWithRedGreenBlueAlpha(37 / 255, 40 / 255, 48 / 255, 1) : UIColor.colorWithRedGreenBlueAlpha(122 / 255, 129 / 255, 139 / 255, 1); return view;
   }
   function button(controller, title, action) {
     const view = new UIButton({ x: 0, y: 0, width: 100, height: 40 });
@@ -14,12 +14,12 @@ var __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__ = (function () {
   }
   function setup(controller) {
     const section = new UIView({ x: 20, y: 0, width: 100, height: 272 });
-    section.backgroundColor = UIColor.whiteColor(); section.layer.cornerRadius = 10;
-    section.layer.borderWidth = 0.5; section.layer.borderColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.45);
+    section.backgroundColor = UIColor.whiteColor(); section.layer.cornerRadius = 12;
+    section.layer.borderWidth = 1; section.layer.borderColor = UIColor.colorWithRedGreenBlueAlpha(227 / 255, 231 / 255, 237 / 255, 1);
     controller.cardToolsSettingsSection = section; controller.settingsPage.addSubview(section);
     controller.cardToolsTitle = label('题卡工具', 17, true);
     controller.cardToolsDivider = new UIView({ x: 20, y: 48, width: 100, height: 1 });
-    controller.cardToolsDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
+    controller.cardToolsDivider.backgroundColor = UIColor.colorWithRedGreenBlueAlpha(227 / 255, 231 / 255, 237 / 255, 1);
     controller.masteryTitle = label('掌握标记', 16, true);
     controller.masteryDescription = label('点击数学题卡，在卡片下方标记并同步到网站', 12, false);
     controller.masterySwitch = new UISwitch({ x: 0, y: 69, width: 51, height: 31 });
@@ -27,14 +27,14 @@ var __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__ = (function () {
     [controller.cardToolsTitle, controller.cardToolsDivider, controller.masteryTitle, controller.masteryDescription, controller.masterySwitch]
       .forEach(function (view) { section.addSubview(view); });
     controller.commentFoldDivider = new UIView({ x: 20, y: 118, width: 100, height: 1 });
-    controller.commentFoldDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
+    controller.commentFoldDivider.backgroundColor = UIColor.colorWithRedGreenBlueAlpha(227 / 255, 231 / 255, 237 / 255, 1);
     controller.commentFoldTitle = label('自动折叠原题评论', 16, true);
     controller.commentFoldDescription = label(FOLD_DESCRIPTION, 12, false);
     controller.commentFoldDescription.numberOfLines = 2;
     controller.commentFoldSwitch = new UISwitch({ x: 0, y: 211, width: 51, height: 31 });
     controller.commentFoldSwitch.addTargetActionForControlEvents(controller, 'toggleSourceCommentFold:', 1 << 12);
     controller.cardManagementDivider = new UIView({ x: 20, y: 194, width: 100, height: 1 });
-    controller.cardManagementDivider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
+    controller.cardManagementDivider.backgroundColor = UIColor.colorWithRedGreenBlueAlpha(227 / 255, 231 / 255, 237 / 255, 1);
     controller.cardManagementTitle = label('已导入题卡管理', 16, true);
     controller.cardManagementDescription = label(MANAGEMENT_DESCRIPTION, 12, false);
     controller.cardManagementChevron = label('›', 25, false); controller.cardManagementChevron.textAlignment = 1;

@@ -255,10 +255,11 @@ test("插件图标使用带透明通道的 48 像素 PNG", () => {
   assert.equal(icon[25], 6);
 });
 
-test("插件入口不再传递旧导入页资源路径", () => {
-  assert.match(mainSource, /JSB\.newAddon = function \(\)/);
+test("插件入口传递包根路径供本地收款图使用，不恢复旧导入页路径", () => {
+  assert.match(mainSource, /JSB\.newAddon = function \(mainPath\)/);
+  assert.match(mainSource, /createDaguanyuanBridgeAddon\(mainPath\)/);
   assert.match(addonSource, /createController\(self\)/);
-  assert.doesNotMatch(mainSource + addonSource + panelSource, /mainPath/);
+  assert.match(addonSource, /__daguanyuanAddonPath = String\(mainPath/);
   assert.doesNotMatch(mainSource + addonSource + panelSource, /focus-next-icon\.png/);
 });
 

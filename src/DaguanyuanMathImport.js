@@ -293,7 +293,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
     return result;
   }
 
-  function questionMarkdown(question, url, provider) {
+  function questionMarkdown(question) {
     const stem = normalizeQuestionContent(question.stem);
     if (!stem) throw new Error("题目缺少题干");
     const options = (question.options || []).map(function (option, index) {
@@ -340,6 +340,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
       const error = new Error(String(failure && failure.message || failure));
       error.stage = "MarginNote 保存图片";
       error.diagnostics = diagnostics;
+      if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.error('image.save', error, { questionId: question.id, stage: error.stage });
       throw error;
     }
   }
@@ -391,7 +392,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
     if (!isNew) importedComment(note, question.id, provider);
     const answerText = content === 'questionAnswer' ? answerMarkdown(question) : '';
     if (isNew) {
-      const markdown = questionMarkdown(question, url, provider);
+      const markdown = questionMarkdown(question);
       initializeQuestion(note, imagePart(question, markdown), markdown, suffix || '', url, provider, undefined, context);
     }
     if (answerText) {
@@ -470,7 +471,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
         const url = provider === "408" ? `${category.url}&questionId=${id}`
           : category && /^https:\/\/(?:www\.)?cxyonly\.fans\/math\/practice\/(?:categories\/)?\d+\/?$/.test(category.url)
             ? `${category.url}?questionId=${id}` : questionURL(question.categoryId, id);
-        const markdown = questionMarkdown(question, url, provider);
+        const markdown = questionMarkdown(question);
         let note;
         UndoManager.sharedInstance().undoGrouping("导入本题", context.topicId, function () {
           try {
@@ -521,7 +522,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
         const legacy = existing ? null : legacy408Question(context, categoryPath, id, legacyCategories);
         const url = `${category.url}&questionId=${id}`;
         if (existing && (content !== 'questionAnswer' || answerChild(existing, id, '408'))) return false;
-        if (!existing && !legacy) questionMarkdown(question, url, '408');
+        if (!existing && !legacy) questionMarkdown(question);
         if (!existing && !legacy && content === 'questionAnswer') answerMarkdown(question);
         let note;
         let outcome = true;
@@ -624,7 +625,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
               if (route.status !== "resolved") throw new Error("题目分类未收录，请先更新分类数据");
               const url = questionURL(route.categoryId, question.id);
               const existing = findQuestionAtPath(context, route.path, question.id, "math");
-              if (!existing) questionMarkdown(question, url, 'math');
+              if (!existing) questionMarkdown(question);
               if (!existing && content === 'questionAnswer') answerMarkdown(question);
               if (existing) {
                 if (writeQuestionParts(context, existing, question, url, 'math', content, false) === 'answerAdded') result.answerAddedCount += 1;

@@ -46,6 +46,11 @@ var __DAGUANYUAN_CARD_LOCATOR_GLOBAL__ = (function () {
   function finish(operation, error, result) {
     if (operation.done) return;
     operation.done = true;
+    if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') {
+      const details = { taskId: operation.logTaskId, provider: operation.provider, questionId: operation.questionId, stage: operation.phase, mode: operation.mode };
+      if (error) __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.error('card.locate.result', error, details);
+      else __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.info('card.locate.result', Object.assign({}, details, { status: 'complete' }));
+    }
     operation.timers.forEach(function (timer) { timer.invalidate(); });
     operation.timers.clear();
     operation.waits.forEach(function (reject) { reject(error || new Error("定位已结束")); });
@@ -215,6 +220,7 @@ var __DAGUANYUAN_CARD_LOCATOR_GLOBAL__ = (function () {
       timers: new Set(), waits: new Set(), done: false, selecting: false };
     const result = new Promise(function (resolve, reject) { operation.resolve = resolve; operation.reject = reject; });
     addon.__daguanyuanCardLocation = operation;
+    if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') operation.logTaskId = __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.begin('card.locate', { provider: operation.provider, questionId, mode: operation.mode });
     execute(operation).then(function (value) { finish(operation, null, value); }, function (error) { finish(operation, error); });
     return result;
   }

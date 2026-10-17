@@ -1,6 +1,8 @@
-function createDaguanyuanBridgeAddon() {
+function createDaguanyuanBridgeAddon(mainPath) {
   return JSB.defineClass("DaguanyuanBridgeAddon : JSExtension", {
     sceneWillConnect: function () {
+      if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.info('plugin.connect');
+      self.__daguanyuanAddonPath = String(mainPath || '');
       self.__daguanyuanFocusNextRememberToken = 0;
       self.__daguanyuanFocusNextPlaceToken = 0;
       self.panelController = __DAGUANYUAN_WEB_PANEL_GLOBAL__.createController(self);
@@ -12,6 +14,7 @@ function createDaguanyuanBridgeAddon() {
     },
 
     sceneDidDisconnect: function () {
+      if (typeof __DAGUANYUAN_SUPPORT_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_SUPPORT_UI_GLOBAL__.close(self.panelController);
       if (typeof __DAGUANYUAN_MASTERY_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_MASTERY_UI_GLOBAL__.unregister(self);
       if (typeof __DAGUANYUAN_MASTERY_SYNC_GLOBAL__ !== 'undefined') __DAGUANYUAN_MASTERY_SYNC_GLOBAL__.cancel(self);
       if (typeof __DAGUANYUAN_SOURCE_LINK_GLOBAL__ !== 'undefined') __DAGUANYUAN_SOURCE_LINK_GLOBAL__.unregister(self);
@@ -26,6 +29,7 @@ function createDaguanyuanBridgeAddon() {
         self.panelController.view.removeFromSuperview();
       }
       self.panelController = null;
+      if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') { __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.info('plugin.disconnect'); __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.flush(); }
     },
 
     notebookWillOpen: function () {
@@ -51,10 +55,12 @@ function createDaguanyuanBridgeAddon() {
     },
 
     notebookWillClose: function () {
+      if (typeof __DAGUANYUAN_SUPPORT_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_SUPPORT_UI_GLOBAL__.close(self.panelController);
       __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.hide(self);
       self.__daguanyuanFocusNextLastFocus = null;
       if (typeof __DAGUANYUAN_MASTERY_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_MASTERY_UI_GLOBAL__.hide(self);
       if (typeof __DAGUANYUAN_MASTERY_SYNC_GLOBAL__ !== 'undefined') __DAGUANYUAN_MASTERY_SYNC_GLOBAL__.cancel(self);
+      if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') { __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.info('notebook.close'); __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.flush(); }
     },
 
     onMasteryCard: function (sender) { __DAGUANYUAN_MASTERY_UI_GLOBAL__.show(self, sender); },

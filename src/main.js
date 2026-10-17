@@ -1,3 +1,4 @@
+JSB.require("DaguanyuanDiagnostics");
 JSB.require("DaguanyuanFocusNextCore");
 JSB.require("DaguanyuanCategoryCatalog");
 JSB.require("DaguanyuanCategoryCatalogStore");
@@ -42,10 +43,13 @@ JSB.require("DaguanyuanFocusNextUI");
 JSB.require("DaguanyuanCategoryManagerUI");
 JSB.require("web-dist/DaguanyuanPluginInfo");
 JSB.require("DaguanyuanAboutSettings");
+JSB.require("DaguanyuanSupportUI");
+JSB.require("DaguanyuanDiagnosticUI");
 JSB.require("DaguanyuanSettingsNavigation");
+JSB.require("DaguanyuanPanelNavigation");
 JSB.require("WebPanelController");
 JSB.require("WebAddon");
 
-JSB.newAddon = function () {
-  return createDaguanyuanBridgeAddon();
+JSB.newAddon = function (mainPath) {
+  return createDaguanyuanBridgeAddon(mainPath);
 };

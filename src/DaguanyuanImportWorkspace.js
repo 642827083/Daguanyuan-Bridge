@@ -3,6 +3,17 @@ var __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__ = (function () {
   const API = __DAGUANYUAN_MATH_API_GLOBAL__;
   const WRITER = __DAGUANYUAN_MATH_IMPORT_GLOBAL__;
 
+  function logStart(task, event) {
+    if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ === 'undefined') return;
+    task.logTaskId = __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.begin(event, { provider: task.source, scope: task.scope, examSubject: task.examSubject });
+  }
+  function logFailure(task, error) {
+    if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.error('workspace.read', error, { taskId: task.logTaskId, provider: task.source, stage: '读取题目列表' });
+  }
+  function logReady(task) {
+    if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.info('workspace.ready', { taskId: task.logTaskId, provider: task.source, total: task.questions.length });
+  }
+
   function evaluate(controller, script) {
     return __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__.evaluate({ webView: controller.importWebView }, script);
   }
@@ -11,7 +22,7 @@ var __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__ = (function () {
       + method + '(' + JSON.stringify(task.token) + ',' + JSON.stringify(data) + ');return "ok";})()');
   }
   function catalog() { return __DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__.currentCatalog().records; }
-  function initialize(controller) {
+  function initialize() {
     const defaults = NSUserDefaults.standardUserDefaults();
     let scope = String(defaults.objectForKey(PREFIX + 'scope') || 'complete');
     let content = String(defaults.objectForKey(PREFIX + 'content') || 'question');
@@ -87,6 +98,7 @@ var __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__ = (function () {
     const task = { token: token(payload.token), source: 'math', scope, examSubject, session, status: 'loading', cancelled: false, questions: [] };
     close(controller);
     controller.importWorkspaceTask = task;
+    logStart(task, 'workspace.read');
     NSUserDefaults.standardUserDefaults().setObjectForKey(scope, PREFIX + 'scope');
     NSUserDefaults.standardUserDefaults().setObjectForKey('math', PREFIX + 'source');
     const seen = new Set();
@@ -122,8 +134,10 @@ var __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__ = (function () {
     }).then(nextCategory).then(function () {
       check(controller, task);
       task.status = 'ready';
+      logReady(task);
       return publish(controller, task, 'ready', { count: task.questions.length, importedIds: WRITER.importedQuestionIds(controller.addon) });
     }).catch(function (error) {
+      logFailure(task, error);
       if (controller.importWorkspaceTask !== task) return;
       task.status = 'error'; task.questions = [];
       return publish(controller, task, 'failure', { error: String(error.message || error) });
@@ -164,6 +178,7 @@ var __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__ = (function () {
     const session = WRITER.prepared408Session(controller.addon);
     const task = { token: token(payload.token), source: '408', session, status: 'loading', cancelled: false, questions: [] };
     close(controller); controller.importWorkspaceTask = task;
+    logStart(task, 'workspace.read');
     NSUserDefaults.standardUserDefaults().setObjectForKey('408', PREFIX + 'source');
     const worker = __DAGUANYUAN_408_WORKSPACE_GLOBAL__, seen = new Set();
     function next(index) {
@@ -197,8 +212,10 @@ var __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__ = (function () {
     }
     task.done = publish(controller, task, 'start', { target: session.targetTitle }).then(function () { return next(0); }).then(function () {
       check(controller, task); task.status = 'ready';
+      logReady(task);
       return publish(controller, task, 'ready', { count: task.questions.length, importedIds: WRITER.importedQuestionIds(controller.addon, '408') });
     }).catch(function (error) {
+      logFailure(task, error);
       if (controller.importWorkspaceTask !== task) return;
       task.status = 'error'; task.questions = [];
       return publish(controller, task, 'failure', { error: String(error.message || error) });
@@ -284,6 +301,7 @@ var __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__ = (function () {
     const count = Number(payload.count);
     if (!Number.isSafeInteger(count) || count < 1 || count > task.questions.length) throw new Error('请至少选择一道有效题目');
     task.status = 'running';
+    logStart(task, 'workspace.import');
     NSUserDefaults.standardUserDefaults().setObjectForKey(content, PREFIX + 'content');
     const result = { total: count, createdCount: 0, answerAddedCount: 0, skippedCount: 0, failed: [] };
     const ids = [];
@@ -328,6 +346,7 @@ var __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__ = (function () {
       let importedIds = [];
       try { task.session.check(); importedIds = WRITER.importedQuestionIds(controller.addon, task.source); }
       catch (error) { result.interrupted = result.interrupted || String(error.message || error); }
+      if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.result('workspace.import', task.logTaskId, result, { provider: task.source, scope: task.scope, examSubject: task.examSubject });
       controller.lastCategoryImportReportText = '来源：' + (task.source === '408' ? '408' : '大观园数学 / ' + { complete: '完整', core: '严选', exam: '真题' }[task.scope])
         + (task.source === 'math' ? ' / ' + { all: '全部科目', math_1: '数一', math_2: '数二', math_3: '数三' }[task.examSubject] : '')
         + '\n目标：' + task.session.targetTitle + '\n\n' + __DAGUANYUAN_IMPORT_REPORT_GLOBAL__.textFor(result);

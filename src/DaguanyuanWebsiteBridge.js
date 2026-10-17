@@ -67,7 +67,7 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
             target.number = numberMatch && Number(numberMatch[1]);
             if (target.year && target.number) anchor = metadata.querySelector('.score-tag') || number;
           }
-          if ((!math && !os408) || !metadata || !anchor) { removeButtons(row); continue; }
+          if (!metadata || !anchor) { removeButtons(row); continue; }
           var specs = [
             { key: math ? 'data-daguanyuan-practice-locate-card' : 'data-daguanyuan-408-locate-card', text: '定位卡片', command: 'locate-card', show: state.enabled, busy: state.locateBusy },
             { key: math ? 'data-daguanyuan-practice-add-note' : 'data-daguanyuan-408-add-note', text: '添加笔记', command: 'add-note', show: state.noteEnabled, busy: state.noteBusy },
@@ -196,15 +196,7 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
     return JSON.stringify({
       url: String(window.location.href || ""),
       scope: scope,
-      selection: {
-        scope: scope, listId: query.get('listId') || '', revision: query.get('listRevision') || '',
-        categoryId: Number(query.get('categoryId') || query.get('resumeCategoryId')
-          || (String(window.location.pathname || '').match(/\/math\/practice\/(?:categories\/)?(\d+)/) || [])[1] || 0),
-        categoryIds: query.get('categoryIds') || '', examSubject: query.get('examSubject') || 'all',
-        query: query.get('q') || '', sort: query.get('sort') || '', filters: query.get('filters') || '',
-        mastery: query.get('mastery') || '', favorite: query.get('favorite') === 'true', hasNote: query.get('hasNote') === 'true',
-        conceptId: query.get('conceptId') || '', externalCategories: query.get('externalCategories') || 'none',
-      },
+      selection: { listId: query.get('listId') || '' },
     });
   }
 

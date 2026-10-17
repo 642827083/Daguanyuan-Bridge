@@ -15,7 +15,7 @@ function runtime(stored = new Map()) {
     addGestureRecognizer(gesture) { (this.gestures ||= []).push(gesture); }
     addTargetActionForControlEvents(target, action) { this.action=action; }
     setTitleForState(title) { this.title=title; }
-    setTitleColorForState() {}
+    setTitleColorForState(color, state) { if (state === 0) this.textColor = color; }
     loadRequest() {}
     evaluateJavaScript(script, callback) { this.lastScript=script; callback(null,null); }
   }
@@ -26,7 +26,8 @@ function runtime(stored = new Map()) {
     locationInView() { return this.point; }
   }
   const context={console, JSB:{defineClass(name, instance) { methods=instance; return {}; }},
-    UIView:View,UILabel:View,UIButton:View,UIWebView:View,UIScrollView:View,UISwitch:View,UIPanGestureRecognizer:Gesture,UITapGestureRecognizer:Gesture,
+    UIView:View,UILabel:View,UIButton:View,UIWebView:View,UIScrollView:View,UISwitch:View,UIImageView:View,UIPanGestureRecognizer:Gesture,UITapGestureRecognizer:Gesture,
+    UIImage:{imageWithContentsOfFile(file){return {file,size:file.endsWith('alipay.jpg')?{width:600,height:899}:{width:600,height:814}};}},
     UIColor:new Proxy({},{get(){return ()=>color;}}),UIFont:{boldSystemFontOfSize(){},systemFontOfSize(){}},
     NSUserDefaults:{standardUserDefaults(){return {objectForKey:key=>stored.get(key),setObjectForKey(value,key){stored.set(key,value);}};}},
     NSURL:{URLWithString:url=>url},NSURLRequest:{requestWithURL:url=>url},
@@ -37,15 +38,119 @@ function runtime(stored = new Map()) {
     __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__:{cancelMode(){},layout(){}},
     __DAGUANYUAN_IMPORT_REPORT_GLOBAL__:{layout(){}},
     __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__:{bindCategoryScript(...values){return JSON.stringify(values);}},
-    __DAGUANYUAN_MASTERY_UI_GLOBAL__:{enabled(){return true;}},self:{addon:{window:{}}}
+    __DAGUANYUAN_MASTERY_UI_GLOBAL__:{enabled(){return true;}},self:{addon:{window:{},__daguanyuanAddonPath:'/addon'}}
   };
   context.__DAGUANYUAN_PLUGIN_INFO__ = JSON.parse(readFileSync(new URL('../src/mnaddon.json', import.meta.url), 'utf8'));
   vm.createContext(context);
-  for(const name of ['DaguanyuanSourceLink','DaguanyuanCardComments','DaguanyuanCommentFold','DaguanyuanCardLocatorUI','DaguanyuanVideoBrowser','DaguanyuanCardToolsSettings','DaguanyuanPluginIntegrationSettings','DaguanyuanAboutSettings','DaguanyuanSettingsNavigation','WebPanelController'])
+  for(const name of ['DaguanyuanSourceLink','DaguanyuanCardComments','DaguanyuanCommentFold','DaguanyuanCardLocatorUI','DaguanyuanVideoBrowser','DaguanyuanCardToolsSettings','DaguanyuanPluginIntegrationSettings','DaguanyuanAboutSettings','DaguanyuanSupportUI','DaguanyuanDiagnosticUI','DaguanyuanSettingsNavigation','DaguanyuanPanelNavigation','WebPanelController'])
     vm.runInContext(readFileSync(new URL('../src/'+name+'.js',import.meta.url),'utf8'),context);
   methods.viewDidLoad();
   return {controller:context.self,methods,stored,context};
 }
+
+test('主导航白底文字在窄宽窗口居中，下划线对齐选中文字，关闭按钮无圆底且保留点击范围', () => {
+  const run = runtime(), c = run.controller;
+  assert.deepEqual(Array.from(c.mainNavigationButtons, view => view.title), ['数学', '408', '导入', '设置']);
+  assert.deepEqual(Array.from(c.mainNavigationButtons, view => view.action), ['openDaguanyuan:', 'open408:', 'openImport:', 'openSettings:']);
+  for (const width of [300, 560, 960, 1300]) {
+    c.view.frame = { x: 0, y: 0, width, height: 656 }; run.methods.viewDidLayoutSubviews();
+    const nav = c.mainNavigation.frame;
+    assert.equal(c.titleBar.frame.height, 44); assert.equal(nav.x + nav.width / 2, width / 2); assert.ok(nav.width <= 328);
+    assert.ok(nav.x + nav.width < c.closeButton.frame.x);
+    assert.equal(c.closeButton.frame.width, 44); assert.equal(c.closeButton.frame.height, 44);
+    assert.equal(c.closeButtonBackground, undefined); assert.equal(c.mainNavigationBackground, undefined);
+    for (const view of [c.webView, c.importWebView, c.settingsPage]) { assert.equal(view.frame.y, 44); assert.equal(view.frame.height, 612); }
+    for (const [index, button] of c.mainNavigationButtons.entries()) {
+      assert.equal(button.superview, c.mainNavigation); assert.equal(button.frame.height, 44);
+      assert.ok(button.frame.x >= 0 && button.frame.x + button.frame.width <= nav.width);
+      if (index) assert.ok(c.mainNavigationButtons[index - 1].frame.x + c.mainNavigationButtons[index - 1].frame.width <= button.frame.x);
+    }
+    assert.equal(c.mainNavigationIndicator.frame.height, 3); assert.equal(c.mainNavigationIndicator.frame.width, 24);
+    assert.equal(c.mainNavigationIndicator.frame.x + 12, c.homeButton.frame.x + c.homeButton.frame.width / 2);
+    assert.ok(c.mainNavigationIndicator.frame.y + 3 <= c.titleBar.frame.height);
+    assert.equal(c.mainNavigationIndicator.layer.shadowOpacity, undefined);
+    assert.equal(c.mainNavigationButtons[0].selected, true);
+  }
+});
+
+test('主导航连续切换从当前下划线位置接续，重复点击不重播动画，动画缺失仍可切换和缩放', () => {
+  const run = runtime(), c = run.controller, animations = []; let presentation;
+  run.context.CABasicAnimation = { animationWithKeyPath: keyPath => ({ keyPath }) };
+  run.context.CAMediaTimingFunction = { functionWithControlPoints: (...values) => values };
+  run.context.CATransaction = { begin() {}, commit() {}, setAnimationDuration(value) { this.duration = value; } };
+  const layer = c.mainNavigationIndicator.layer;
+  layer.addAnimationForKey = (animation, key) => animations.push({ ...animation, key, duration: run.context.CATransaction.duration });
+  layer.removeAnimationForKey = () => {};
+  layer.presentationLayer = () => presentation;
+  run.methods.openSettings(); assert.equal(c.settingsButton.selected, true); assert.equal(c.homeButton.selected, false);
+  assert.equal(animations.at(-1).keyPath, 'position.x'); assert.equal(animations.at(-1).duration, 0.22);
+  const count = animations.length; run.methods.openSettings(); assert.equal(animations.length, count);
+  presentation = { position: { x: 160 } }; run.methods.open408();
+  assert.equal(c.os408Button.selected, true); assert.equal(animations.at(-1).fromValue, 160);
+  assert.equal(animations.at(-1).toValue, c.mainNavigationIndicator.frame.x + c.mainNavigationIndicator.frame.width / 2);
+  run.context.__DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__.refresh = () => {};
+  run.methods.openCategoryManager(); assert.equal(c.settingsButton.selected, true); assert.equal(c.os408Button.selected, false);
+  layer.presentationLayer = () => { throw Error('呈现层不可用'); };
+  run.context.CABasicAnimation.animationWithKeyPath = () => { throw Error('动画不可用'); };
+  run.context.console = { log() {} }; run.methods.openDaguanyuan(); assert.equal(c.homeButton.selected, true);
+  c.view.frame = { x: 0, y: 0, width: 300, height: 420 }; run.methods.viewDidLayoutSubviews();
+  assert.equal(c.mainNavigationIndicator.frame.x + c.mainNavigationIndicator.frame.width / 2, c.homeButton.frame.x + c.homeButton.frame.width / 2);
+  assert.ok(c.mainNavigationIndicator.frame.width < c.homeButton.frame.width);
+});
+
+test('拖动和双击只绑定两侧空白区，导航与关闭按钮不包含窗口手势，关闭面板清理下划线动画', () => {
+  const run = runtime(), c = run.controller;
+  const inside = (rect, point) => point.x >= rect.x && point.x < rect.x + rect.width && point.y >= rect.y && point.y < rect.y + rect.height;
+  assert.equal(c.titleBar.gestures, undefined);
+  for (const view of [c.mainNavigation, c.mainNavigationIndicator, c.closeButton, ...c.mainNavigationButtons]) assert.equal(view.gestures, undefined);
+  for (const view of c.titleBarDragRegions) {
+    assert.deepEqual(Array.from(view.gestures, gesture => gesture.action), ['movePanel:', 'resetPanelOnDoubleTap:']);
+    const p = { x: view.frame.x + view.frame.width / 2, y: 22 };
+    assert.equal(run.context.__DAGUANYUAN_PANEL_NAVIGATION_GLOBAL__.isBlankPoint(c, p), true);
+    assert.equal(inside(c.mainNavigation.frame, p), false); assert.equal(inside(c.closeButton.frame, p), false);
+  }
+  for (const button of c.mainNavigationButtons) {
+    const point = { x: c.mainNavigation.frame.x + button.frame.x + button.frame.width / 2, y: 22 };
+    assert.equal(run.context.__DAGUANYUAN_PANEL_NAVIGATION_GLOBAL__.isBlankPoint(c, point), false);
+  }
+  const removed = []; c.mainNavigationIndicator.layer.removeAnimationForKey = key => removed.push(key);
+  run.context.NSTimer = { scheduledTimerWithTimeInterval() {} }; run.methods.closePanel();
+  assert.deepEqual(removed, ['daguanyuan.panel.navigation']);
+});
+
+test('诊断日志入口只在关于插件可用，导出复制分发正确，清空二次确认且拒绝旧按钮', () => {
+  const run = runtime(), c = run.controller, calls = [], messages = [];
+  run.context.Application = { sharedInstance: () => ({ showHUD: message => messages.push(message) }) };
+  run.context.__DAGUANYUAN_DIAGNOSTICS_GLOBAL__ = { exportFile() { calls.push('export'); }, copy() { calls.push('copy'); }, clear() { calls.push('clear'); return true; } };
+  run.methods.openDiagnosticLogs(); assert.equal(c.cardLocationModeChoice, undefined);
+  run.methods.openSettings(); run.methods.openDiagnosticLogs(); assert.equal(c.cardLocationModeChoice, undefined);
+  run.methods.selectSettingsSection(c.settingsNavigationButtons[3]);
+  run.methods.openDiagnosticLogs(); let menu = c.cardLocationModeChoice;
+  assert.deepEqual(Array.from(menu.buttons, button => button.title), ['导出日志', '复制日志', '清空日志', '取消']);
+  run.methods.selectDiagnosticLogAction(menu.buttons[0]); assert.deepEqual(calls, ['export']);
+  run.methods.openDiagnosticLogs(); menu = c.cardLocationModeChoice;
+  run.methods.selectDiagnosticLogAction(menu.buttons[1]); assert.deepEqual(calls, ['export', 'copy']); assert.equal(messages.at(-1), '诊断日志已复制');
+  run.methods.openDiagnosticLogs(); menu = c.cardLocationModeChoice; const old = menu.buttons[2];
+  run.methods.selectDiagnosticLogAction(old); menu = c.cardLocationModeChoice;
+  assert.equal(menu.title.text, '确定清空全部诊断日志？'); assert.equal(calls.includes('clear'), false);
+  run.methods.selectDiagnosticLogAction(old); assert.equal(c.cardLocationModeChoice, menu);
+  run.methods.selectDiagnosticLogAction(menu.buttons[1]); assert.equal(calls.includes('clear'), false);
+  run.methods.openDiagnosticLogs(); run.methods.selectDiagnosticLogAction(c.cardLocationModeChoice.buttons[2]);
+  run.methods.selectDiagnosticLogAction(c.cardLocationModeChoice.buttons[0]); assert.equal(calls.at(-1), 'clear'); assert.equal(messages.at(-1), '诊断日志已清空');
+  run.methods.openDiagnosticLogs(); run.methods.selectSettingsSection(c.settingsNavigationButtons[0]); assert.equal(c.cardLocationModeChoice, null);
+  run.methods.selectSettingsSection(c.settingsNavigationButtons[3]); run.methods.openDiagnosticLogs(); run.methods.openDaguanyuan(); assert.equal(c.cardLocationModeChoice, null);
+});
+
+test('日志导出失败显示替代操作，清空保存失败不会提示成功', () => {
+  const run = runtime(), c = run.controller, messages = [];
+  run.context.Application = { sharedInstance: () => ({ showHUD: message => messages.push(message) }) };
+  run.context.__DAGUANYUAN_DIAGNOSTICS_GLOBAL__ = { exportFile() { throw Error('日志导出文件写入失败，请使用复制日志'); }, clear() { return false; } };
+  run.methods.openSettings(); run.methods.selectSettingsSection(c.settingsNavigationButtons[3]);
+  run.methods.openDiagnosticLogs(); run.methods.selectDiagnosticLogAction(c.cardLocationModeChoice.buttons[0]);
+  assert.match(messages.at(-1), /使用复制日志/);
+  run.methods.openDiagnosticLogs(); run.methods.selectDiagnosticLogAction(c.cardLocationModeChoice.buttons[2]); run.methods.selectDiagnosticLogAction(c.cardLocationModeChoice.buttons[0]);
+  assert.match(messages.at(-1), /本机文件清空失败/);
+});
 
 test('自动折叠开关保留在外，管理入口与定位方式复用弹窗，窄宽布局均不遮挡', async () => {
   const run = runtime(), c = run.controller, messages = [];
@@ -155,10 +260,11 @@ test('设置四个导航仅展示对应内容，滚动不遮挡导航，保留�
   const sections = [c.categorySettingsSection, c.questionToolsSettingsSection, c.cardToolsSettingsSection, c.aboutSettingsSection];
   for (const width of [560, 960]) {
     c.view.frame = { x: 0, y: 0, width, height: 420 }; run.methods.viewDidLayoutSubviews();
-    const capsule = c.settingsNavigationCapsule.frame;
+    const capsule = c.settingsNavigation.frame;
     assert.equal(capsule.x + capsule.width / 2, width / 2);
     assert.equal(c.settingsNavigation.frame.height, 48);
     assert.equal(c.settingsNavigation.superview, c.containerView);
+    assert.ok(c.containerView.subviews.indexOf(c.settingsNavigation) > c.containerView.subviews.indexOf(c.settingsPage));
     assert.equal(c.settingsPage.frame.y, c.webView.frame.y);
     for (let index = 0; index < 4; index++) {
       run.methods.selectSettingsSection(c.settingsNavigationButtons[index]);
@@ -200,7 +306,15 @@ test('关于插件显示清单版本与作者，使用说明打开论坛且移�
   assert.equal(c.aboutSettingsRows[0].description.text, 'v' + manifest.version + ' · ' + manifest.author);
   run.methods.openPluginGuide();
   assert.equal(run.methods.openPluginReleases, undefined);
-  assert.equal(c.aboutSettingsRows.length, 3);
+  assert.equal(c.aboutSettingsRows.length, 5);
+  assert.equal(c.aboutSettingsRows[2].title.text, '插件使用教程');
+  assert.equal(c.aboutSettingsRows[3].title.text, '诊断日志');
+  assert.equal(c.aboutSettingsRows[3].button.action, 'openDiagnosticLogs:');
+  assert.equal(c.aboutSettingsRows[3].chevron.text, c.cardManagementChevron.text);
+  assert.equal(c.aboutSettingsRows[4].title.text, '支持项目');
+  assert.equal(c.aboutSettingsRows[4].description.text, '喜欢此插件？请开发者喝杯咖啡，支持持续更新');
+  assert.equal(c.aboutSettingsRows[4].chevron.text, c.cardManagementChevron.text);
+  assert.equal(c.aboutSettingsRows[4].button.action, 'openSupportProject:');
   assert.deepEqual(opened, ['https://bbs.marginnote.com.cn/t/topic/68358']);
   for (const width of [560, 960]) {
     c.view.frame = { x: 0, y: 0, width, height: 420 }; run.methods.viewDidLayoutSubviews();
@@ -227,7 +341,7 @@ test('关于插件显示清单版本与作者，使用说明打开论坛且移�
   assert.equal(c.resetFrameButton, undefined);
   assert.equal(c.closeButton.action, 'closePanel:');
   assert.equal(c.closeButton.title, '×');
-  const doubleTap = c.titleBar.gestures.find(gesture => gesture.numberOfTapsRequired === 2);
+  const doubleTap = c.titleBarDragRegions[0].gestures.find(gesture => gesture.numberOfTapsRequired === 2);
   assert.ok(doubleTap);
   assert.equal(doubleTap.cancelsTouchesInView, false);
   assert.equal(doubleTap.delaysTouchesBegan, false);
@@ -240,7 +354,7 @@ test('关于插件显示清单版本与作者，使用说明打开论坛且移�
   doubleTapAction(doubleTap); assert.deepEqual(c.view.frame, movedFrame);
   doubleTap.state = 3;
   for (const control of [c.homeButton, c.os408Button, c.importButton, c.settingsButton, c.closeButton]) {
-    doubleTap.point = { x: control.frame.x + control.frame.width / 2, y: control.frame.y + control.frame.height / 2 };
+    doubleTap.point = { x: (control.superview === c.mainNavigation ? c.mainNavigation.frame.x : 0) + control.frame.x + control.frame.width / 2, y: control.frame.y + control.frame.height / 2 };
     doubleTapAction(doubleTap); assert.deepEqual(c.view.frame, movedFrame);
   }
   c.webView.loadRequest = () => assert.fail('恢复窗口位置不应重新加载网页');
@@ -251,7 +365,7 @@ test('关于插件显示清单版本与作者，使用说明打开论坛且移�
     assert.equal(c.activePage, page); assert.equal(c.importWorkspaceTask, currentTask);
     assert.equal(currentTask.cancelled, undefined);
     assert.equal(c.view.frame.y, studyBounds.y + 80);
-    assert.ok(c.settingsButton.frame.x + c.settingsButton.frame.width < c.closeButton.frame.x);
+    assert.ok(c.mainNavigation.frame.x + c.mainNavigation.frame.width < c.closeButton.frame.x);
     assert.deepEqual(run.stored.get('cn.marginnote.daguanyuan-bridge.panel-frame'), c.view.frame);
   }
 });
@@ -359,6 +473,72 @@ test('滚动只移动设置内容，悬浮区域仅占胶囊宽度，连续切�
   run.methods.selectSettingsSection(c.settingsNavigationButtons[2]);
   assert.equal(c.settingsSection, 'card'); assert.equal(c.cardToolsSettingsSection.hidden, false);
   assert.equal(c.settingsNavigationSlider.frame.x, c.settingsNavigationButtons[2].frame.x);
+});
+
+test('支持弹窗使用本地原图，宽窗并列、窄窗滚动，缩放保持比例与关闭按钮可见', () => {
+  const run = runtime(), c = run.controller;
+  run.methods.openSupportProject(); assert.equal(c.supportProjectPopup, undefined);
+  run.methods.openSettings(); run.methods.selectSettingsSection(c.settingsNavigationButtons[3]);
+  run.methods.openSupportProject(); const popup = c.supportProjectPopup;
+  assert.equal(popup.title.text, '💗 支持项目');
+  assert.equal(popup.intro.text, '插件功能全部免费，任意打赏，感谢你的支持，让插件持续更新！');
+  assert.equal(popup.intro.numberOfLines, 0);
+  assert.equal(popup.closeButton.action, 'closeSupportProject:');
+  assert.equal(popup.closeButton.superview, popup.header);
+  assert.deepEqual(Array.from(popup.cards, card => card.imageView.image.file), ['/addon/support/alipay.jpg', '/addon/support/wechat.jpg']);
+  const count = c.containerView.subviews.length; run.methods.openSupportProject();
+  assert.equal(c.supportProjectPopup, popup); assert.equal(c.containerView.subviews.length, count);
+  for (const [width, height] of [[560, 420], [960, 656], [1300, 900], [300, 250]]) {
+    c.view.frame = { x: 0, y: 0, width, height }; popup.scroll.contentOffset = { y: 10000 };
+    run.methods.viewDidLayoutSubviews();
+    assert.ok(popup.sheet.frame.x >= 0 && popup.sheet.frame.y >= 0);
+    assert.ok(popup.sheet.frame.x + popup.sheet.frame.width <= width);
+    assert.equal(popup.overlay.frame.y, c.titleBar.frame.height);
+    assert.ok(popup.sheet.frame.y + popup.sheet.frame.height <= height - c.titleBar.frame.height);
+    assert.equal(popup.closeButton.frame.width, 44); assert.equal(popup.closeButton.frame.height, 44);
+    assert.ok(popup.closeButton.frame.x + 44 <= popup.sheet.frame.width);
+    const [alipay, wechat] = popup.cards;
+    assert.ok(popup.intro.frame.y + popup.intro.frame.height <= alipay.imageView.frame.y);
+    assert.ok(popup.intro.frame.height >= Math.ceil(popup.intro.text.length * 15 / popup.intro.frame.width) * 20);
+    assert.equal(alipay.imageView.frame.y === wechat.imageView.frame.y, width >= 960);
+    for (const card of popup.cards) {
+      const image = card.imageView.frame;
+      assert.ok(image.width > 0 && image.x >= 0 && image.x + image.width <= popup.sheet.frame.width);
+      assert.ok(Math.abs(image.height / image.width - card.ratio) < 1e-8);
+      assert.ok(card.caption.frame.y + card.caption.frame.height <= popup.scroll.contentSize.height);
+    }
+    assert.ok(popup.scroll.contentOffset.y <= Math.max(0, popup.scroll.contentSize.height - popup.scroll.frame.height));
+    if (width === 560) assert.ok(popup.scroll.contentSize.height > popup.scroll.frame.height);
+  }
+  run.methods.closeSupportProject(); assert.equal(c.supportProjectPopup, null);
+  assert.equal(popup.overlay.superview, null); assert.equal(c.settingsSection, 'about');
+  assert.equal(c.settingsPage.hidden, false);
+});
+
+test('切换页面、设置分类和关闭面板清理支持弹窗，图片缺失时提示且允许重试', () => {
+  const run = runtime(), c = run.controller, messages = [];
+  run.context.Application = { sharedInstance: () => ({ showHUD: message => messages.push(message) }) };
+  run.context.NSTimer = { scheduledTimerWithTimeInterval() {} };
+  const open = () => { run.methods.openSettings(); run.methods.selectSettingsSection(c.settingsNavigationButtons[3]); run.methods.openSupportProject(); assert.ok(c.supportProjectPopup); };
+  open(); run.methods.selectSettingsSection(c.settingsNavigationButtons[0]); assert.equal(c.supportProjectPopup, null);
+  open(); c.currentContentPage = 'math'; run.methods.openDaguanyuan(); assert.equal(c.supportProjectPopup, null);
+  open(); run.methods.closePanel(); assert.equal(c.supportProjectPopup, null);
+  run.methods.openSettings(); run.methods.selectSettingsSection(c.settingsNavigationButtons[3]);
+  const load = run.context.UIImage.imageWithContentsOfFile;
+  run.context.UIImage.imageWithContentsOfFile = () => null;
+  run.methods.openSupportProject(); assert.equal(c.supportProjectPopup, null); assert.match(messages.at(-1), /图片读取失败/);
+  run.context.UIImage.imageWithContentsOfFile = load;
+  run.methods.openSupportProject(); assert.ok(c.supportProjectPopup); run.methods.closeSupportProject();
+  c.addon.__daguanyuanAddonPath = ''; run.methods.openSupportProject(); assert.match(messages.at(-1), /资源目录/);
+});
+
+test('入口将宿主提供的插件根路径保存到对应实例，供支持弹窗读取包内图片', () => {
+  const addon = { window: {} }, context = { console, self: addon, JSB: { require() {}, defineClass(name, methods) { return methods; } },
+    __DAGUANYUAN_WEB_PANEL_GLOBAL__: { createController(owner) { assert.equal(owner, addon); return { addon: owner }; } } };
+  vm.createContext(context);
+  for (const name of ['WebAddon', 'main']) vm.runInContext(readFileSync(new URL('../src/' + name + '.js', import.meta.url), 'utf8'), context);
+  const methods = context.JSB.newAddon('/installed/DaguanyuanBridge'); methods.sceneWillConnect();
+  assert.equal(addon.__daguanyuanAddonPath, '/installed/DaguanyuanBridge');
 });
 
 test('切换设置分类关闭未确认弹窗并使正在折叠的任务失效', async () => {

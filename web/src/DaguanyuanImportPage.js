@@ -18,39 +18,6 @@ import MNBridge from './lib/mnBridge.js';
     if (!on && state.locked) { document.body.style.overflow = state.overflow || ''; state.locked = false; }
   }
   function hide() { el('dialog').hidden = true; lock(false); state.busy = false; }
-  let sourceRequest = null;
-  function sourceRelease(token) {
-    if (sourceRequest && sourceRequest.token === token) {
-      sourceRequest.abort.abort(); clearTimeout(sourceRequest.timer); sourceRequest = null;
-    }
-    return 'ok';
-  }
-  function sourceBegin(token, address) {
-    if (token !== state.token || state.route !== location.href) throw Error('练题页面已切换，请重新打开选题导入');
-    if (!/^https:\/\/www\.cxyonly\.fans\/api\/questions\?[\w.~=&%+-]+$/.test(address)) throw Error('练题接口地址无效');
-    sourceRelease(token);
-    const request = { token, status: 'loading', abort: new AbortController() };
-    sourceRequest = request;
-    request.timer = setTimeout(() => request.abort.abort(), 25000);
-    // 网站登录信息仅在网页内使用，原生层只接收题目列表。
-    const auth = () => { try { return window.localStorage.getItem('daguan_token') || window.localStorage.getItem('token') || ''; } catch (ignored) { return ''; } };
-    const captured = auth(), headers = { Accept: 'application/json' };
-    if (captured) headers.Authorization = 'Bearer ' + captured;
-    window.fetch(address.replace('https://www.cxyonly.fans', ''), { headers, credentials: 'include', redirect: 'error', signal: request.abort.signal }).then(async response => {
-      if (!response.ok) throw Error('题目列表读取失败（' + response.status + '）');
-      const payload = await response.json();
-      if (state.token !== token || state.route !== location.href || captured !== auth()) throw Error('页面或登录状态已变化，请重新打开选题导入');
-      if (sourceRequest !== request) return;
-      request.payload = payload; request.status = 'ready';
-    }).catch(error => {
-      request.status = 'error'; request.error = error.name === 'AbortError' ? '练题列表读取超时，请重试' : String(error.message || error);
-    }).finally(() => clearTimeout(request.timer));
-    return 'ok';
-  }
-  function sourceRead(token) {
-    if (token !== state.token || state.route !== location.href || !sourceRequest || sourceRequest.token !== token) throw Error('题目列表读取已失效');
-    return JSON.stringify({ status: sourceRequest.status, payload: sourceRequest.payload, error: sourceRequest.error });
-  }
   function source() {
     const url = new URL(location.href), math = /^(www\.)?cxyonly\.fans$/.test(url.hostname)
       && /^\/math\/practice(?:\/(?:categories\/)?[1-9]\d*)?\/?$/.test(url.pathname);
@@ -179,7 +146,7 @@ import MNBridge from './lib/mnBridge.js';
     if (directLabel.textContent !== directTitle) directLabel.textContent = directTitle;
     const hint = page.questions.length ? '导入当前页面已加载的 ' + page.questions.length + ' 道题目' : '当前页面暂无可导入题目';
     if (button.title !== hint) { button.title = hint; button.setAttribute('aria-label', '选题导入：' + hint); }
-    if (state.route !== location.href) { if (state.token) MNBridge.send('cancelQuestionImport', { token: state.token, dismiss: true }).catch(() => {}); sourceRelease(state.token); hide(); state.snapshot = null; state.token = ''; state.route = location.href;
+    if (state.route !== location.href) { if (state.token) MNBridge.send('cancelQuestionImport', { token: state.token, dismiss: true }).catch(() => {}); hide(); state.snapshot = null; state.token = ''; state.route = location.href;
       MNBridge.send('getWebsiteNavigation').then(value => { window.__DAGUANYUAN_WEBSITE_NAVIGATION__ = value; refresh(); }).catch(() => {});
     }
     viewport();
@@ -271,7 +238,7 @@ import MNBridge from './lib/mnBridge.js';
       }
     } catch (error) { status(error.message); }
   });
-  window.__DAGUANYUAN_IMPORT_UI__ = { loading, startPlan, appendQuestions, render, progress, result, refresh, pageSnapshot, sourceBegin, sourceRead, sourceRelease,
+  window.__DAGUANYUAN_IMPORT_UI__ = { loading, startPlan, appendQuestions, render, progress, result, refresh, pageSnapshot,
     finishDirectImport: function () { state.directBusy = false; refresh(); },
     hide: function (token) { if (token === state.token) hide(); return 'ok'; },
     selectionChunk: function (token, offset) { if (state.route !== location.href || token !== state.token || !state.selection) throw Error('选择已失效，请重新打开导入'); return JSON.stringify(state.selection.slice(offset, offset + 250)); } };

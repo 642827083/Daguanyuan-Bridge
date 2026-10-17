@@ -41,12 +41,11 @@ for (const [path, focus] of [
   assert.equal(run.document.querySelector('#dgy-toolbar').hidden, false);
 });
 
-test('新版选题导入读取题单、分类、科目和筛选，不使用旧范围覆盖网址', () => {
+test('新版题目定位读取题单标识与网址范围，导入上下文保持精简', () => {
   const run = page('https://www.cxyonly.fans/math/practice?listId=exam&categoryId=836&examSubject=math_2&scope=complete&q=极限&sort=question_id');
   const tools = native('DaguanyuanWebsiteBridge').__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__;
   const value = JSON.parse(vm.runInContext(tools.importContextScript(), run.context));
-  assert.equal(value.selection.listId, 'exam'); assert.equal(value.selection.categoryId, 836);
-  assert.equal(value.selection.examSubject, 'math_2'); assert.equal(value.selection.query, '极限');
+  assert.deepEqual(value.selection, { listId: 'exam' });
   assert.equal(value.scope, 'complete');
 });
 
@@ -100,47 +99,6 @@ test('新版分类网址和题单分类可以解析', () => {
   assert.equal(routes.categoryIdFromURL('https://www.cxyonly.fans/math/practice?listId=core&categoryId=345'), 345);
 });
 
-test('新版选题请求保持题单、后代分类、科目、筛选和顺序，拒绝非法分类', async () => {
-  const context = native('DaguanyuanMathApi');
-  let address;
-  Object.assign(context, {
-    NSURL: { URLWithString(url) { address = url; return url; } },
-    NSMutableURLRequest: { requestWithURL() { return { setHTTPMethod() {}, setTimeoutInterval() {}, setAllHTTPHeaderFields() {} }; } },
-    NSOperationQueue: { mainQueue() {} }, NSJSONSerialization: { JSONObjectWithDataOptions(data) { return data.payload; } },
-    NSURLConnection: { sendAsynchronousRequestQueueCompletionHandler(request, queue, completion) { completion({ statusCode: 200 }, { length: 1, payload: { data: { total: 1, items: [{ id: 1214, category_ids: [345, 839], source: '题目', stem: '题干' }] } } }, null); } },
-  });
-  const api = context.__DAGUANYUAN_MATH_API_GLOBAL__;
-  const value = await api.selectedQuestionPage({ listId: 'exam', categoryId: 836, scope: 'complete', examSubject: 'math_2', query: '极限', sort: 'question_id' }, 2);
-  const params = new URL(address).searchParams;
-  assert.equal(params.get('question_list_id'), 'exam'); assert.equal(params.get('include_children'), 'true');
-  assert.equal(params.get('category_id'), '836'); assert.equal(params.get('exam_subject'), 'math_2');
-  assert.equal(params.get('q'), '极限'); assert.equal(params.get('sort'), 'question_id');
-  assert.equal(value.questions[0].id, 1214); assert.equal(value.questions[0].categoryId, 345);
-  assert.throws(() => api.selectedQuestionPage({ categoryIds: '1,bad', scope: 'complete' }, 1), /分类 ID/);
-});
-
-test('选题导入只写勾选项并保留各题所属分类，取消和列表变化不写入', async () => {
-  for (const scenario of ['selected', 'cancelled', 'changed']) {
-    const context = native('DaguanyuanMathSelection'), writes = [], requests = [];
-    const questions = Array.from({ length: 23 }, (_, i) => ({ id: i + 1, categoryIds: [345 + i % 2], source: '题目 ' + (i + 1), stem: '题干' }));
-    Object.assign(context, {
-      __DAGUANYUAN_MATH_API_GLOBAL__: { categoryRecords: async () => [[345, 0, '奇偶'], [346, 0, '有界']],
-        selectedQuestionPage: async (selection, page) => { requests.push(page); return { total: scenario === 'changed' && page === 2 ? 22 : 23, pageSize: 20, questions: questions.slice((page - 1) * 20, page * 20) }; } },
-      __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__: { replaceCatalog() {}, resultForCategoryId(id) { return { status: 'resolved', categoryId: id, path: ['分类'] }; } },
-      __DAGUANYUAN_MATH_IMPORT_GLOBAL__: { selectQuestions(items, selected) { return items.filter(q => selected.includes(q.id)); }, preparedMathSession() { return { check() {}, targetTitle: '学习集',
-        async importQuestions(ids, categories, content) { writes.push({ ids: Array.from(ids), categories: { ...categories }, content }); return { createdCount: ids.length, answerAddedCount: 0, skippedCount: 0, failed: [] }; } }; } },
-    });
-    const confirmation = async plan => { assert.equal(plan.questions.length, 23); return scenario === 'cancelled' ? false : [2, 23]; };
-    confirmation.check = () => {}; confirmation.content = 'questionAnswer';
-    const operation = context.__DAGUANYUAN_MATH_SELECTION_GLOBAL__.importSource({}, { scope: 'complete', listId: 'exam' }, () => {}, confirmation);
-    if (scenario === 'changed') { await assert.rejects(operation, /列表已变化/); assert.equal(writes.length, 0); continue; }
-    const result = await operation;
-    assert.deepEqual(requests, [1, 2]);
-    if (scenario === 'cancelled') { assert.equal(writes.length, 0); assert.equal(result.cancelled, true); }
-    else { assert.deepEqual(writes, [{ ids: [2, 23], categories: { 2: 346, 23: 345 }, content: 'questionAnswer' }]); assert.equal(result.createdCount, 2); }
-  }
-});
-
 test('新版分类按每页 30 题定位第 38 题，依据网址范围而非旧缓存', () => {
   const panel = native('WebPanelController').__DAGUANYUAN_WEB_PANEL_GLOBAL__;
   const run = page('https://www.cxyonly.fans/math/practice/categories/345?scope=core&page=2');
@@ -152,36 +110,12 @@ test('新版分类按每页 30 题定位第 38 题，依据网址范围而非旧
   assert.equal(run.document.documentElement.getAttribute('data-daguanyuan-bridge-question-locator'), 'success:38');
 });
 
-test('网页登录列表请求只读取同站接口，沿用登录状态，切换账户后拒绝迟到结果', async () => {
-  for (const changed of [false, true]) {
-    const run = page('https://www.cxyonly.fans/math/practice?listId=exam'), calls = [];
-    let auth = 'test-session', respond;
-    run.window.localStorage.getItem = () => auth;
-    run.context.AbortController = AbortController; run.context.clearTimeout = () => {};
-    run.window.fetch = (url, options) => { calls.push({ url, options }); return new Promise(resolve => { respond = resolve; }); };
-    vm.runInContext(build.pageScript(), run.context);
-    const ui = run.window.__DAGUANYUAN_IMPORT_UI__;
-    ui.loading('task', 'selected');
-    assert.throws(() => ui.sourceBegin('task', 'https://example.com/api/questions?page=1'), /接口地址无效/);
-    ui.sourceBegin('task', 'https://www.cxyonly.fans/api/questions?question_list_id=exam-1&page=1');
-    assert.equal(calls[0].url, '/api/questions?question_list_id=exam-1&page=1');
-    assert.equal(calls[0].options.headers.Authorization, 'Bearer test-session');
-    if (changed) auth = 'another-session';
-    respond({ ok: true, json: async () => ({ data: { total: 1, items: [{ id: 1 }] } }) });
-    await new Promise(resolve => setImmediate(resolve));
-    const value = JSON.parse(ui.sourceRead('task'));
-    assert.equal(value.status, changed ? 'error' : 'ready');
-    assert.doesNotMatch(ui.sourceRead('task'), /test-session|another-session/);
-    ui.sourceRelease('task');
-  }
-});
-
-test('选题导入中断时结果包含当前批次已完成的题卡', async () => {
+test('当前页选题导入中断时结果包含当前批次已完成的题卡', async () => {
   const context = native('DaguanyuanMathSelection');
   Object.assign(context, {
-    __DAGUANYUAN_MATH_API_GLOBAL__: { categoryRecords: async () => [[345, 0, '奇偶']], selectedQuestionPage: async () => ({ total: 1, pageSize: 20, questions: [{ id: 1, categoryIds: [345] }] }) },
-    __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__: { replaceCatalog() {}, resultForCategoryId() { return { status: 'resolved', path: ['分类'] }; } },
+    __DAGUANYUAN_MATH_API_GLOBAL__: { categoryRecords: async () => [[345, 0, '奇偶']] },
+    __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__: { replaceCatalog() {} },
     __DAGUANYUAN_MATH_IMPORT_GLOBAL__: { selectQuestions(q) { return q; }, preparedMathSession() { return { check() {}, importQuestions: async () => { const error = Error('已停止导入'); error.importResult = { createdCount: 1, skippedCount: 0, failed: [] }; throw error; } }; } },
   });
-  await assert.rejects(context.__DAGUANYUAN_MATH_SELECTION_GLOBAL__.importSource({}, {}, null, async () => [1]), error => error.importResult.createdCount === 1);
+  await assert.rejects(context.__DAGUANYUAN_MATH_SELECTION_GLOBAL__.importPage({}, { provider: 'math', url: 'https://www.cxyonly.fans/math/practice', questions: [{ id: 1 }] }, null, async () => [1]), error => error.importResult.createdCount === 1);
 });

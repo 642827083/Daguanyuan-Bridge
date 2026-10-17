@@ -19,7 +19,6 @@ var __DAGUANYUAN_SETTINGS_NAVIGATION_GLOBAL__ = (function () {
     navigation.hidden = true;
     controller.settingsNavigation = navigation;
     controller.containerView.addSubview(navigation);
-    controller.settingsNavigationCapsule = navigation;
     const slider = new UIView({ x: 4, y: 4, width: 0, height: 40 });
     slider.backgroundColor = UIColor.whiteColor(); slider.layer.cornerRadius = 20;
     slider.layer.shadowColor = UIColor.colorWithWhiteAlpha(0, 1);
@@ -112,6 +111,7 @@ var __DAGUANYUAN_SETTINGS_NAVIGATION_GLOBAL__ = (function () {
     if (!TABS[index] || controller.settingsNavigationButtons[index] !== sender || controller.settingsSection === TABS[index]) return;
     const offset = controller.settingsPage.contentOffset;
     controller.settingsScrollPositions[controller.settingsSection] = Math.max(0, Number(offset && offset.y) || 0);
+    if (typeof __DAGUANYUAN_SUPPORT_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_SUPPORT_UI_GLOBAL__.close(controller);
     __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.cancelMode(controller);
     if (typeof __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__.cancel(controller);
     if (typeof __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__ !== 'undefined') __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.cancelFold(controller);

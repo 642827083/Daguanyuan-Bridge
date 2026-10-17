@@ -9,13 +9,14 @@ var __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__ = (function () {
   }
 
   function layout(controller) {
+    const top = controller && controller.titleBar ? controller.titleBar.frame.height : 44;
     const modeChoice = controller && controller.cardLocationModeChoice;
     if (modeChoice) {
       const bounds = controller.containerView.bounds;
       const width = Math.min(360, Math.max(0, bounds.width - 40));
-      const height = Math.max(0, bounds.height - 38);
+      const height = Math.max(0, bounds.height - top);
       const sheetHeight = 74 + modeChoice.buttons.length * 50;
-      modeChoice.overlay.frame = { x: 0, y: 38, width: bounds.width, height };
+      modeChoice.overlay.frame = { x: 0, y: top, width: bounds.width, height };
       modeChoice.sheet.frame = { x: (bounds.width - width) / 2, y: Math.max(0, (height - sheetHeight) / 2), width, height: sheetHeight };
       modeChoice.title.frame = { x: 16, y: 16, width: Math.max(0, width - 32), height: 30 };
       modeChoice.buttons.forEach(function (row, index) { row.frame = { x: 16, y: 62 + index * 50, width: Math.max(0, width - 32), height: 42 }; });
@@ -24,8 +25,8 @@ var __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__ = (function () {
     if (!choice) return;
     const bounds = controller.containerView.bounds;
     const width = Math.max(0, bounds.width - 24);
-    const height = Math.max(0, bounds.height - 62);
-    choice.view.frame = { x: 12, y: 50, width, height };
+    const height = Math.max(0, bounds.height - top - 24);
+    choice.view.frame = { x: 12, y: top + 12, width, height };
     choice.title.frame = { x: 16, y: 12, width: Math.max(0, width - 112), height: 30 };
     choice.cancel.frame = { x: Math.max(0, width - 80), y: 10, width: 66, height: 34 };
     choice.scroll.frame = { x: 12, y: 56, width: Math.max(0, width - 24), height: Math.max(0, height - 68) };
@@ -66,11 +67,11 @@ var __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__ = (function () {
         view.backgroundColor = UIColor.whiteColor();
         view.layer.cornerRadius = 10;
         view.layer.borderWidth = 0.5;
-        view.layer.borderColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.6);
+        view.layer.borderColor = UIColor.colorWithRedGreenBlueAlpha(227 / 255, 231 / 255, 237 / 255, 1);
         const title = new UILabel({ x: 0, y: 0, width: 100, height: 30 });
         title.text = "选择要定位的题卡（" + candidates.length + "）";
         title.font = UIFont.boldSystemFontOfSize(17);
-        title.textColor = UIColor.darkGrayColor();
+        title.textColor = UIColor.colorWithRedGreenBlueAlpha(37 / 255, 40 / 255, 48 / 255, 1);
         const cancelButton = button("取消", controller, "cancelCardLocationChoice:");
         const scroll = new UIScrollView({ x: 0, y: 0, width: 100, height: 100 });
         scroll.showsVerticalScrollIndicator = true;
@@ -78,7 +79,7 @@ var __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__ = (function () {
           const row = button(candidate.studySetTitle + "\n" + (candidate.path ? candidate.path + " / " : "") + candidate.title + "\n卡片 " + candidate.noteId.slice(0, 8), controller, "selectCardLocationChoice:");
           row.tag = index;
           row.titleLabel.numberOfLines = 3;
-          row.backgroundColor = UIColor.colorWithRedGreenBlueAlpha(0.94, 0.97, 1, 1);
+          row.backgroundColor = UIColor.colorWithRedGreenBlueAlpha(238 / 255, 244 / 255, 252 / 255, 1);
           row.layer.cornerRadius = 8;
           scroll.addSubview(row);
           return row;
@@ -124,15 +125,17 @@ var __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__ = (function () {
     const sheet = new UIView({ x: 0, y: 0, width: 100, height: 100 });
     sheet.backgroundColor = UIColor.whiteColor();
     sheet.layer.cornerRadius = 12;
+    sheet.layer.borderWidth = 0.5;
+    sheet.layer.borderColor = UIColor.colorWithRedGreenBlueAlpha(227 / 255, 231 / 255, 237 / 255, 1);
     const title = new UILabel({ x: 0, y: 0, width: 100, height: 30 });
     title.text = heading;
     title.font = UIFont.boldSystemFontOfSize(17);
-    title.textColor = UIColor.darkGrayColor();
+    title.textColor = UIColor.colorWithRedGreenBlueAlpha(37 / 255, 40 / 255, 48 / 255, 1);
     sheet.addSubview(title);
     const buttons = labels.concat(["取消"]).map(function (text, index) {
       const row = button(text + (index < values.length && values[index] === current ? "（当前）" : ""), controller, selector);
       row.tag = index;
-      row.backgroundColor = UIColor.colorWithRedGreenBlueAlpha(0.94, 0.97, 1, 1);
+      row.backgroundColor = UIColor.colorWithRedGreenBlueAlpha(238 / 255, 244 / 255, 252 / 255, 1);
       row.layer.cornerRadius = 8;
       sheet.addSubview(row);
       return row;

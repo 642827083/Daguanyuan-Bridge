@@ -108,11 +108,6 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
     return result;
   }
 
-  function currentFocus(addon) {
-    const candidates = focusCandidates(addon);
-    return candidates.length ? candidates[0].note : undefined;
-  }
-
   function rememberFocus(addon) {
     const candidates = focusCandidates(addon);
     let note = candidates.length ? candidates[0].note : undefined;
@@ -172,10 +167,6 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
       cursor = member(cursor, "parentNote");
     }
     return result;
-  }
-
-  function currentCategoryPath(addon) {
-    return categoryPath(navigationNote(addon));
   }
 
   function categorySource(addon, note) {
@@ -260,13 +251,11 @@ var __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = (function () {
   }
 
   return {
-    currentFocus,
     navigationNote,
     rememberFocus,
     siblingProgress,
     parentTitle,
     categoryPath,
-    currentCategoryPath,
     currentCategorySource,
     currentQuestionContext,
     showMessage,

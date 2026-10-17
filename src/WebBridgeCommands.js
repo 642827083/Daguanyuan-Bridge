@@ -36,7 +36,7 @@ var __DAGUANYUAN_WEB_BRIDGE_COMMANDS_GLOBAL__ = (function () {
       if (context.controller.categoryImportBusy || context.controller.singleImportBusy || context.controller.questionToolBusy) throw new Error('当前任务尚未结束，请稍后绑定分类');
       context.bindCategory(); return { accepted: true };
     },
-    getImportWorkspace: function (context) { return workspace(context).initialize(context.controller); },
+    getImportWorkspace: function (context) { return workspace(context).initialize(); },
     getImportWorkspaceCatalog: function (context, payload) { return workspace(context).loadCatalog(context.controller, payload); },
     prepareImportWorkspace: function (context, payload) { return workspace(context).prepare(context.controller, payload); },
     commitImportWorkspace: function (context, payload) { return workspace(context).commit(context.controller, payload); },
@@ -57,14 +57,20 @@ var __DAGUANYUAN_WEB_BRIDGE_COMMANDS_GLOBAL__ = (function () {
     const match = /^daguanyuanbridge:\/\/ui\?payload=([^#]+)$/.exec(address);
     if (!match) return false;
     let message;
+    let command, taskId;
     function reply(payload, error) {
       if (!message || typeof message.requestId !== 'string') return;
+      if (error && typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.error('bridge.command', error, { command, taskId });
       const response = { requestId: message.requestId, payload: payload == null ? null : payload, error: error ? String(error.message || error) : '' };
-      UI.evaluate({ webView: context.webView || context.controller.webView }, 'window.__DAGUANYUAN_MN_BRIDGE_RECEIVE__&&window.__DAGUANYUAN_MN_BRIDGE_RECEIVE__(' + JSON.stringify(response) + ')').catch(function () {});
+      UI.evaluate({ webView: context.webView || context.controller.webView }, 'window.__DAGUANYUAN_MN_BRIDGE_RECEIVE__&&window.__DAGUANYUAN_MN_BRIDGE_RECEIVE__(' + JSON.stringify(response) + ')').catch(function (failure) {
+        if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.error('bridge.reply', failure, { command, taskId });
+      });
     }
     try {
       message = JSON.parse(decodeURIComponent(match[1]));
       if (!message || typeof message.requestId !== 'string' || message.requestId.length > 100 || !Object.prototype.hasOwnProperty.call(commands, message.command)) throw new Error('导入命令无效');
+      command = message.command;
+      if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') taskId = __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.begin('bridge.command', { command });
       Promise.resolve(commands[message.command](context, message.payload)).then(function (result) { reply(result); }, function (error) { reply(null, error); });
     } catch (error) { reply(null, error); }
     return true;

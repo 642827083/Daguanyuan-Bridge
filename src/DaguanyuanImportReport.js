@@ -42,7 +42,8 @@ var __DAGUANYUAN_IMPORT_REPORT_GLOBAL__ = (function () {
     const bounds = controller.view.bounds;
     // 导入页的备用原生详情也限定在右栏，宽度与网页的筛选列断点一致。
     const filterWidth = controller.activePage === 'import' ? bounds.width <= 540 ? 185 : bounds.width <= 760 ? 230 : 300 : 0;
-    controller.importReportView.frame = { x: filterWidth + 12, y: 50, width: Math.max(0, bounds.width - filterWidth - 24), height: Math.max(0, bounds.height - 62) };
+    const top = controller.titleBar ? controller.titleBar.frame.height : 44;
+    controller.importReportView.frame = { x: filterWidth + 12, y: top + 12, width: Math.max(0, bounds.width - filterWidth - 24), height: Math.max(0, bounds.height - top - 24) };
     const width = controller.importReportView.frame.width;
     const height = controller.importReportView.frame.height;
     controller.importReportTitle.frame = { x: 16, y: 12, width: Math.max(0, width - 216), height: 30 };
@@ -68,18 +69,18 @@ var __DAGUANYUAN_IMPORT_REPORT_GLOBAL__ = (function () {
       view.backgroundColor = UIColor.whiteColor();
       view.layer.cornerRadius = 10;
       view.layer.borderWidth = 0.5;
-      view.layer.borderColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.6);
+      view.layer.borderColor = UIColor.colorWithRedGreenBlueAlpha(227 / 255, 231 / 255, 237 / 255, 1);
       controller.importReportTitle = new UILabel({ x: 0, y: 0, width: 100, height: 30 });
       controller.importReportTitle.text = "导入详情";
       controller.importReportTitle.font = UIFont.boldSystemFontOfSize(18);
-      controller.importReportTitle.textColor = UIColor.darkGrayColor();
+      controller.importReportTitle.textColor = UIColor.colorWithRedGreenBlueAlpha(37 / 255, 40 / 255, 48 / 255, 1);
       controller.importReportCopy = button("复制详情", controller, "copyCategoryImportReport:");
       controller.importReportClose = button("关闭", controller, "closeCategoryImportReport:");
       controller.importReportBodyLabel = null;
       try {
         controller.importReportText = new UITextView({ x: 0, y: 0, width: 100, height: 100 });
         controller.importReportText.font = UIFont.systemFontOfSize(14);
-        controller.importReportText.textColor = UIColor.darkGrayColor();
+        controller.importReportText.textColor = UIColor.colorWithRedGreenBlueAlpha(37 / 255, 40 / 255, 48 / 255, 1);
         controller.importReportText.editable = false;
         controller.importReportText.selectable = true;
       } catch (error) {
@@ -87,7 +88,7 @@ var __DAGUANYUAN_IMPORT_REPORT_GLOBAL__ = (function () {
         controller.importReportText = new UIScrollView({ x: 0, y: 0, width: 100, height: 100 });
         controller.importReportBodyLabel = new UILabel({ x: 0, y: 0, width: 100, height: 100 });
         controller.importReportBodyLabel.font = UIFont.systemFontOfSize(14);
-        controller.importReportBodyLabel.textColor = UIColor.darkGrayColor();
+        controller.importReportBodyLabel.textColor = UIColor.colorWithRedGreenBlueAlpha(37 / 255, 40 / 255, 48 / 255, 1);
         controller.importReportBodyLabel.numberOfLines = 0;
         controller.importReportText.addSubview(controller.importReportBodyLabel);
       }

@@ -3,23 +3,25 @@ var __DAGUANYUAN_ABOUT_SETTINGS_GLOBAL__ = (function () {
   function label(text, size, bold) {
     const view = new UILabel({ x: 0, y: 0, width: 100, height: 24 });
     view.text = text; view.font = bold ? UIFont.boldSystemFontOfSize(size) : UIFont.systemFontOfSize(size);
-    view.textColor = bold ? UIColor.darkGrayColor() : UIColor.grayColor();
+    view.textColor = bold ? UIColor.colorWithRedGreenBlueAlpha(37 / 255, 40 / 255, 48 / 255, 1) : UIColor.colorWithRedGreenBlueAlpha(122 / 255, 129 / 255, 139 / 255, 1);
     return view;
   }
   function setup(controller) {
-    const section = new UIView({ x: 20, y: 0, width: 100, height: 266 });
-    section.backgroundColor = UIColor.whiteColor(); section.layer.cornerRadius = 10;
-    section.layer.borderWidth = 0.5; section.layer.borderColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.45);
+    const section = new UIView({ x: 20, y: 0, width: 100, height: 406 });
+    section.backgroundColor = UIColor.whiteColor(); section.layer.cornerRadius = 12;
+    section.layer.borderWidth = 1; section.layer.borderColor = UIColor.colorWithRedGreenBlueAlpha(227 / 255, 231 / 255, 237 / 255, 1);
     controller.aboutSettingsSection = section; controller.settingsPage.addSubview(section);
     controller.aboutSettingsTitle = label('关于插件', 17, true); section.addSubview(controller.aboutSettingsTitle);
     const info = typeof __DAGUANYUAN_PLUGIN_INFO__ === 'undefined' ? {} : __DAGUANYUAN_PLUGIN_INFO__;
     controller.aboutSettingsRows = [
       ['Daguanyuan Bridge', (info.version ? 'v' + info.version : '版本读取失败') + (info.author ? ' · ' + info.author : ''), null],
       ['重置窗口位置', '恢复插件窗口的默认位置与大小', 'resetSettingsPanelFrame:'],
-      ['插件使用说明', '查看功能说明与使用方法', 'openPluginGuide:'],
+      ['插件使用教程', '查看功能说明与使用方法', 'openPluginGuide:'],
+      ['诊断日志', '导出、复制或清空日志，帮助排查插件问题', 'openDiagnosticLogs:'],
+      ['支持项目', '喜欢此插件？请开发者喝杯咖啡，支持持续更新', 'openSupportProject:'],
     ].map(function (item) {
       const row = { title: label(item[0], 16, true), description: label(item[1], 12, false), divider: new UIView({ x: 20, y: 0, width: 100, height: 1 }) };
-      row.divider.backgroundColor = UIColor.lightGrayColor().colorWithAlphaComponent(0.4);
+      row.divider.backgroundColor = UIColor.colorWithRedGreenBlueAlpha(227 / 255, 231 / 255, 237 / 255, 1);
       [row.divider, row.title, row.description].forEach(view => section.addSubview(view));
       if (item[2]) {
         row.chevron = label('›', 25, false); row.chevron.textAlignment = 1; section.addSubview(row.chevron);
@@ -32,7 +34,7 @@ var __DAGUANYUAN_ABOUT_SETTINGS_GLOBAL__ = (function () {
   }
   function layout(controller, width) {
     if (!controller.aboutSettingsSection) return;
-    controller.aboutSettingsSection.frame = { x: 20, y: 0, width, height: 266 };
+    controller.aboutSettingsSection.frame = { x: 20, y: 0, width, height: 406 };
     controller.aboutSettingsTitle.frame = { x: 20, y: 12, width: Math.max(0, width - 40), height: 28 };
     controller.aboutSettingsRows.forEach(function (row, index) {
       const top = 48 + index * 70;

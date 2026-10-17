@@ -15,6 +15,7 @@ var __DAGUANYUAN_MASTERY_SYNC_GLOBAL__ = (function () {
     }
     const task = { token: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2), controller, cancelled: false };
     addon.__daguanyuanMasteryTask = task;
+    if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') task.logTaskId = __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.begin('mastery.save', { provider: 'math', questionId: target.questionId });
     const deadline = Date.now() + 30000;
     function evaluate(script) {
       if (task.cancelled || addon.panelController !== controller) throw new Error('掌握标记已停止');
@@ -43,7 +44,11 @@ var __DAGUANYUAN_MASTERY_SYNC_GLOBAL__ = (function () {
     }).then(function (result) {
       if (String(result) !== 'ok') throw new Error('请先打开插件数学面板并登录大观园');
       return read();
-    }).then(function (result) { return release().then(function () { return result; }); }, function (error) {
+    }).then(function (result) {
+      if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.info('mastery.save.result', { taskId: task.logTaskId, provider: 'math', questionId: target.questionId, status: 'complete' });
+      return release().then(function () { return result; });
+    }, function (error) {
+      if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.error('mastery.save.result', error, { taskId: task.logTaskId, provider: 'math', questionId: target.questionId });
       return release().then(function () { throw error; });
     });
   }

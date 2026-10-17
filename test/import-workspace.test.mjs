@@ -80,6 +80,23 @@ function runtime(size = 3) {
     workspace: native.__DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__, commands, bridgeContext };
 }
 
+test('真实导入流程生成可关联的诊断记录，读取失败被记录且不写入题干或学习集名称', async () => {
+  const run = runtime(2);
+  vm.runInContext(source('DaguanyuanDiagnostics'), run.native);
+  await run.load(); run.click('#commit'); await tick(); await run.controller.importWorkspaceTask.done;
+  const logs = run.native.__DAGUANYUAN_DIAGNOSTICS_GLOBAL__;
+  const snapshot = () => { const text = logs.text(); return JSON.parse(text.slice(text.indexOf('{'))); };
+  let entries = snapshot().entries;
+  const start = entries.find(row => row.event === 'workspace.import.start'), result = entries.find(row => row.event === 'workspace.import.result');
+  assert.ok(start); assert.equal(result.details.taskId, start.details.taskId); assert.equal(result.details.createdCount, 2); assert.equal(result.details.status, 'complete');
+  assert.ok(entries.some(row => row.event === 'bridge.command.start' && row.details.command === 'commitImportWorkspace'));
+  run.native.__DAGUANYUAN_MATH_API_GLOBAL__.questionPage = async () => { throw Error('题目接口请求失败：503'); };
+  run.select('[data-category="2"]', false); run.select('[data-category="2"]', true); await tick(); await run.controller.importWorkspaceTask.done;
+  entries = snapshot().entries;
+  assert.ok(entries.some(row => row.event === 'workspace.read' && row.error.message.includes('503')));
+  const text = JSON.stringify(entries); assert.equal(text.includes('题干 $x$'), false); assert.equal(text.includes('考研数学'), false);
+});
+
 test('独立导入页通过真实 bridge 展开分类并读取分页，筛选、选题只写所选题', async () => {
   const run = runtime(25); await run.load();
   assert.deepEqual(run.requests.map(r => [r.category, r.page]), [[2, 1], [3, 1], [3, 2]]);
@@ -361,7 +378,7 @@ test('题库网页不能调用独立导入页命令，非法分类及范围被�
 test('备考科目同步筛选目录和所有分页，公共题来源混合仍保留，父分类不展开排除的分支', async () => {
   const run=runtime(25); await tick();
   const api=run.native.__DAGUANYUAN_MATH_API_GLOBAL__;
-  const records=run.workspace.initialize(run.controller).records;
+  const records=run.workspace.initialize().records;
   api.categoryRecords=async (scope,subject)=>records.filter(r=>subject!=='math_2'||r[0]!==4);
   await run.load(1); run.requests.length=0;
   run.click('[data-exam-subject="math_2"]'); await tick(); await run.controller.importWorkspaceTask.done;

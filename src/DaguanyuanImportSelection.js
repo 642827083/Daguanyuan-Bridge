@@ -7,7 +7,10 @@ var __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__ = (function () {
       function finish(value, error) {
         if (settled) return;
         settled = true; timer.invalidate();
-        if (error && !(typeof NSNull !== 'undefined' && error instanceof NSNull)) reject(new Error(String(error.message || error.localizedDescription || error)));
+        if (error && !(typeof NSNull !== 'undefined' && error instanceof NSNull)) {
+          if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.error('web.evaluate', error);
+          reject(new Error(String(error.message || error.localizedDescription || error)));
+        }
         else resolve(value);
       }
       try { controller.webView.evaluateJavaScript(script, finish); } catch (error) { finish(null, error); }
@@ -27,7 +30,7 @@ var __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__ = (function () {
       const error = new Error('已停止导入，已完成的题卡保留'); error.stopImport = true; throw error;
     }
   }
-  function begin(controller, title, scope) {
+  function begin(controller, scope) {
     if (controller.importTask && ['loading', 'confirm', 'running'].indexOf(controller.importTask.status) >= 0 && !controller.importTask.cancelled) throw new Error('请先完成当前导入');
     const task = { token: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2), scope: scope || 'all', status: 'loading', cancelled: false, dismissed: false };
     controller.importTask = task;

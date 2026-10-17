@@ -5,7 +5,9 @@ import vm from 'node:vm';
 
 function runtime() {
   class View {
-    constructor(frame) { this.frame = frame; this.bounds = { width: frame.width, height: frame.height }; this.children = []; this.layer = {}; this.titleLabel = {}; }
+    constructor(frame) { this.frame = frame; this.children = []; this.layer = {}; this.titleLabel = {}; }
+    get bounds() { return this.customBounds || { width: this.frame.width, height: this.frame.height }; }
+    set bounds(value) { this.customBounds = value; }
     addSubview(view) { view.superview = this; this.children.push(view); }
     removeFromSuperview() { if (this.superview) this.superview.children = this.superview.children.filter(v => v !== this); this.superview = null; }
     setTitleForState(title) { this.title = title; }
@@ -78,7 +80,7 @@ test('设置入口位于定位开关下方，保存后即时显示，切页和�
   context.Application = { sharedInstance() { return { showHUD() {} }; } };
   context.__DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__ = { setup(controller) { controller.categoryManagerPage = new View({ width: 800, height: 600 }); }, layout() {} };
   context.__DAGUANYUAN_IMPORT_REPORT_GLOBAL__ = { layout() {} };
-  for (const name of ['DaguanyuanFocusNextCore', 'DaguanyuanCardLocator', 'DaguanyuanSingleImport', 'WebPanelController']) {
+  for (const name of ['DaguanyuanFocusNextCore', 'DaguanyuanCardLocator', 'DaguanyuanSingleImport', 'DaguanyuanPanelNavigation', 'WebPanelController']) {
     vm.runInContext(fs.readFileSync(new URL(`../src/${name}.js`, import.meta.url), 'utf8'), context);
   }
   const panel = { addon: { window: {} } }; context.self = panel; methods.viewDidLoad(); methods.openSettings();
