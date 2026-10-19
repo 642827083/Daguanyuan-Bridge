@@ -1,5 +1,6 @@
 var __DAGUANYUAN_ABOUT_SETTINGS_GLOBAL__ = (function () {
   const GUIDE_URL = 'https://bbs.marginnote.com.cn/t/topic/68358';
+  const VIDEO_GUIDE_URL = 'https://www.xiaohongshu.com/discovery/item/6ad57577000000002f0300d6?source=webshare&xhsshare=pc_web&xsec_token=ABZn-MWTtkL0pF7UItkEfZpMpyI0adIy5yJMHE20GAnqw=&xsec_source=pc_share';
   function label(text, size, bold) {
     const view = new UILabel({ x: 0, y: 0, width: 100, height: 24 });
     view.text = text; view.font = bold ? UIFont.boldSystemFontOfSize(size) : UIFont.systemFontOfSize(size);
@@ -7,7 +8,7 @@ var __DAGUANYUAN_ABOUT_SETTINGS_GLOBAL__ = (function () {
     return view;
   }
   function setup(controller) {
-    const section = new UIView({ x: 20, y: 0, width: 100, height: 406 });
+    const section = new UIView({ x: 20, y: 0, width: 100, height: 476 });
     section.backgroundColor = UIColor.whiteColor(); section.layer.cornerRadius = 12;
     section.layer.borderWidth = 1; section.layer.borderColor = UIColor.colorWithRedGreenBlueAlpha(227 / 255, 231 / 255, 237 / 255, 1);
     controller.aboutSettingsSection = section; controller.settingsPage.addSubview(section);
@@ -16,7 +17,8 @@ var __DAGUANYUAN_ABOUT_SETTINGS_GLOBAL__ = (function () {
     controller.aboutSettingsRows = [
       ['Daguanyuan Bridge', (info.version ? 'v' + info.version : '版本读取失败') + (info.author ? ' · ' + info.author : ''), null],
       ['重置窗口位置', '恢复插件窗口的默认位置与大小', 'resetSettingsPanelFrame:'],
-      ['插件使用教程', '查看功能说明与使用方法', 'openPluginGuide:'],
+      ['插件说明与反馈', '查看使用说明，反馈问题与建议', 'openPluginGuide:'],
+      ['视频使用教程', '前往小红书，观看视频教程', 'openPluginVideoGuide:'],
       ['诊断日志', '导出、复制或清空日志，帮助排查插件问题', 'openDiagnosticLogs:'],
       ['支持项目', '喜欢此插件？请开发者喝杯咖啡，支持持续更新', 'openSupportProject:'],
     ].map(function (item) {
@@ -34,7 +36,7 @@ var __DAGUANYUAN_ABOUT_SETTINGS_GLOBAL__ = (function () {
   }
   function layout(controller, width) {
     if (!controller.aboutSettingsSection) return;
-    controller.aboutSettingsSection.frame = { x: 20, y: 0, width, height: 406 };
+    controller.aboutSettingsSection.frame = { x: 20, y: 0, width, height: 56 + controller.aboutSettingsRows.length * 70 };
     controller.aboutSettingsTitle.frame = { x: 20, y: 12, width: Math.max(0, width - 40), height: 28 };
     controller.aboutSettingsRows.forEach(function (row, index) {
       const top = 48 + index * 70;
@@ -47,14 +49,15 @@ var __DAGUANYUAN_ABOUT_SETTINGS_GLOBAL__ = (function () {
       }
     });
   }
-  function open(controller) {
+  function open(controller, destination) {
     if (controller.activePage !== 'settings' || controller.settingsSection !== 'about') return;
     try {
-      const url = NSURL.URLWithString(GUIDE_URL);
+      const url = NSURL.URLWithString(destination || GUIDE_URL);
       const app = Application.sharedInstance();
       if (!url || !app || typeof app.openURL !== 'function') throw new Error('当前无法打开网页，请稍后重试');
       app.openURL(url);
     } catch (error) { Application.sharedInstance().showHUD(String(error.message || error), controller.addon.window, 3); }
   }
-  return { setup, layout, open };
+  function openVideo(controller) { open(controller, VIDEO_GUIDE_URL); }
+  return { setup, layout, open, openVideo };
 })();

@@ -43,6 +43,9 @@ var __DAGUANYUAN_CARD_REPAIR_GLOBAL__ = (function () {
   }
   function plan(note, target) {
     const before = C.items(C.value(note, 'comments')), output = [], markers = [];
+    // 新答案格式无需修复，避免旧修复流程重新加入原题链接。
+    if (target.role && before.some(comment => /^### (?:答案|解析)\r?\n/.test(C.text(comment)) && /<!--\s*DAGUANYUAN_(?:408_)?ANSWER_ID:/.test(C.text(comment)))
+      && !before.some(comment => /\[查看原题\]\(|<!--\s*DAGUANYUAN_(?:(?:408_)?(?:ANSWER_URL|ANSWER_PART):|(?:SOURCE|RENDERED)_STAMP:|SOURCE_LINK:)/.test(C.text(comment)))) return null;
     const links = before.flatMap(comment => C.text(comment).split(/\r?\n/).map(linkRoute).filter(Boolean));
     if (links.some(link => link.provider !== target.provider || link.questionId !== target.id)) throw new Error('原题入口与题卡身份冲突，原内容已保留');
     if (new Set(links.map(link => link.url + ':' + link.year)).size > 1) throw new Error('存在不同的原题入口，原内容已保留');

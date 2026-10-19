@@ -292,7 +292,7 @@ test('设置四个导航仅展示对应内容，滚动不遮挡导航，保留�
   assert.equal(c.settingsPage.contentOffset.y, 0);
 });
 
-test('关于插件显示清单版本与作者，使用说明打开论坛且移除版本更新，重置只调整窗口', () => {
+test('关于插件说明与反馈打开论坛，视频教程打开小红书，重置只调整窗口', () => {
   const run = runtime(), c = run.controller, opened = [], messages = [];
   let studyBounds = { x: 0, y: 0, width: 1200, height: 900 };
   run.context.Application = { sharedInstance: () => ({
@@ -300,28 +300,36 @@ test('关于插件显示清单版本与作者，使用说明打开论坛且移�
     studyController: () => ({ view: { bounds: studyBounds } }),
   }) };
   run.methods.openSettings();
-  run.methods.openPluginGuide(); assert.deepEqual(opened, []);
+  run.methods.openPluginGuide(); run.methods.openPluginVideoGuide(); assert.deepEqual(opened, []);
   run.methods.selectSettingsSection(c.settingsNavigationButtons[3]);
   const manifest = run.context.__DAGUANYUAN_PLUGIN_INFO__;
   assert.equal(c.aboutSettingsRows[0].description.text, 'v' + manifest.version + ' · ' + manifest.author);
   run.methods.openPluginGuide();
+  run.methods.openPluginVideoGuide();
   assert.equal(run.methods.openPluginReleases, undefined);
-  assert.equal(c.aboutSettingsRows.length, 5);
-  assert.equal(c.aboutSettingsRows[2].title.text, '插件使用教程');
-  assert.equal(c.aboutSettingsRows[3].title.text, '诊断日志');
-  assert.equal(c.aboutSettingsRows[3].button.action, 'openDiagnosticLogs:');
-  assert.equal(c.aboutSettingsRows[3].chevron.text, c.cardManagementChevron.text);
-  assert.equal(c.aboutSettingsRows[4].title.text, '支持项目');
-  assert.equal(c.aboutSettingsRows[4].description.text, '喜欢此插件？请开发者喝杯咖啡，支持持续更新');
+  assert.equal(c.aboutSettingsRows.length, 6);
+  assert.equal(c.aboutSettingsRows[2].title.text, '插件说明与反馈');
+  assert.equal(c.aboutSettingsRows[2].description.text, '查看使用说明，反馈问题与建议');
+  assert.equal(c.aboutSettingsRows[2].button.action, 'openPluginGuide:');
+  assert.equal(c.aboutSettingsRows[3].title.text, '视频使用教程');
+  assert.equal(c.aboutSettingsRows[3].description.text, '前往小红书，观看视频教程');
+  assert.equal(c.aboutSettingsRows[3].button.action, 'openPluginVideoGuide:');
+  assert.equal(c.aboutSettingsRows[4].title.text, '诊断日志');
+  assert.equal(c.aboutSettingsRows[4].button.action, 'openDiagnosticLogs:');
   assert.equal(c.aboutSettingsRows[4].chevron.text, c.cardManagementChevron.text);
-  assert.equal(c.aboutSettingsRows[4].button.action, 'openSupportProject:');
-  assert.deepEqual(opened, ['https://bbs.marginnote.com.cn/t/topic/68358']);
+  assert.equal(c.aboutSettingsRows[5].title.text, '支持项目');
+  assert.equal(c.aboutSettingsRows[5].description.text, '喜欢此插件？请开发者喝杯咖啡，支持持续更新');
+  assert.equal(c.aboutSettingsRows[5].chevron.text, c.cardManagementChevron.text);
+  assert.equal(c.aboutSettingsRows[5].button.action, 'openSupportProject:');
+  assert.deepEqual(opened, ['https://bbs.marginnote.com.cn/t/topic/68358',
+    'https://www.xiaohongshu.com/discovery/item/6ad57577000000002f0300d6?source=webshare&xhsshare=pc_web&xsec_token=ABZn-MWTtkL0pF7UItkEfZpMpyI0adIy5yJMHE20GAnqw=&xsec_source=pc_share']);
   for (const width of [560, 960]) {
     c.view.frame = { x: 0, y: 0, width, height: 420 }; run.methods.viewDidLayoutSubviews();
     for (const row of c.aboutSettingsRows) for (const view of [row.title, row.description, row.divider, row.button, row.chevron].filter(Boolean)) {
       assert.ok(view.frame.x + view.frame.width <= c.aboutSettingsSection.frame.width);
       assert.ok(view.frame.y + view.frame.height <= c.aboutSettingsSection.frame.height);
     }
+    assert.ok(c.settingsPage.contentSize.height >= c.aboutSettingsSection.frame.y + c.aboutSettingsSection.frame.height);
   }
   const before = c.selectionImportSwitch.on;
   run.methods.resetSettingsPanelFrame();

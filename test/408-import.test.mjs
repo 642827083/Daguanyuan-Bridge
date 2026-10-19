@@ -194,7 +194,9 @@ test('408 选题内容传给网页转换器与写入器，旧整类导入仍只�
     const card = [...run.notes.values()].find(n => run.writer.linkedQuestion(n)?.id === 81);
     if (content === 'questionAnswer') {
       assert.equal(card.childNotes[0].noteTitle, '答案与解析');
-      assert.match(card.childNotes[0].comments[0].text, /### 答案\n\nC[\s\S]+### 解析\n\n解析/);
+      assert.equal(card.childNotes[0].comments.length, 2);
+      assert.match(card.childNotes[0].comments[0].text, /^### 答案\n\nC\n\n<!-- DAGUANYUAN_408_ANSWER_ID:81 -->$/);
+      assert.equal(card.childNotes[0].comments[1].text, '### 解析\n\n解析');
       assert.doesNotMatch(card.comments[0].text, /### 答案|### 解析/);
     }
     else assert.doesNotMatch(card.comments[0].text, /### 答案|### 解析/);

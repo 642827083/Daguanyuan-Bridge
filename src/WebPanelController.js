@@ -1261,6 +1261,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
     selectSettingsSection: function (sender) { __DAGUANYUAN_SETTINGS_NAVIGATION_GLOBAL__.select(self, sender); },
     openPluginGuide: function () { __DAGUANYUAN_ABOUT_SETTINGS_GLOBAL__.open(self); },
+    openPluginVideoGuide: function () { __DAGUANYUAN_ABOUT_SETTINGS_GLOBAL__.openVideo(self); },
     openSupportProject: function () { __DAGUANYUAN_SUPPORT_UI_GLOBAL__.show(self); },
     openDiagnosticLogs: function () { __DAGUANYUAN_DIAGNOSTIC_UI_GLOBAL__.open(self); },
     selectDiagnosticLogAction: function (sender) { __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.selectMode(self, Number(sender && sender.tag), sender); },

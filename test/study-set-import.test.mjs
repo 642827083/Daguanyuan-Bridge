@@ -65,10 +65,13 @@ test('数学、408、导入本题均在建卡保存后折叠原题评论，关�
   }
 });
 
-test('新建题卡与答案子卡分别折叠，折叠失败保留导入计数并返回独立警告', async () => {
+test('仅折叠新建题卡原题评论，答案子卡正文保持展开，折叠失败返回独立警告', async () => {
   const r = runtime({ fold: true }); r.question.answer = '答案'; r.question.explanation = '解析';
   const result = await r.writer.preparedMathSession(r.addon).importQuestions([123], { 123: 1 }, 'questionAnswer');
-  assert.equal(result.createdCount, 1); assert.equal(r.foldWrites.length, 2);
+  assert.equal(result.createdCount, 1); assert.equal(r.foldWrites.length, 1);
+  const card = [...r.notes.values()].find(n => r.writer.linkedQuestion(n)?.id === 123);
+  assert.equal(r.foldWrites[0].noteId, card.noteId);
+  assert.ok(card.childNotes[0].comments.every(c => !c.collapsed));
   const failed = runtime({ fold: true, foldError: true });
   const outcome = await importOnce(failed, 'math');
   assert.equal(outcome.createdCount, 1); assert.equal(outcome.failed.length, 0); assert.equal(outcome.commentFoldWarnings.length, 1);

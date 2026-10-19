@@ -11,7 +11,7 @@ function runtime(provider = '408') {
   let serial = 0;
   function create(title) {
     const note = { noteId: 'n' + ++serial, notebookId: 'book', noteTitle: title, comments: [], childNotes: [],
-      appendMarkdownComment(text) { if (failures.append) throw Error('追加失败'); this.comments.push({ type: 'TextNote', markdown: true, text }); },
+      appendMarkdownComment(text) { if (failures.append || this.comments.length === failures.appendAt) throw Error('追加失败'); this.comments.push({ type: 'TextNote', markdown: true, text }); },
       removeCommentByIndex(index) {
         if (failures.removeOld && this.comments[index]?.text.includes('旧题干')) {
           failures.removeOld = false; this.comments.splice(index, 1); throw Error('移除旧评论后发生异常');
@@ -98,10 +98,11 @@ for (const provider of ['math', '408']) test(provider + ' 仅补建缺失答案�
   assert.equal(provider === '408' ? first : first.answerAddedCount, provider === '408' ? 'answerAdded' : 1);
   assert.equal(card.comments[0], body); assert.equal(card.comments[1], meta); assert.equal(card.comments[2], personal);
   const answer = card.childNotes[0]; assert.equal(answer.noteTitle, '答案与解析'); assert.equal(card.mindmapBranchClose, 1);
-  assert.match(answer.comments[0].text, /### 答案\n\nC[\s\S]*网站解析/);
-  assert.doesNotMatch(answer.comments[1].text, /(?:SOURCE|RENDERED)_STAMP:/);
+  assert.equal(answer.comments.length, 2);
+  assert.equal(answer.comments[0].text, '### 答案\n\nC\n\n<!-- DAGUANYUAN_' + (provider === '408' ? '408_' : '') + 'ANSWER_ID:123 -->');
+  assert.equal(answer.comments[1].text, '### 解析\n\n网站解析');
+  assert.doesNotMatch(answer.comments.map(c => c.text).join('\n'), /查看原题|(?:SOURCE|RENDERED)_STAMP:/);
   assert.equal(run.writer.linkedQuestion(answer), null);
-  assert.equal(answer.comments[1].text.split('\n')[0], meta.text.split('\n')[0]);
   const answerBefore = structuredClone(answer.comments); answer.comments[0].text += '\n我的答案修改';
   run.question.answer = 'D'; run.question.explanation = '新的解析'; run.failures.image = true;
   if (provider === 'math') run.context.__DAGUANYUAN_MATH_API_GLOBAL__.questionDetail = async () => { throw Error('已有答案不应发请求'); };
@@ -114,13 +115,47 @@ for (const provider of ['math', '408']) test(provider + ' 仅补建缺失答案�
   assert.equal(provider === '408' ? only : only.skippedCount, provider === '408' ? false : 1);
 });
 
-test('已有答案子卡即使只有答案或只有解析也不覆盖，不补改其中正文', () => {
+for (const provider of ['math', '408']) test(provider + ' 仅答案或仅解析只建一条评论，身份随正文保存，重导不覆盖', async () => {
   for (const part of ['answer', 'explanation']) {
-    const run = runtime(); run.question[part] = '原有内容';
-    withContent(run, '408', 'questionAnswer'); const answer = run.imported().childNotes[0], before = structuredClone(answer.comments);
+    const run = runtime(provider); run.question[part] = '原有内容';
+    await withContent(run, provider, 'questionAnswer'); const answer = run.imported().childNotes[0], before = structuredClone(answer.comments);
+    assert.equal(answer.comments.length, 1);
+    assert.equal(answer.comments[0].text, '### ' + (part === 'answer' ? '答案' : '解析') + '\n\n原有内容\n\n<!-- DAGUANYUAN_' + (provider === '408' ? '408_' : '') + 'ANSWER_ID:123 -->');
     run.question.answer = '新答案'; run.question.explanation = '新解析';
-    assert.equal(withContent(run, '408', 'questionAnswer'), false); assert.deepEqual(answer.comments, before);
+    const result = await withContent(run, provider, 'questionAnswer');
+    assert.equal(provider === '408' ? result : result.skippedCount, provider === '408' ? false : 1);
+    assert.deepEqual(answer.comments, before);
   }
+});
+
+for (const provider of ['math', '408']) test(provider + ' 答案和解析分别保存图片，评论调序后仍识别已有答案，不进入旧格式修复', async () => {
+  const run = runtime(provider);
+  run.question.answer = '![答案图](data:image/png;base64,AQID)';
+  run.question.explanation = '![解析图](data:image/png;base64,BAUG)';
+  await withContent(run, provider, 'questionAnswer');
+  const card = run.imported(), answer = card.childNotes[0];
+  assert.equal(answer.comments.length, 2);
+  answer.comments.forEach(comment => { assert.match(comment.text, /markdownimg/); assert.doesNotMatch(comment.text, /base64|查看原题/); });
+  assert.equal(card.mediaList, undefined);
+  answer.comments.reverse(); answer.comments.unshift({ text: '个人笔记' });
+  const before = structuredClone(answer.comments);
+  const result = await withContent(run, provider, 'questionAnswer');
+  assert.equal(provider === '408' ? result : result.skippedCount, provider === '408' ? false : 1);
+  assert.equal(card.childNotes.length, 1);
+  assert.equal(run.repair().repairedCount, 0);
+  assert.deepEqual(answer.comments, before);
+});
+
+test('解析评论追加失败时清理未完成答案卡，保留原题，重试后只补一张答案子卡', () => {
+  const run = runtime(); run.importOnce();
+  const card = run.imported(), before = structuredClone(card.comments);
+  run.question.answer = 'C'; run.question.explanation = '解析'; run.failures.appendAt = 1;
+  assert.throws(() => withContent(run, '408', 'questionAnswer'), /追加失败/);
+  assert.deepEqual(card.comments, before); assert.equal(card.childNotes.length, 0);
+  assert.equal([...run.notes.values()].filter(note => note.noteTitle === '答案与解析').length, 0);
+  delete run.failures.appendAt;
+  assert.equal(withContent(run, '408', 'questionAnswer'), 'answerAdded');
+  assert.equal(card.childNotes.length, 1); assert.equal(card.childNotes[0].comments.length, 2);
 });
 
 test('补答案无内容或图片保存失败保留原题，重试成功后只建一张答案卡', () => {
@@ -146,6 +181,10 @@ test('普通同名子卡不当作答案，重复的导入答案身份拒绝任�
 for (const provider of ['math', '408']) test(provider + ' 旧题目和答案修复后仅保留链接和身份，个人文字手写保持，重导仍跳过', async () => {
   const run = runtime(provider); run.question.answer = 'C'; await withContent(run, provider, 'questionAnswer');
   const card = run.imported(), answer = card.childNotes[0];
+  // 旧卡修复回归使用旧答案结构，新格式不参加迁移。
+  answer.comments[0].text = answer.comments[0].text.replace(/\n\n<!-- DAGUANYUAN_(?:408_)?ANSWER_ID:\d+ -->/, '');
+  answer.appendMarkdownComment(run.context.__DAGUANYUAN_CARD_COMMENTS_GLOBAL__.metadata(run.question,
+    run.context.__DAGUANYUAN_CARD_COMMENTS_GLOBAL__.read(card, 123, provider).url, provider, 'ANSWER'));
   const extras = [card, answer].map(note => {
     makeLegacy(note, true, '\n\n标记后个人文字');
     note.comments[0].text = note.comments[0].text.replace('\n\n标记后个人文字', '\n\n<!-- DAGUANYUAN_SOURCE_STAMP:314:d999c7df:43d28f17 -->\n\n<!-- DAGUANYUAN_RENDERED_STAMP:315:abcd:ef01 -->\n\n标记后个人文字');

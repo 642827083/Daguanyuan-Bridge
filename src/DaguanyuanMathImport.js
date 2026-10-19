@@ -370,7 +370,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
     return matches[0] || null;
   }
 
-  function answerMarkdown(question) {
+  function answerComments(question) {
     const parts = [];
     [{ key: 'answer', title: '答案' }, { key: 'explanation', title: '解析' }].forEach(function (part) {
       const header = '### ' + part.title + '\n\n';
@@ -378,7 +378,17 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
       if (text) parts.push(header + text);
     });
     if (!parts.length) throw new Error('网站暂无可读取的答案或解析，请选择仅导入题目');
-    return parts.join('\n\n');
+    return parts;
+  }
+
+  function initializeAnswer(note, question, parts, provider) {
+    const comments = parts.slice();
+    const prefix = provider === '408' ? 'DAGUANYUAN_408_' : 'DAGUANYUAN_';
+    // 身份标记随第一条正文保存，不额外生成链接或空白评论。
+    comments[0] += '\n\n' + marker(prefix + 'ANSWER_ID:' + question.id);
+    comments.forEach(function (body) { note.appendMarkdownComment(body); });
+    saveQuestionImages(note, imagePart(question, comments.join('\n\n')));
+    if (nativeItems(note.comments).length !== comments.length) throw new Error('答案评论保存失败');
   }
 
   function imagePart(question, markdown) {
@@ -390,15 +400,15 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
     const answer = content === 'questionAnswer' ? answerChild(note, question.id, provider) : null;
     if (!isNew && (content !== 'questionAnswer' || answer)) return false;
     if (!isNew) importedComment(note, question.id, provider);
-    const answerText = content === 'questionAnswer' ? answerMarkdown(question) : '';
+    const answerParts = content === 'questionAnswer' ? answerComments(question) : [];
     if (isNew) {
       const markdown = questionMarkdown(question);
       initializeQuestion(note, imagePart(question, markdown), markdown, suffix || '', url, provider, undefined, context);
     }
-    if (answerText) {
+    if (answerParts.length) {
       const created = createNote('答案与解析', context);
       try {
-        initializeQuestion(created, imagePart(question, answerText), answerText, '', url, provider, 'ANSWER', context);
+        initializeAnswer(created, question, answerParts, provider);
         moveImportedQuestion(note, created);
         // 与疾风劲草一致，新建答案子卡时默认折叠题目分支。
         note.mindmapBranchClose = 1;
@@ -523,7 +533,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
         const url = `${category.url}&questionId=${id}`;
         if (existing && (content !== 'questionAnswer' || answerChild(existing, id, '408'))) return false;
         if (!existing && !legacy) questionMarkdown(question);
-        if (!existing && !legacy && content === 'questionAnswer') answerMarkdown(question);
+        if (!existing && !legacy && content === 'questionAnswer') answerComments(question);
         let note;
         let outcome = true;
         UndoManager.sharedInstance().undoGrouping("导入 408 题目", context.topicId, function () {
@@ -626,7 +636,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
               const url = questionURL(route.categoryId, question.id);
               const existing = findQuestionAtPath(context, route.path, question.id, "math");
               if (!existing) questionMarkdown(question);
-              if (!existing && content === 'questionAnswer') answerMarkdown(question);
+              if (!existing && content === 'questionAnswer') answerComments(question);
               if (existing) {
                 if (writeQuestionParts(context, existing, question, url, 'math', content, false) === 'answerAdded') result.answerAddedCount += 1;
                 else result.skippedCount += 1;
