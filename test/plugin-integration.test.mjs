@@ -152,19 +152,20 @@ test('日志导出失败显示替代操作，清空保存失败不会提示成�
   assert.match(messages.at(-1), /本机文件清空失败/);
 });
 
-test('自动折叠开关保留在外，管理入口与定位方式复用弹窗，窄宽布局均不遮挡', async () => {
+test('自动折叠开关与独立修复入口保留在外，查看原题显示使用弹窗，窄宽布局均不遮挡', async () => {
   const run = runtime(), c = run.controller, messages = [];
   run.context.Application = { sharedInstance: () => ({ showHUD: message => messages.push(message) }) };
   assert.equal(c.commentFoldSwitch.on, false);
-  assert.equal(c.commentFoldTitle.text, '自动折叠原题评论');
-  assert.equal(c.cardManagementTitle.text, '已导入题卡管理');
-  assert.equal(c.repairCardsButton, undefined); assert.equal(c.foldSourceCommentsButton, undefined); assert.equal(c.unfoldSourceCommentsButton, undefined);
+  assert.equal(c.commentFoldTitle.text, '自动折叠查看原题');
+  assert.equal(c.cardManagementTitle.text, '查看原题显示');
+  assert.equal(c.repairCardsTitle.text, '修复题卡格式'); assert.equal(c.repairCardsButton.action, 'repairImportedCards:');
+  assert.equal(c.foldSourceCommentsButton, undefined); assert.equal(c.unfoldSourceCommentsButton, undefined);
   run.methods.toggleSourceCommentFold({ on: true }); assert.equal(c.commentFoldSwitch.on, true);
   const restored = runtime(run.stored); assert.equal(restored.controller.commentFoldSwitch.on, true);
   run.methods.toggleSourceCommentFold({ on: false });
   for (const width of [560, 960]) {
     c.view.frame = { x: 0, y: 0, width, height: 680 }; run.methods.viewDidLayoutSubviews();
-    for (const key of ['commentFoldTitle', 'commentFoldDescription', 'commentFoldSwitch', 'cardManagementTitle', 'cardManagementDescription', 'cardManagementChevron', 'cardManagementButton']) {
+    for (const key of ['commentFoldTitle', 'commentFoldDescription', 'commentFoldSwitch', 'cardManagementTitle', 'cardManagementDescription', 'cardManagementChevron', 'cardManagementButton', 'repairCardsTitle', 'repairCardsDescription', 'repairCardsChevron', 'repairCardsButton']) {
       const r = c[key].frame;
       assert.ok(r.x + r.width <= c.cardToolsSettingsSection.frame.width);
       assert.ok(r.y + r.height <= c.cardToolsSettingsSection.frame.height);
@@ -177,30 +178,33 @@ test('自动折叠开关保留在外，管理入口与定位方式复用弹窗�
   };
   c.activePage = 'settings'; run.methods.openImportedCardManagement();
   let menu = c.cardLocationModeChoice;
-  assert.deepEqual(Array.from(menu.buttons, row => row.title), ['修复题卡格式', '折叠原题评论', '展开原题评论', '取消']);
+  assert.deepEqual(Array.from(menu.buttons, row => row.title), ['折叠查看原题', '展开查看原题', '取消']);
   assert.equal(menu.sheet.frame.width, 360); assert.equal(menu.sheet.layer.cornerRadius, 12);
-  assert.equal(menu.sheet.frame.height, 274);
+  assert.equal(menu.sheet.frame.height, 224);
   assert.equal(c.commentFoldSwitch.superview, c.cardToolsSettingsSection);
-  run.methods.selectImportedCardManagement(menu.buttons[1]);
+  run.methods.selectImportedCardManagement(menu.buttons[0]);
   assert.equal(c.cardManagementButton.enabled, false);
+  assert.equal(c.repairCardsButton.enabled, false);
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(c.cardManagementButton.enabled, true); assert.match(messages.at(-1), /已折叠 1/);
   run.methods.openImportedCardManagement(); menu = c.cardLocationModeChoice;
-  run.methods.selectImportedCardManagement(menu.buttons[2]); await new Promise(resolve => setImmediate(resolve));
+  run.methods.selectImportedCardManagement(menu.buttons[1]); await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(calls, [true, false]); assert.match(messages.at(-1), /已展开 1/);
   c.categoryImportBusy = true; run.methods.openImportedCardManagement(); await new Promise(resolve => setImmediate(resolve));
   assert.equal(calls.length, 2); assert.match(messages.at(-1), /请先完成/);
 });
 
-test('管理弹窗修复入口正确分发，取消及旧按钮不触发操作，切换页面清理弹窗', () => {
+test('修复使用独立入口，查看原题弹窗取消及旧按钮不触发操作，切换页面清理弹窗', () => {
   const run = runtime(), c = run.controller; c.activePage = 'settings'; const repairs = [];
+  run.context.Application = { sharedInstance: () => ({ showHUD() {} }) };
   run.context.__DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ = { repair: target => repairs.push(target), cancel() {} };
   run.methods.openImportedCardManagement(); let menu = c.cardLocationModeChoice;
   const old = menu.buttons[0];
-  run.methods.selectImportedCardManagement(menu.buttons[3]); assert.equal(repairs.length, 0); assert.equal(c.cardLocationModeChoice, null);
+  run.methods.selectImportedCardManagement(menu.buttons[2]); assert.equal(repairs.length, 0); assert.equal(c.cardLocationModeChoice, null);
   run.methods.openImportedCardManagement(); menu = c.cardLocationModeChoice;
   run.methods.selectImportedCardManagement(old); assert.equal(repairs.length, 0); assert.equal(c.cardLocationModeChoice, menu);
-  run.methods.selectImportedCardManagement(menu.buttons[0]); assert.deepEqual(repairs, [c]); assert.equal(c.cardLocationModeChoice, null);
+  run.methods.repairImportedCards(); assert.deepEqual(repairs, [c]);
+  c.commentFoldOperation = {}; run.methods.repairImportedCards(); assert.equal(repairs.length, 1); c.commentFoldOperation = null;
   run.methods.openImportedCardManagement(); run.methods.openDaguanyuan(); assert.equal(c.cardLocationModeChoice, null);
 });
 
@@ -311,7 +315,7 @@ test('关于插件说明与反馈打开论坛，视频教程打开小红书，�
   assert.equal(c.aboutSettingsRows[2].title.text, '插件说明与反馈');
   assert.equal(c.aboutSettingsRows[2].description.text, '查看使用说明，反馈问题与建议');
   assert.equal(c.aboutSettingsRows[2].button.action, 'openPluginGuide:');
-  assert.equal(c.aboutSettingsRows[3].title.text, '视频使用教程');
+  assert.equal(c.aboutSettingsRows[3].title.text, '视频教程');
   assert.equal(c.aboutSettingsRows[3].description.text, '前往小红书，观看视频教程');
   assert.equal(c.aboutSettingsRows[3].button.action, 'openPluginVideoGuide:');
   assert.equal(c.aboutSettingsRows[4].title.text, '诊断日志');

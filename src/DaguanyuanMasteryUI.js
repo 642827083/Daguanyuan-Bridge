@@ -1,7 +1,7 @@
 var __DAGUANYUAN_MASTERY_UI_GLOBAL__ = (function () {
   const KEY = 'cn.marginnote.daguanyuan-bridge.card-tools.mastery-enabled';
   const choices = [
-    { title: '不熟练', value: 'needs_practice', color: [0.98, 0.77, 0.18], darkText: true },
+    { title: '不熟', value: 'needs_practice', color: [0.98, 0.77, 0.18], darkText: true },
     { title: '不会', value: 'not_known', color: [0.88, 0.24, 0.24] },
     { title: '掌握', value: 'mastered', color: [0.19, 0.65, 0.36] }
   ];
@@ -24,12 +24,14 @@ var __DAGUANYUAN_MASTERY_UI_GLOBAL__ = (function () {
   function target(note) {
     const comments = __DAGUANYUAN_CARD_COMMENTS_GLOBAL__.items(value(note, 'comments'));
     const meta = __DAGUANYUAN_CARD_COMMENTS_GLOBAL__.text(comments[1]);
-    const matches = meta.match(/<!--\s*DAGUANYUAN_QUESTION_ID:([1-9]\d*)\s*-->/g) || [];
+    const matches = meta.match(/<!--\s*DAGUANYUAN_(?:408_)?(?:QUESTION|ANSWER)_ID:([1-9]\d*)\s*-->/g) || [];
     const source = __DAGUANYUAN_SOURCE_LINK_GLOBAL__.fromComment(meta);
-    if (matches.length !== 1 || !source || source.provider !== 'math' || Number(matches[0].match(/:(\d+)/)[1]) !== source.questionId) return null;
+    if (matches.length !== 1 || !source) return null;
+    const identity = matches[0].match(/DAGUANYUAN_(408_)?QUESTION_ID:([1-9]\d*)/);
+    if (!identity || (identity[1] ? '408' : 'math') !== source.provider || Number(identity[2]) !== source.questionId) return null;
     const noteId = String(value(note, 'noteId') || ''), notebookId = String(value(note, 'notebookId') || '');
     if (!noteId || !notebookId) return null;
-    return { noteId, notebookId, questionId: source.questionId };
+    return { noteId, notebookId, provider: source.provider, questionId: source.questionId };
   }
   function rect(raw) {
     try {
@@ -121,12 +123,12 @@ var __DAGUANYUAN_MASTERY_UI_GLOBAL__ = (function () {
     // 点工具按钮可能关闭宿主菜单并清空焦点；此时只允许刚按下的题卡操作。
     const selectedNote = focused || (pressed && Date.now() < addon.__daguanyuanMasteryPressedUntil ? addon.__daguanyuanMasteryNote : null);
     const current = target(selectedNote);
-    if (!current || current.questionId !== selected.questionId) { hide(addon); return; }
+    if (!current || current.questionId !== selected.questionId || current.provider !== selected.provider) { hide(addon); return; }
     hide(addon);
     function message(text) { if (addon.panelController && active(addon)) __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.showMessage(addon, text); }
     message('正在同步“' + choice.title + '”…');
     __DAGUANYUAN_MASTERY_SYNC_GLOBAL__.save(addon, selected, choice.value).then(function (result) {
-      message(result && result.mode === 'retest' ? '已记录本次复测：' + choice.title : '已同步到大观园：' + choice.title);
+      message(result && result.mode === 'retest' ? '已记录本次复测：' + choice.title : '已同步到' + (selected.provider === '408' ? '408 网站' : '大观园') + '：' + choice.title);
     }, function (error) { message(String(error.message || error)); }).then(function () {
       (addon.__daguanyuanMasteryButtons || []).forEach(function (button) { button.enabled = true; });
     });

@@ -16,7 +16,7 @@ function runtime(width = 560, height = 420) {
   }
   const prepared = { questionCount: 2, answerCount: 1, jobs: [{}, {}, {}], skipped: [] };
   const controller = { activePage: 'settings', addon: { window: {} }, containerView: new View({ x: 0, y: 0, width, height }),
-    cardManagementDescription: new View({}),
+    repairCardsDescription: new View({}),
     questionToolsSettingsSection: new View({ x: 20, y: 920, width: width - 40, height: 484 }) };
   const context = { console, UIView: View, UILabel: View, UIButton: View, UIScrollView: View,
     UIFont: { systemFontOfSize: String, boldSystemFontOfSize: String },
@@ -63,7 +63,7 @@ test('没有可修复卡片、统计失败或写入失败恢复入口并显示�
     if (kind === 'apply') ui.confirm(controller, controller.cardRepairState.confirm);
     assert.equal(controller.cardRepairState, null);
     assert.match(run.messages.at(-1), /无需修复|身份冲突|MN Utils|学习集已切换/);
-    assert.match(controller.cardManagementDescription.text, /修复格式/);
+    assert.match(controller.repairCardsDescription.text, /整理题卡格式/);
   }
 });
 
@@ -81,7 +81,7 @@ test('不同面板尺寸中修复确认内容可滚动，按钮和设置行在�
 test('入口模块及面板接通修复设置、确认、取消、关闭和布局', () => {
   const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8'), panel = readFileSync(new URL('../src/WebPanelController.js', import.meta.url), 'utf8');
   for (const name of ['DaguanyuanCardComments', 'DaguanyuanCardRepair', 'DaguanyuanCardRepairUI']) assert.ok(main.includes('JSB.require("' + name + '")'));
-  for (const selector of ['openImportedCardManagement:', 'selectImportedCardManagement:', 'confirmCardRepair:', 'cancelCardRepair:']) assert.ok(panel.includes(selector));
+  for (const selector of ['repairImportedCards:', 'openImportedCardManagement:', 'selectImportedCardManagement:', 'confirmCardRepair:', 'cancelCardRepair:']) assert.ok(panel.includes(selector));
   assert.match(panel, /__DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__\.openManagement\(self\)/);
   assert.match(panel, /__DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__\.layout\(controller\)/);
   assert.ok(panel.match(/__DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__\.cancel\(controller\)/g).length >= 2);

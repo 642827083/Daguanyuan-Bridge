@@ -9,13 +9,15 @@ var __DAGUANYUAN_MASTERY_SYNC_GLOBAL__ = (function () {
   function save(addon, target, mastery) {
     if (addon.__daguanyuanMasteryTask) return Promise.reject(new Error('正在同步掌握状态，请稍后再试'));
     const controller = addon.panelController;
-    if (!controller || !controller.webView) return Promise.reject(new Error('请先打开插件数学面板并登录大观园'));
-    if (!target || !Number.isSafeInteger(target.questionId) || target.questionId < 1 || ['needs_practice', 'not_known', 'mastered'].indexOf(mastery) < 0) {
+    const provider = target && target.provider || 'math';
+    const loginMessage = provider === '408' ? '请先打开插件 408 面板并登录 408 网站' : '请先打开插件数学面板并登录大观园';
+    if (!controller || !controller.webView) return Promise.reject(new Error(loginMessage));
+    if (!target || ['math', '408'].indexOf(provider) < 0 || !Number.isSafeInteger(target.questionId) || target.questionId < 1 || ['needs_practice', 'not_known', 'mastered'].indexOf(mastery) < 0) {
       return Promise.reject(new Error('掌握标记参数无效'));
     }
     const task = { token: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2), controller, cancelled: false };
     addon.__daguanyuanMasteryTask = task;
-    if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') task.logTaskId = __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.begin('mastery.save', { provider: 'math', questionId: target.questionId });
+    if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') task.logTaskId = __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.begin('mastery.save', { provider, questionId: target.questionId });
     const deadline = Date.now() + 30000;
     function evaluate(script) {
       if (task.cancelled || addon.panelController !== controller) throw new Error('掌握标记已停止');
@@ -28,7 +30,7 @@ var __DAGUANYUAN_MASTERY_SYNC_GLOBAL__ = (function () {
         const result = JSON.parse(String(raw));
         if (result.status === 'error') throw new Error(result.error);
         if (result.status === 'ready') {
-          if (result.id !== target.questionId || result.mastery !== mastery) throw new Error('掌握标记回执不一致');
+          if (result.id !== target.questionId || result.mastery !== mastery || (result.provider || 'math') !== provider) throw new Error('掌握标记回执不一致');
           return result;
         }
         if (result.status !== 'loading') throw new Error('掌握标记回执无效');
@@ -40,15 +42,15 @@ var __DAGUANYUAN_MASTERY_SYNC_GLOBAL__ = (function () {
         .catch(function () {}).then(function () { if (addon.__daguanyuanMasteryTask === task) addon.__daguanyuanMasteryTask = null; });
     }
     return Promise.resolve().then(function () {
-      return evaluate(__DAGUANYUAN_MASTERY_PAGE_SCRIPT__ + ';' + PAGE + '.begin(' + JSON.stringify(task.token) + ',' + target.questionId + ',' + JSON.stringify(mastery) + ')');
+      return evaluate(__DAGUANYUAN_MASTERY_PAGE_SCRIPT__ + ';' + PAGE + '.begin(' + JSON.stringify(task.token) + ',' + target.questionId + ',' + JSON.stringify(mastery) + ',' + JSON.stringify(provider) + ')');
     }).then(function (result) {
-      if (String(result) !== 'ok') throw new Error('请先打开插件数学面板并登录大观园');
+      if (String(result) !== 'ok') throw new Error(loginMessage);
       return read();
     }).then(function (result) {
-      if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.info('mastery.save.result', { taskId: task.logTaskId, provider: 'math', questionId: target.questionId, status: 'complete' });
+      if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.info('mastery.save.result', { taskId: task.logTaskId, provider, questionId: target.questionId, status: 'complete' });
       return release().then(function () { return result; });
     }, function (error) {
-      if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.error('mastery.save.result', error, { taskId: task.logTaskId, provider: 'math', questionId: target.questionId });
+      if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.error('mastery.save.result', error, { taskId: task.logTaskId, provider, questionId: target.questionId });
       return release().then(function () { throw error; });
     });
   }

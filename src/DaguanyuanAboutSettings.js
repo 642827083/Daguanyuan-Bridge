@@ -18,7 +18,7 @@ var __DAGUANYUAN_ABOUT_SETTINGS_GLOBAL__ = (function () {
       ['Daguanyuan Bridge', (info.version ? 'v' + info.version : '版本读取失败') + (info.author ? ' · ' + info.author : ''), null],
       ['重置窗口位置', '恢复插件窗口的默认位置与大小', 'resetSettingsPanelFrame:'],
       ['插件说明与反馈', '查看使用说明，反馈问题与建议', 'openPluginGuide:'],
-      ['视频使用教程', '前往小红书，观看视频教程', 'openPluginVideoGuide:'],
+      ['视频教程', '前往小红书，观看视频教程', 'openPluginVideoGuide:'],
       ['诊断日志', '导出、复制或清空日志，帮助排查插件问题', 'openDiagnosticLogs:'],
       ['支持项目', '喜欢此插件？请开发者喝杯咖啡，支持持续更新', 'openSupportProject:'],
     ].map(function (item) {

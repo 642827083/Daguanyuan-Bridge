@@ -1,7 +1,13 @@
 (function () {
   if (window.__DAGUANYUAN_MASTERY_PAGE__) return;
   let task = null;
-  function auth() {
+  let session408 = null;
+  function auth(provider) {
+    if (provider === '408') {
+      const token = localStorage.getItem('token') || '';
+      const expires = Number(localStorage.getItem('token_expire') || 0);
+      return { token: token === 'mock-token' || expires && expires <= Date.now() ? '' : token, user: '' };
+    }
     let user;
     try { user = JSON.parse(localStorage.getItem('daguan_user') || 'null'); } catch (_) {}
     return { token: localStorage.getItem('daguan_token') || localStorage.getItem('token') || '', user: String(user && user.id || '') };
@@ -17,24 +23,61 @@
     if (!task || task.token !== token) return 'ok';
     task.abort.abort(); clearTimeout(task.timer); task = null; return 'ok';
   }
-  function begin(token, id, mastery) {
-    if (location.protocol !== 'https:' || !/^(www\.)?cxyonly\.fans$/.test(location.hostname)) throw Error('请先在插件数学面板登录大观园');
+  function begin(token, id, mastery, provider = 'math') {
+    const loginMessage = provider === '408' ? '请先在插件 408 面板登录 408 网站' : '请先在插件数学面板登录大观园';
+    if (location.protocol !== 'https:' || (provider === '408' ? location.hostname !== 'www.408os.cn'
+      : provider !== 'math' || !/^(www\.)?cxyonly\.fans$/.test(location.hostname))) throw Error(loginMessage);
     if (!/^[\w-]{1,100}$/.test(token) || !Number.isSafeInteger(id) || id < 1
       || !['needs_practice', 'not_known', 'mastered'].includes(mastery)) throw Error('掌握标记参数无效');
     if (task) throw Error('正在同步掌握状态，请稍后再试');
-    const identity = auth();
-    if (!identity.token || !identity.user) throw Error('请先在插件数学面板登录大观园');
-    const request = { token, id, mastery, route: location.href, status: 'loading', error: '', abort: new AbortController() };
+    const identity = auth(provider);
+    if (!identity.token || provider === 'math' && !identity.user) throw Error(loginMessage);
+    const request = { token, id, mastery, provider, route: location.href, status: 'loading', error: '', abort: new AbortController() };
     task = request;
     request.timer = setTimeout(() => request.abort.abort(), 25000);
     function check() {
-      const current = auth();
+      const current = auth(provider);
       if (task !== request || current.token !== identity.token || current.user !== identity.user || location.href !== request.route) {
         throw Error('页面或登录账号已切换，请重新标记');
       }
       if (request.abort.signal.aborted) throw Error('同步超时或已取消，请检查网站状态后重试');
     }
     request.check = check;
+    async function save408() {
+      check();
+      // 复用网站请求模块的登录凭据、clientId 与业务错误处理，不向原生层传递凭据。
+      const entry = document.querySelector('script[type="module"][src*="/assets/index-"]');
+      if (!entry) throw Error('未找到 408 网站请求模块，请刷新后重试');
+      const url = new URL(entry.src, location.href);
+      if (url.origin !== location.origin || !/^\/assets\/index-[\w-]+\.js$/.test(url.pathname) || url.search || url.hash) throw Error('408 网站模块地址无效');
+      const module = await Function('url', 'return import(url)')(url.href);
+      check();
+      const api = module.r, user = typeof module.u === 'function' && module.u();
+      if (!api || typeof api.get !== 'function' || typeof api.post !== 'function' || !user) throw Error('408 网站请求模块已变化，请刷新后重试');
+      function checkUser() {
+        check();
+        if (user.token !== identity.token) throw Error('408 登录账号已切换，请重新标记');
+      }
+      checkUser();
+      if (!session408 || session408.route !== request.route || session408.identity !== identity.token) {
+        session408 = { route: request.route, identity: identity.token, marked: new Set() };
+      }
+      const score = { mastered: 1, needs_practice: 2, not_known: 3 }[mastery];
+      const options = { signal: request.abort.signal, silentError: true };
+      // 与网站相同：本页面首次标记新增记录，再次标记更新本次记录。
+      const saved = await api.post('/api/zt/question-mastery/mark', { questionId: id, score, isUpdate: session408.marked.has(id) }, options);
+      checkUser();
+      session408.marked.add(id);
+      if (!saved || !saved.id || saved.questionId !== undefined && String(saved.questionId) !== String(id)
+        || saved.score !== undefined && Number(saved.score) !== score) throw Error('408 标记回执不一致，网站可能已保存，请查看原题确认');
+      // 成功回执还需与重新读取的题目状态一致，避免仅凭请求完成就报告成功。
+      const detail = await api.get('/api/zt/question/detail/' + id, options);
+      checkUser();
+      if (!detail || !detail.question || String(detail.question.id) !== String(id)
+        || !detail.currentMastery || Number(detail.currentMastery.score) !== score) throw Error('408 掌握状态核验失败，网站可能已保存，请查看原题确认');
+      request.mode = 'mastery';
+      request.status = 'ready';
+    }
     async function send(path, options) {
       check();
       const response = await fetch(path, { ...options, credentials: 'same-origin', redirect: 'error', cache: 'no-store', signal: request.abort.signal });
@@ -91,7 +134,9 @@
       request.status = 'ready';
     }
     // 与网站题目状态修改共用锁，避免同一道题同时写入。
-    Promise.resolve().then(() => navigator.locks ? navigator.locks.request('daguan:question-state:' + identity.user + ':' + id, save) : save())
+    const saveTask = provider === '408' ? save408 : save;
+    const lockKey = provider === '408' ? 'daguanyuan:408:question-state:' + id : 'daguan:question-state:' + identity.user + ':' + id;
+    Promise.resolve().then(() => navigator.locks ? navigator.locks.request(lockKey, saveTask) : saveTask())
       .catch(error => { request.status = 'error'; request.error = error.name === 'AbortError' ? '同步超时，网站可能已保存，请查看原题确认后重试' : String(error.message || error); })
       .finally(() => clearTimeout(request.timer));
     return 'ok';
@@ -99,7 +144,7 @@
   function read(token) {
     if (!task || task.token !== token) throw Error('掌握标记任务已失效');
     task.check();
-    return JSON.stringify({ status: task.status, error: task.error, id: task.id, mastery: task.mastery, mode: task.mode });
+    return JSON.stringify({ status: task.status, error: task.error, id: task.id, mastery: task.mastery, mode: task.mode, provider: task.provider });
   }
   window.__DAGUANYUAN_MASTERY_PAGE__ = { begin, read, release };
 })();

@@ -1,5 +1,5 @@
 var __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ = (function () {
-  const description = '仅当前学习集：修复格式与原题评论显示';
+  const description = '仅当前学习集：整理题卡格式与原题链接';
   function hud(controller, message) { Application.sharedInstance().showHUD(message, controller.addonWindow || controller.addon.window, 3); }
   function label(text, size, bold) {
     const view = new UILabel({ x: 0, y: 0, width: 100, height: 24 });
@@ -16,7 +16,7 @@ var __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ = (function () {
   function cancel(controller) {
     const state = controller.cardRepairState; controller.cardRepairState = null;
     if (state && state.overlay) state.overlay.removeFromSuperview();
-    if (controller.cardManagementDescription) controller.cardManagementDescription.text = description;
+    if (controller.repairCardsDescription) controller.repairCardsDescription.text = description;
   }
   function layout(controller) {
     const state = controller.cardRepairState; if (!state || !state.overlay) return;
@@ -46,7 +46,7 @@ var __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ = (function () {
     if (busy(controller)) { hud(controller, '正在导入或读取题目，请稍后修复'); return; }
     __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.cancelMode(controller);
     const state = {}; controller.cardRepairState = state;
-    controller.cardManagementDescription.text = '正在统计当前学习集的题卡…';
+    controller.repairCardsDescription.text = '正在统计当前学习集的题卡…';
     Promise.resolve().then(() => __DAGUANYUAN_CARD_REPAIR_GLOBAL__.preview(controller.addon || { window: controller.addonWindow })).then(function (prepared) {
       if (controller.cardRepairState !== state) return;
       state.prepared = prepared;
@@ -69,7 +69,7 @@ var __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__ = (function () {
       state.confirm = button(controller, '确认修复', 'confirmCardRepair:'); state.cancel = button(controller, '取消', 'cancelCardRepair:');
       [state.title, state.messageScroll, state.confirm, state.cancel].forEach(view => state.sheet.addSubview(view));
       state.overlay.addSubview(state.sheet); controller.containerView.addSubview(state.overlay);
-      controller.cardManagementDescription.text = '等待确认：' + prepared.jobs.length + ' 张卡片';
+      controller.repairCardsDescription.text = '等待确认：' + prepared.jobs.length + ' 张卡片';
       layout(controller);
     }).catch(function (error) {
       if (controller.cardRepairState !== state) return;

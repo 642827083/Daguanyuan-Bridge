@@ -1299,6 +1299,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     toggleMasteryMarking: function () { __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.toggle(self); },
     toggleSourceCommentFold: function (sender) { __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.toggleFold(self, sender); },
     openImportedCardManagement: function () { __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.openManagement(self); },
+    repairImportedCards: function () { __DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__.openRepair(self); },
     selectImportedCardManagement: function (sender) { __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__.selectMode(self, Number(sender && sender.tag), sender); },
     confirmCardRepair: function (sender) { __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__.confirm(self, sender); },
     cancelCardRepair: function (sender) { __DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__.cancel(self); },

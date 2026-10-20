@@ -215,17 +215,31 @@ test('题卡成功提示区分复测结果与普通掌握标记', async () => {
     assert.equal(run.messages.at(-1), mode === 'retest' ? '已记录本次复测：掌握' : '已同步到大观园：掌握');
   }
 });
-test('点击数学题卡才出现横排黄红绿按钮，普通卡和答案卡不显示', () => {
+test('数学和 408 题卡出现横排黄红绿按钮，普通卡和答案卡不显示', () => {
   const run = nativeUI(), { ui, addon } = run;
   run.select(run.card()); assert.equal(addon.__daguanyuanMasteryToolbar, undefined);
   ui.setEnabled(addon, true); run.select(run.card());
   assert.equal(addon.__daguanyuanMasteryToolbar.hidden, false);
-  assert.deepEqual(Array.from(addon.__daguanyuanMasteryButtons, b => b.title), ['不熟练', '不会', '掌握']);
+  assert.deepEqual(Array.from(addon.__daguanyuanMasteryButtons, b => b.title), ['不熟', '不会', '掌握']);
   assert.deepEqual(Array.from(addon.__daguanyuanMasteryButtons[0].backgroundColor), [0.98, 0.77, 0.18, 1]);
   assert.ok(addon.__daguanyuanMasteryToolbar.frame.y >= 140 - 40 + 250);
-  for (const card of [{ noteId: 'other', notebookId: 'nb', comments: [] }, run.card(1, '408'), run.card(2, 'math', 'ANSWER')]) {
+  run.select(run.card(1, '408')); assert.equal(addon.__daguanyuanMasteryToolbar.hidden, false);
+  assert.equal(addon.__daguanyuanMasteryTarget.provider, '408');
+  for (const card of [{ noteId: 'other', notebookId: 'nb', comments: [] }, run.card(2, 'math', 'ANSWER'), run.card(3, '408', 'ANSWER')]) {
     run.select(card); assert.equal(addon.__daguanyuanMasteryToolbar.hidden, true);
   }
+});
+test('408 按钮发送对应来源和不熟状态，相同题号切换来源后不误标', async () => {
+  const run = nativeUI(), { ui, addon } = run;
+  ui.setEnabled(addon, true); run.select(run.card(1, '408'));
+  ui.click(addon, addon.__daguanyuanMasteryButtons[0]); await tick();
+  assert.equal(run.writes[0][1].provider, '408'); assert.equal(run.writes[0][2], 'needs_practice');
+  assert.equal(run.messages.at(-1), '已同步到408 网站：不熟');
+  run.select(run.card(1, '408')); run.notebook.focusNote = run.card(1, 'math');
+  ui.click(addon, addon.__daguanyuanMasteryButtons[2]); assert.equal(run.writes.length, 1);
+  const invalid = run.card(1, '408');
+  invalid.comments[1].text = invalid.comments[1].text.replace('DAGUANYUAN_408_QUESTION_ID', 'DAGUANYUAN_QUESTION_ID');
+  run.select(invalid); assert.equal(addon.__daguanyuanMasteryToolbar.hidden, true);
 });
 test('只操作刚点击的卡片，关闭通知不会隐藏下一张卡，换卡后不误标', async () => {
   const run = nativeUI(), { ui, addon } = run;
