@@ -45,7 +45,6 @@ function runtime(size = 3) {
         async readQuestion(id, content) { details.push(id); return { ...questions.find(q => q.id === id), stem: '408 题干', ...(content === 'questionAnswer' ? { answer: '408 答案' } : {}) }; },
         async close() {} };
     } },
-    __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__: { resultForCategoryId(id) { return { status: 'resolved', categoryId: id, path: ['高等数学', '极限', '函数极限'] }; }, urlFor() { return 'https://www.cxyonly.fans/math/practice/3'; } },
     __DAGUANYUAN_MATH_API_GLOBAL__: {
       positiveInteger: Number, questionScope(value) { if (!['complete', 'core', 'exam'].includes(value)) throw Error('题库范围无效'); return value; },
       examSubject(value = 'all') { if (!['all', 'math_1', 'math_2', 'math_3'].includes(value)) throw Error('备考科目无效'); return value; },
@@ -59,7 +58,8 @@ function runtime(size = 3) {
     },
   };
   vm.createContext(native);
-  for (const name of ['DaguanyuanSourceLink', 'DaguanyuanMathImages', 'DaguanyuanCardComments', 'DaguanyuanMathImport', 'DaguanyuanImportReport', 'DaguanyuanImportSelection', 'DaguanyuanImportWorkspace', 'WebBridgeCommands']) vm.runInContext(source(name), native);
+  native.__DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__.currentCatalog = () => ({ records: [] });
+  for (const name of ['DaguanyuanCategoryRoutes', 'DaguanyuanSourceLink', 'DaguanyuanMathImages', 'DaguanyuanCardComments', 'DaguanyuanMathImport', 'DaguanyuanImportReport', 'DaguanyuanImportSelection', 'DaguanyuanImportWorkspace', 'WebBridgeCommands']) vm.runInContext(source(name), native);
   const controller = { addon: { window: {} }, activePage: 'import', importWebView: { evaluateJavaScript(script, cb) {
     try { cb(vm.runInContext(script, browser), null); } catch (e) { cb(null, e); }
   } }, webView: { evaluateJavaScript() { throw Error('回执不得发送到题库网页'); } } };
@@ -375,10 +375,22 @@ test('题库网页不能调用独立导入页命令，非法分类及范围被�
   assert.throws(() => run.workspace.prepare(run.controller, { token: 'test', scope: 'complete', categoryIds: [3, 3] }), /分类无效或重复/);
 });
 
+test('没有本地数学分类时，导入页仍可独立在线加载和选题', async () => {
+  const run = runtime();
+  run.native.__DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__.currentCatalog = () => { throw Error('不应读取本地分类'); };
+  assert.equal(run.workspace.initialize().records.length, 0);
+  await run.load(3);
+  assert.ok(run.document.querySelector('[data-category="3"]'));
+  assert.ok(run.document.querySelectorAll('.question-card').length > 0);
+  run.click('#commit'); await tick(); await run.controller.importWorkspaceTask.done;
+  assert.match(run.document.getElementById('result-text').textContent, /新建 3/);
+  assert.equal(run.native.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.size, 0);
+});
+
 test('备考科目同步筛选目录和所有分页，公共题来源混合仍保留，父分类不展开排除的分支', async () => {
   const run=runtime(25); await tick();
   const api=run.native.__DAGUANYUAN_MATH_API_GLOBAL__;
-  const records=run.workspace.initialize().records;
+  const records=await api.categoryRecords('complete','all');
   api.categoryRecords=async (scope,subject)=>records.filter(r=>subject!=='math_2'||r[0]!==4);
   await run.load(1); run.requests.length=0;
   run.click('[data-exam-subject="math_2"]'); await tick(); await run.controller.importWorkspaceTask.done;

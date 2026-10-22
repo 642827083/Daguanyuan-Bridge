@@ -5,7 +5,7 @@ var __DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__ = (function () {
   const SCHEMA_VERSION = 1;
   const MIN_REMOTE_RECORD_COUNT = 100;
   let cachedCatalog;
-  let cachedSourceKind = "bundled";
+  let cachedSourceKind = "empty";
   let updating = false;
 
   function applicationValue(key) {
@@ -62,13 +62,6 @@ var __DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__ = (function () {
     };
   }
 
-  function bundledCatalog() {
-    const bundled = typeof __DAGUANYUAN_CATEGORY_CATALOG_DATA__ === "undefined"
-      ? { source: SOURCE_URL, updatedAt: "", records: [] }
-      : __DAGUANYUAN_CATEGORY_CATALOG_DATA__;
-    return normalizeCatalog(bundled, 1);
-  }
-
   function currentCatalog() {
     if (cachedCatalog) return cachedCatalog;
     try {
@@ -84,8 +77,8 @@ var __DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__ = (function () {
     } catch (error) {
       console.log(`[Daguanyuan Bridge] 读取本地分类数据失败：${error && error.message ? error.message : error}`);
     }
-    cachedCatalog = bundledCatalog();
-    cachedSourceKind = "bundled";
+    cachedCatalog = { schemaVersion: SCHEMA_VERSION, source: SOURCE_URL, updatedAt: "", records: [] };
+    cachedSourceKind = "empty";
     return cachedCatalog;
   }
 
@@ -216,7 +209,7 @@ var __DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__ = (function () {
 
   function resetMemoryCache() {
     cachedCatalog = undefined;
-    cachedSourceKind = "bundled";
+    cachedSourceKind = "empty";
   }
 
   return {

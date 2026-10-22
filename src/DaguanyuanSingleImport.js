@@ -21,7 +21,7 @@ var __DAGUANYUAN_SINGLE_IMPORT_GLOBAL__ = (function () {
     const target = match && JSON.parse(decodeURIComponent(match[1]));
     if (!target || typeof target.url !== "string") throw new Error("单题导入参数无效");
     if (target.provider === "math") {
-      if (!/^https:\/\/(?:www\.)?cxyonly\.fans\/math\/(?:practice(?:\/(?:categories\/)?[1-9]\d*)?|questions\/[1-9]\d*|paper)\/?(?:[?#][^\s<>]*)?$/.test(target.url)) throw new Error("请在数学题目页导入本题");
+      if (!/^https:\/\/(?:www\.)?cxyonly\.fans\/math\/(?:practice(?:\/(?:(?:categories|concepts)\/)?[1-9]\d*|\/[^/\s<>?#]+\/(?:all|[1-9]\d*)\/[1-9]\d*)?|questions\/[1-9]\d*|paper)\/?(?:[?#][^\s<>]*)?$/.test(target.url)) throw new Error("请在数学题目页导入本题");
       target.id = __DAGUANYUAN_MATH_API_GLOBAL__.positiveInteger(target.id, "题目 ID");
     } else if (target.provider === "408") {
       if (!/^https:\/\/www\.408os\.cn\/exercise\?/.test(target.url)) throw new Error("请在 408 题目页导入本题");

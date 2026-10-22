@@ -146,6 +146,7 @@ var __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__ = (function () {
     const key = sourceKey(input);
     const target = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resultForCategoryId(targetCategoryId);
     if (!key) throw new Error("无法识别当前学习集或题型父节点");
+    if (target.status === "unavailable") throw new Error(target.message);
     if (target.status !== "resolved") throw new Error("当前大观园分类不存在");
     const state = readState();
     state.categoryBindings[key] = {

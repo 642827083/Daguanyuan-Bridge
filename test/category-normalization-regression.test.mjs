@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const catalogSource = readFileSync(new URL("../src/DaguanyuanCategoryCatalog.js", import.meta.url), "utf8");
+const catalogFixture = JSON.parse(readFileSync(new URL("./fixtures/math-category-catalog.json", import.meta.url), "utf8"));
 const routesSource = readFileSync(new URL("../src/DaguanyuanCategoryRoutes.js", import.meta.url), "utf8");
 
 function routesRuntime() {
   const context = { Number, String, Array, Object, JSON, Math, RegExp, console };
   vm.createContext(context);
-  vm.runInContext(catalogSource, context);
   vm.runInContext(routesSource, context);
+  context.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.replaceCatalog(catalogFixture);
   return context.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__;
 }
 

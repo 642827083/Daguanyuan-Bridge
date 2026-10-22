@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const catalogSource = readFileSync(new URL("../src/DaguanyuanCategoryCatalog.js", import.meta.url), "utf8");
+const catalogFixture = JSON.parse(readFileSync(new URL("./fixtures/math-category-catalog.json", import.meta.url), "utf8"));
 const catalogStoreSource = readFileSync(new URL("../src/DaguanyuanCategoryCatalogStore.js", import.meta.url), "utf8");
 const routesSource = readFileSync(new URL("../src/DaguanyuanCategoryRoutes.js", import.meta.url), "utf8");
 const os408RoutesSource = readFileSync(new URL("../src/Daguanyuan408Routes.js", import.meta.url), "utf8");
@@ -52,9 +52,9 @@ function runtime() {
     encodeURIComponent, decodeURIComponent, console,
   };
   vm.createContext(context);
-  vm.runInContext(catalogSource, context);
   vm.runInContext(catalogStoreSource, context);
   vm.runInContext(routesSource, context);
+  context.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.replaceCatalog(catalogFixture);
   vm.runInContext(os408RoutesSource, context);
   vm.runInContext(storeSource, context);
   return { context, files };

@@ -5,8 +5,7 @@ const path = require('node:path');
 const { workspaceHTML } = require('./build-web');
 const root = path.resolve(__dirname, '..');
 const catalog = {};
-vm.runInNewContext(fs.readFileSync(path.join(root, 'src/DaguanyuanCategoryCatalog.js'), 'utf8'), catalog);
-const records = catalog.__DAGUANYUAN_CATEGORY_CATALOG_DATA__.records;
+const records = JSON.parse(fs.readFileSync(path.join(root, 'test/fixtures/math-category-catalog.json'), 'utf8')).records;
 vm.runInNewContext(fs.readFileSync(path.join(root, 'src/Daguanyuan408Catalog.js'), 'utf8'), catalog);
 const catalog408 = catalog.__DAGUANYUAN_408_CATALOG_DATA__;
 const questions408 = [

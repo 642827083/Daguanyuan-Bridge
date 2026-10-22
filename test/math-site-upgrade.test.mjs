@@ -94,7 +94,8 @@ test('旧卡查看原题和新版单题链接均可读取，外站仍拒绝', ()
 });
 
 test('新版分类网址和题单分类可以解析', () => {
-  const routes = native('DaguanyuanCategoryCatalog', 'DaguanyuanCategoryRoutes').__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__;
+  const routes = native('DaguanyuanCategoryRoutes').__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__;
+  routes.replaceCatalog(JSON.parse(readFileSync(new URL('./fixtures/math-category-catalog.json', import.meta.url), 'utf8')));
   assert.equal(routes.categoryIdFromURL('https://www.cxyonly.fans/math/practice/categories/345'), 345);
   assert.equal(routes.categoryIdFromURL('https://www.cxyonly.fans/math/practice?listId=core&categoryId=345'), 345);
 });

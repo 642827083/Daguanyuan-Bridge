@@ -21,7 +21,6 @@ var __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__ = (function () {
     return evaluate(controller, '(function(){var ui=window.__DAGUANYUAN_IMPORT_WORKSPACE__;if(!ui)throw new Error("导入页面已关闭，请重新打开");ui.'
       + method + '(' + JSON.stringify(task.token) + ',' + JSON.stringify(data) + ');return "ok";})()');
   }
-  function catalog() { return __DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__.currentCatalog().records; }
   function initialize() {
     const defaults = NSUserDefaults.standardUserDefaults();
     let scope = String(defaults.objectForKey(PREFIX + 'scope') || 'complete');
@@ -31,7 +30,7 @@ var __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__ = (function () {
     let examSubject = String(defaults.objectForKey(PREFIX + 'exam-subject') || 'all');
     if (['all', 'math_1', 'math_2', 'math_3'].indexOf(examSubject) < 0) examSubject = 'all';
     const source = String(defaults.objectForKey(PREFIX + 'source') || 'math');
-    const data = { records: catalog(), records408: __DAGUANYUAN_408_CATALOG_DATA__.records,
+    const data = { records: [], records408: __DAGUANYUAN_408_CATALOG_DATA__.records,
       years408: __DAGUANYUAN_408_CATALOG_DATA__.years, source: source === '408' ? '408' : 'math', scope, content, examSubject };
     // 先提供来源和偏好，数学目录随后单独读取，网络失败不阻止切换 408。
     return data;
@@ -94,7 +93,7 @@ var __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__ = (function () {
     const filtered = controller.importMathCatalog;
     if (!filtered || filtered.scope !== scope || filtered.examSubject !== examSubject) throw new Error('分类筛选已变化，请重新读取');
     const categories = categoriesFor(filtered.records, payload && payload.categoryIds);
-    const session = WRITER.preparedMathSession(controller.addon);
+    const session = WRITER.preparedMathSession(controller.addon, filtered.records);
     const task = { token: token(payload.token), source: 'math', scope, examSubject, session, status: 'loading', cancelled: false, questions: [] };
     close(controller);
     controller.importWorkspaceTask = task;

@@ -35,7 +35,7 @@ function notes() {
   return { one, two, three };
 }
 
-function navigationRuntime(initialCategoryEnabled = false, initialQuestionLocatorEnabled = false) {
+function navigationRuntime(initialCategoryEnabled = false, initialQuestionLocatorEnabled = false, measuredWidth) {
   let categoryEnabled = initialCategoryEnabled;
   let questionLocatorEnabled = initialQuestionLocatorEnabled;
   const first = { noteId: "first" };
@@ -55,7 +55,7 @@ function navigationRuntime(initialCategoryEnabled = false, initialQuestionLocato
   function UIButton(frame) {
     this.frame = frame;
     this.layer = {};
-    this.titleLabel = {};
+    this.titleLabel = measuredWidth === undefined ? {} : { sizeThatFits() { return { width: measuredWidth }; } };
     this.setTitleForState = function (title) { this.title = title; };
     this.setTitleColorForState = function () {};
     this.addTargetActionForControlEvents = function (target, action) { this.action = action; };
@@ -211,7 +211,7 @@ test("题型分类按钮默认关闭，开启后显示直属父节点并保存�
 });
 
 test("定位题目按钮由独立开关控制并保存位置", () => {
-  const runtime = navigationRuntime();
+  const runtime = navigationRuntime(false, false, 120);
   runtime.ui.syncQuestionLocator(runtime.addon);
   assert.equal(runtime.addon.__daguanyuanQuestionLocatorButton, undefined);
 

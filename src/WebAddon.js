@@ -107,6 +107,7 @@ function createDaguanyuanBridgeAddon(mainPath) {
         const result = binding
           ? __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resultForCategoryId(binding.targetCategoryId)
           : __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resolve(source.sourcePath);
+        if (result.status === "unavailable") throw new Error(result.message);
         if (result.status !== "resolved") {
           const reason = binding
             ? "已绑定的大观园分类不存在"
@@ -148,6 +149,7 @@ function createDaguanyuanBridgeAddon(mainPath) {
         const result = binding
           ? __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resultForCategoryId(binding.targetCategoryId)
           : __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resolve(source.sourcePath);
+        if (result.status === "unavailable") throw new Error(result.message);
         if (result.status !== "resolved") {
           const reason = binding
             ? "已绑定的大观园分类不存在"

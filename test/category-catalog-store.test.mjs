@@ -3,13 +3,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const catalogSource = readFileSync(new URL("../src/DaguanyuanCategoryCatalog.js", import.meta.url), "utf8");
 const catalogStoreSource = readFileSync(new URL("../src/DaguanyuanCategoryCatalogStore.js", import.meta.url), "utf8");
 const routesSource = readFileSync(new URL("../src/DaguanyuanCategoryRoutes.js", import.meta.url), "utf8");
 const mainSource = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
 
-function runtime() {
-  const files = new Map();
+function runtime(initialFiles = []) {
+  const files = new Map(initialFiles);
   const directories = new Set(["/documents"]);
   const manager = {
     fileExistsAtPath(path) {
@@ -46,7 +45,6 @@ function runtime() {
     encodeURIComponent, decodeURIComponent, console,
   };
   vm.createContext(context);
-  vm.runInContext(catalogSource, context);
   vm.runInContext(catalogStoreSource, context);
   vm.runInContext(routesSource, context);
   return { context, files };
@@ -65,11 +63,16 @@ test("分类目录优先读取本地更新数据并可让路由立即重载", ()
   const store = context.__DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__;
   const routes = context.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__;
 
-  assert.equal(store.metadata().sourceKind, "bundled");
-  assert.equal(store.metadata().size, 1061);
+  assert.equal(store.metadata().sourceKind, "empty");
+  assert.equal(store.metadata().size, 0);
+  assert.equal(routes.size, 0);
+  assert.equal(routes.resolve(["高等数学"]).status, "unavailable");
+  assert.match(routes.resultForCategoryId(1000).message, /下载分类数据/);
 
   const result = store.replaceWithTree(remoteTree(), "2026-09-21");
   assert.equal(result.catalog.records.length, 121);
+  assert.equal(result.changes.added, 121);
+  assert.equal(result.changes.removed, 0);
   assert.equal(store.metadata().sourceKind, "local");
   assert.equal(files.has("/documents/DaguanyuanBridge/category-catalog.json"), true);
 
@@ -95,7 +98,67 @@ test("异常分类响应不会覆盖已经可用的本地数据", () => {
   assert.equal(store.metadata().size, 121);
 });
 
+test("已有本地数据启动时直接加载，不因日期久远而过期", () => {
+  const first = runtime();
+  first.context.__DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__.replaceWithTree(remoteTree(), "2020-01-01");
+  const next = runtime(first.files);
+  assert.equal(next.context.__DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__.metadata().sourceKind, "local");
+  assert.equal(next.context.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.size, 121);
+  assert.equal(next.context.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.updatedAt, "2020-01-01");
+});
+
+test("损坏的本地文件不阻止启动，首次重新下载后可以正常使用", () => {
+  const path = "/documents/DaguanyuanBridge/category-catalog.json";
+  const { context, files } = runtime([[path, { text: "invalid json" }]]);
+  const store = context.__DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__;
+  assert.equal(store.metadata().sourceKind, "empty");
+  assert.equal(context.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.size, 0);
+  assert.equal(files.get(path).text, "invalid json");
+  store.replaceWithTree(remoteTree());
+  context.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.reloadFromStore();
+  assert.equal(context.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.size, 121);
+});
+
+test("首次下载与更新的网络失败均保留原状态，失败后允许重试", () => {
+  for (const existing of [false, true]) {
+    const { context, files } = runtime();
+    const store = context.__DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__;
+    if (existing) store.replaceWithTree(remoteTree(), "2026-09-21");
+    const path = store.storagePath();
+    const previous = files.get(path)?.text;
+    const replies = [];
+    Object.assign(context, {
+      NSURL: { URLWithString(url) { return url; } },
+      NSMutableURLRequest: { requestWithURL() { return { setHTTPMethod() {}, setTimeoutInterval() {}, setAllHTTPHeaderFields() {} }; } },
+      NSOperationQueue: { mainQueue() { return {}; } },
+      NSURLConnection: { sendAsynchronousRequestQueueCompletionHandler(request, queue, completion) { replies.push(completion); } },
+    });
+    let error;
+    store.fetchLatest(value => { error = value; });
+    replies.shift()(null, null, { localizedDescription: "网络不可用" });
+    assert.match(error.message, /网络不可用/);
+    assert.equal(files.get(path)?.text, previous);
+    assert.equal(store.metadata().size, existing ? 121 : 0);
+    let downloaded;
+    store.fetchLatest((value, result) => { assert.equal(value, null); downloaded = result; });
+    const text = JSON.stringify(remoteTree());
+    replies.shift()({ statusCode: 200 }, { text, length: text.length }, null);
+    assert.equal(downloaded.catalog.records.length, 121);
+    assert.equal(store.metadata().sourceKind, "local");
+  }
+});
+
+test("保存失败不会把尚未持久化的新数据设为当前数据", () => {
+  const { context, files } = runtime();
+  const store = context.__DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__;
+  context.NSJSONSerialization.dataWithJSONObjectOptions = () => ({ writeToFileAtomically() { return false; } });
+  assert.throws(() => store.replaceWithTree(remoteTree()), /保存分类数据失败/);
+  assert.equal(store.metadata().size, 0);
+  assert.equal(files.has(store.storagePath()), false);
+});
+
 test("运行时使用系统网络 API 更新分类且入口加载顺序正确", () => {
+  assert.doesNotMatch(mainSource, /JSB\.require\("DaguanyuanCategoryCatalog"\)/);
   assert.match(catalogStoreSource, /NSURLConnection\.sendAsynchronousRequestQueueCompletionHandler/);
   assert.match(catalogStoreSource, /NSJSONSerialization\.JSONObjectWithDataOptions\(data, 1\)/);
   assert.match(catalogStoreSource, /writeToFileAtomically\(storagePath\(\), true\)/);

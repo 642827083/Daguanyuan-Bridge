@@ -443,17 +443,17 @@ test('单题来源变化时保留原题入口与标记，并保留个人评论',
   assert.equal(session.write(run.question, category), false); assert.equal(card.comments.length, 3);
 });
 
-test('智能组卷单题可解析、建卡，查看原题保存题目分类地址而非临时试卷地址', async () => {
+for (const page of ['paper?view=practice', 'practice/concepts/345', 'practice/exam-by-year-math_1/all/345']) test(page + ' 单题可解析、建卡，查看原题保存题目分类地址', async () => {
   const run = runtime();
-  const payload = { provider: 'math', id: 843, url: 'https://www.cxyonly.fans/math/paper?view=practice' };
+  const payload = { provider: 'math', id: 843, url: 'https://www.cxyonly.fans/math/' + page };
   const target = run.importer.targetFromAddress('daguanyuanbridge://import-single?payload=' + encodeURIComponent(JSON.stringify(payload)));
   const pending = run.importer.importQuestion(run.panel, target); run.complete();
   assert.equal((await pending).createdCount, 1);
   const card = run.parent.childNotes[0];
   const route = run.context.__DAGUANYUAN_SOURCE_LINK_GLOBAL__.fromComment(card.comments[1].text);
   assert.equal(route.questionId, 843); assert.match(route.url, /\/math\/practice\/1\?questionId=843$/);
-  assert.doesNotMatch(route.url, /paper/);
-  for (const url of ['https://evil.example/math/paper', 'https://www.cxyonly.fans/math/paper-export']) {
+  assert.doesNotMatch(route.url, /paper|retest/);
+  for (const url of ['https://evil.example/math/paper', 'https://www.cxyonly.fans/math/paper-export', 'https://www.cxyonly.fans/math/retest-export', 'https://www.cxyonly.fans/math/retest/practice', 'https://www.cxyonly.fans/math/retest?view=plans']) {
     assert.throws(() => run.importer.targetFromAddress('daguanyuanbridge://import-single?payload=' + encodeURIComponent(JSON.stringify({ ...payload, url }))), /数学题目页/);
   }
 });

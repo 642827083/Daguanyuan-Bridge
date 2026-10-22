@@ -1166,6 +1166,9 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
           showMessage(controller, `已绑定：${source.parentTitle} → ${binding.targetURL}`);
           return;
         }
+        if (__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.size === 0) {
+          throw new Error("尚未下载数学分类数据，请前往“设置 → 题型分类管理”下载分类数据");
+        }
         const categoryId = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.categoryIdFromURL(result);
         if (!categoryId) throw new Error("请先进入一个具体的大观园题型分类");
         const target = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resultForCategoryId(categoryId);
@@ -1332,6 +1335,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
           return;
         }
         const target = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resultForCategoryId(binding.targetCategoryId);
+        if (target.status === "unavailable") throw new Error(target.message);
         if (target.status !== "resolved") throw new Error("这条绑定的目标分类已经失效");
         const url = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.urlFor(target);
         if (!url) throw new Error("题型分类地址无效");

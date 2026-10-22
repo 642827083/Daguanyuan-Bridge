@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const catalogSource = readFileSync(new URL("../src/DaguanyuanCategoryCatalog.js", import.meta.url), "utf8");
+const catalogFixture = JSON.parse(readFileSync(new URL("./fixtures/math-category-catalog.json", import.meta.url), "utf8"));
 const routesSource = readFileSync(new URL("../src/DaguanyuanCategoryRoutes.js", import.meta.url), "utf8");
 const resolverSource = readFileSync(new URL("../src/DaguanyuanQuestionResolver.js", import.meta.url), "utf8");
 const coreSource = readFileSync(new URL("../src/DaguanyuanFocusNextCore.js", import.meta.url), "utf8");
@@ -15,8 +15,8 @@ const mainSource = readFileSync(new URL("../src/main.js", import.meta.url), "utf
 function categoryRoutes() {
   const context = { Number, String, Array, Object, JSON, Math, RegExp, console };
   vm.createContext(context);
-  vm.runInContext(catalogSource, context);
   vm.runInContext(routesSource, context);
+  context.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.replaceCatalog(catalogFixture);
   return context.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__;
 }
 
@@ -30,9 +30,9 @@ function panelTools() {
   return context.__DAGUANYUAN_WEB_PANEL_GLOBAL__;
 }
 
-test("本地分类快照包含完整公开分类树", () => {
+test("路由可加载用户提供的分类数据", () => {
   const routes = categoryRoutes();
-  assert.equal(routes.size, 1061);
+  assert.equal(routes.size, catalogFixture.records.length);
   assert.match(routes.updatedAt, /^\d{4}-\d{2}-\d{2}$/);
 });
 
@@ -289,7 +289,7 @@ test("设置页提供题型工具大类并提供默认关闭的快捷跳转开�
 });
 
 test("题型按钮点击通过独立路由模块在插件面板中打开分类", () => {
-  assert.match(mainSource, /JSB\.require\("DaguanyuanCategoryCatalog"\)/);
+  assert.match(mainSource, /JSB\.require\("DaguanyuanCategoryCatalogStore"\)/);
   assert.match(mainSource, /JSB\.require\("DaguanyuanCategoryRoutes"\)/);
   assert.match(uiSource, /action: "openFocusCategory:"/);
   assert.match(addonSource, /openFocusCategory: function/);

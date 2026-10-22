@@ -80,15 +80,6 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     return changed;
   }
 
-  function setCompactTitle(button, title) {
-    if (!button) return false;
-    const width = Math.max(68, Math.min(MAX_BUTTON_WIDTH, Math.ceil(measuredTitleWidth(button, title) + 20)));
-    const changed = finiteNumber(button.__daguanyuanContentWidth) !== width;
-    button.__daguanyuanContentWidth = width;
-    button.setTitleForState(String(title || ""), 0);
-    return changed;
-  }
-
   function placeButton(addon, button, positionKey, defaultX, defaultY) {
     const view = viewFor(addon);
     if (!button || !view || !view.bounds) return false;
@@ -290,7 +281,7 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     }
     if (!button) {
       button = new UIButton({ x: 0, y: 0, width: BUTTON_WIDTH, height: BUTTON_HEIGHT });
-      setCompactTitle(button, "定位题目");
+      button.setTitleForState("定位题目", 0);
       button.setTitleColorForState(UIColor.whiteColor(), 0);
       button.titleLabel.font = UIFont.boldSystemFontOfSize(14);
       button.titleLabel.numberOfLines = 1;
@@ -302,6 +293,7 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
       button.addGestureRecognizer(new UIPanGestureRecognizer(addon, "handleQuestionLocatorButtonPan:"));
       addon.__daguanyuanQuestionLocatorButton = button;
     }
+    button.__daguanyuanContentWidth = BUTTON_WIDTH;
     if (button.superview !== view) {
       if (button.superview) button.removeFromSuperview();
       view.addSubview(button);

@@ -245,15 +245,16 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
     if (!current || noteId(value(current, 'parentNote')) !== noteId(parent)) throw new Error('题卡分类调整未完成');
   }
 
-  function questionURL(categoryId, questionId) {
-    const route = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resultForCategoryId(categoryId);
-    const categoryURL = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.urlFor(route);
+  function questionURL(categoryId, questionId, categoryRoutes) {
+    const routes = categoryRoutes || __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__;
+    const route = routes.resultForCategoryId(categoryId);
+    const categoryURL = routes.urlFor(route);
     if (!categoryURL) throw new Error("题目分类未收录，请先更新分类数据");
     return `${categoryURL}${categoryURL.indexOf("?") < 0 ? "?" : "&"}questionId=${questionId}`;
   }
 
-  function routeForQuestion(question, selectedCategoryId) {
-    const routes = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__;
+  function routeForQuestion(question, selectedCategoryId, categoryRoutes) {
+    const routes = categoryRoutes || __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__;
     const primary = routes.resultForCategoryId(question.categoryId);
     if (!selectedCategoryId) return primary;
     const selected = routes.resultForCategoryId(selectedCategoryId);
@@ -571,6 +572,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
   function importQuestions(addon, rawIds, onProgress, categoryIdsByQuestion, existingContext, check, content) {
     const ids = normalizeIds(rawIds);
     const context = existingContext || notebookContext(addon);
+    const routes = context.categoryRoutes || __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__;
     const readImage = typeof __DAGUANYUAN_MATH_IMAGES_GLOBAL__ !== 'undefined' ? __DAGUANYUAN_MATH_IMAGES_GLOBAL__.reader(addon.panelController, check) : undefined;
     const result = { createdCount: 0, answerAddedCount: 0, skippedCount: 0, failed: [] };
     // 列表已给出分类时先查重，已有题卡无需再次请求题干、答案或图片。
@@ -579,7 +581,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
         assertCurrentContext(addon, context);
         const categoryId = categoryIdsByQuestion && categoryIdsByQuestion[id];
         if (!categoryId) return true;
-        const route = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resultForCategoryId(categoryId);
+        const route = routes.resultForCategoryId(categoryId);
         if (route.status !== 'resolved') return true;
         const existing = findQuestionAtPath(context, route.path, id, 'math');
         if (existing && (content !== 'questionAnswer' || answerChild(existing, id, 'math'))) {
@@ -631,9 +633,9 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
             try {
               const selectedCategoryId = categoryIdsByQuestion && Object.prototype.hasOwnProperty.call(categoryIdsByQuestion, question.id)
                 ? __DAGUANYUAN_MATH_API_GLOBAL__.positiveInteger(categoryIdsByQuestion[question.id], "所选分类 ID") : 0;
-              const route = routeForQuestion(question, selectedCategoryId);
+              const route = routeForQuestion(question, selectedCategoryId, routes);
               if (route.status !== "resolved") throw new Error("题目分类未收录，请先更新分类数据");
-              const url = questionURL(route.categoryId, question.id);
+              const url = questionURL(route.categoryId, question.id, routes);
               const existing = findQuestionAtPath(context, route.path, question.id, "math");
               if (!existing) questionMarkdown(question);
               if (!existing && content === 'questionAnswer') answerComments(question);
@@ -746,8 +748,10 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
     });
   }
 
-  function preparedMathSession(addon) {
+  function preparedMathSession(addon, categoryRecords) {
     const context = notebookContext(addon);
+    // 导入使用当前在线筛选得到的目录，不覆盖用户手动下载的分类数据。
+    if (categoryRecords) context.categoryRoutes = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.forCatalog({ records: categoryRecords });
     requireImportUtils();
     return {
       targetTitle: targetTitle(context),

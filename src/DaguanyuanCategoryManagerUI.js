@@ -123,8 +123,12 @@ var __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__ = (function () {
       ? `408：${binding.targetURL}`
       : target.status === "resolved"
         ? `大观园：${target.path.join(" / ")}`
-        : `目标分类已失效（ID：${binding.targetCategoryId}）`;
-    const targetLabel = label(targetText, UIFont.systemFontOfSize(12), target.status === "resolved" ? ACCENT_COLOR : DANGER_COLOR);
+        : target.status === "unavailable"
+          ? `下载数学分类数据后查看（ID：${binding.targetCategoryId}）`
+          : `目标分类已失效（ID：${binding.targetCategoryId}）`;
+    const targetColor = target.status === "resolved" ? ACCENT_COLOR
+      : target.status === "unavailable" ? UIColor.colorWithRedGreenBlueAlpha(122 / 255, 129 / 255, 139 / 255, 1) : DANGER_COLOR;
+    const targetLabel = label(targetText, UIFont.systemFontOfSize(12), targetColor);
     targetLabel.numberOfLines = 2;
     const openButton = button("打开", controller, "openManagedBinding:");
     const deleteButton = button("删除", controller, "deleteManagedBinding:");
@@ -155,8 +159,10 @@ var __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__ = (function () {
   function refresh(controller) {
     if (!controller || !controller.categoryManagerPage) return;
     const metadata = __DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__.metadata();
-    const sourceName = metadata.sourceKind === "local" ? "本地更新数据" : "插件内置数据";
-    controller.categoryCatalogStatus.text = `${sourceName}\n${metadata.updatedAt || "未知日期"} · ${metadata.size} 个分类`;
+    controller.categoryCatalogStatus.text = metadata.size
+      ? `本地更新数据\n${metadata.updatedAt || "未知日期"} · ${metadata.size} 个分类`
+      : "尚未下载数学分类数据\n请先下载，再使用分类匹配与绑定";
+    controller.categoryCatalogUpdateButton.setTitleForState(metadata.size ? "立即更新" : "下载分类数据", 0);
     removeRows(controller);
     controller.categoryManagerBindings = __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__.allBindings();
     controller.categoryBindingsTitle.text = `人工绑定（${controller.categoryManagerBindings.length}）`;
@@ -244,7 +250,8 @@ var __DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__ = (function () {
     if (!controller || !controller.categoryCatalogUpdateButton) return;
     controller.categoryCatalogUpdateButton.enabled = !updating;
     controller.categoryCatalogUpdateButton.alpha = updating ? 0.55 : 1;
-    controller.categoryCatalogUpdateButton.setTitleForState(updating ? "更新中…" : "立即更新", 0);
+    const hasCatalog = __DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__.metadata().size > 0;
+    controller.categoryCatalogUpdateButton.setTitleForState(updating ? (hasCatalog ? "更新中…" : "下载中…") : (hasCatalog ? "立即更新" : "下载分类数据"), 0);
   }
 
   return { setup, layout, refresh, setUpdating };

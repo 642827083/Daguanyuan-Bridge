@@ -1,4 +1,4 @@
-var __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = (function () {
+var __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = (function createRoutes(initialCatalog) {
   const SITE_BASE_URL = "https://www.cxyonly.fans";
   const QUESTIONS_PER_PAGE = 20;
   let activeCatalog = { records: [], updatedAt: "" };
@@ -25,15 +25,28 @@ var __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = (function () {
   }
 
   function reloadFromStore() {
-    if (typeof __DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__ !== "undefined") {
-      return replaceCatalog(__DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__.currentCatalog());
-    }
-    return replaceCatalog(typeof __DAGUANYUAN_CATEGORY_CATALOG_DATA__ === "undefined"
-      ? { records: [] }
-      : __DAGUANYUAN_CATEGORY_CATALOG_DATA__);
+    const catalog = typeof __DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__ !== "undefined"
+      ? __DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__.currentCatalog()
+      : { records: [], updatedAt: "" };
+    if (catalog.records.length) return replaceCatalog(catalog);
+    // 首次安装允许目录为空，分类数据由用户手动下载。
+    activeCatalog = catalog;
+    records = [];
+    recordsById = {};
+    pathCache = {};
+    return 0;
   }
 
-  reloadFromStore();
+  function unavailableResult() {
+    return {
+      status: "unavailable",
+      message: "尚未下载数学分类数据，请前往“设置 → 题型分类管理”下载分类数据",
+      candidates: [],
+    };
+  }
+
+  if (initialCatalog) replaceCatalog(initialCatalog);
+  else reloadFromStore();
 
   function normalizeSegment(value) {
     return String(value || "").trim();
@@ -68,6 +81,7 @@ var __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = (function () {
   }
 
   function resolve(path) {
+    if (!records.length) return unavailableResult();
     const sourcePath = (path || []).map(normalizeSegment).filter(Boolean);
     if (!sourcePath.length) return { status: "missing", candidates: [] };
     let bestScore = 0;
@@ -104,6 +118,7 @@ var __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = (function () {
   }
 
   function resultForCategoryId(categoryId) {
+    if (!records.length) return unavailableResult();
     const record = recordsById[Number(categoryId)];
     if (!record) return { status: "missing", candidates: [] };
     const recordPath = pathFor(record);
@@ -159,6 +174,7 @@ var __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = (function () {
     questionRouteFor,
     replaceCatalog,
     reloadFromStore,
+    forCatalog: createRoutes,
     get size() { return records.length; },
     get updatedAt() { return String(activeCatalog.updatedAt || ""); },
   };

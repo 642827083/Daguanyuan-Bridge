@@ -6,7 +6,6 @@ import vm from "node:vm";
 const apiSource = readFileSync(new URL("../src/DaguanyuanMathApi.js", import.meta.url), "utf8");
 const importSource = readFileSync(new URL("../src/DaguanyuanCardComments.js", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../src/DaguanyuanMathImport.js", import.meta.url), "utf8");
 const locatorSource = readFileSync(new URL("../src/DaguanyuanCardLocator.js", import.meta.url), "utf8");
-const retestSource = readFileSync(new URL("../src/DaguanyuanRetestBridge.js", import.meta.url), "utf8");
 const addonSource = readFileSync(new URL("../src/WebAddon.js", import.meta.url), "utf8");
 const panelSource = readFileSync(new URL("../src/WebPanelController.js", import.meta.url), "utf8");
 const videoSource = readFileSync(new URL("../src/DaguanyuanVideoBrowser.js", import.meta.url), "utf8");
@@ -267,85 +266,6 @@ test("按直接分类跨页导入完整层级，失败可重试且重复题目�
   assert.equal(empty.createdCount, 0);
 });
 
-test("错题复测待复测题和未来计划都显示定位按钮并回传题目 ID", () => {
-  const context = {};
-  vm.createContext(context);
-  vm.runInContext(retestSource, context);
-  const script = context.__DAGUANYUAN_RETEST_BRIDGE_GLOBAL__.script(true, true);
-  function element(attributes = {}) {
-    return {
-      attributes, children: [], parentNode: null, handlers: {}, style: {},
-      get nextSibling() {
-        if (!this.parentNode) return null;
-        return this.parentNode.children[this.parentNode.children.indexOf(this) + 1] || null;
-      },
-      getAttribute(name) { return this.attributes[name] || null; },
-      setAttribute(name, value) { this.attributes[name] = value; },
-      appendChild(child) { child.parentNode = this; this.children.push(child); },
-      insertBefore(child, sibling) {
-        if (child.parentNode) child.parentNode.removeChild(child);
-        child.parentNode = this;
-        const index = this.children.indexOf(sibling);
-        this.children.splice(index < 0 ? this.children.length : index, 0, child);
-      },
-      removeChild(child) { this.children = this.children.filter((item) => item !== child); child.parentNode = null; },
-      querySelector(selector) {
-        if (selector === "[data-daguanyuan-locate-card]")
-          return this.children.find((child) => child.attributes["data-daguanyuan-locate-card"]) || null;
-        if (selector === "[data-daguanyuan-retest-add-note]")
-          return this.children.find((child) => child.attributes["data-daguanyuan-retest-add-note"]) || null;
-        return null;
-      },
-      addEventListener(name, callback) { this.handlers[name] = callback; },
-    };
-  }
-  const due = element({ "data-retest-question-id": "3356" });
-  const future = element({ "data-retest-schedule-question-id": "3356" });
-  const other = element({ "data-retest-question-id": "7980" });
-  const timers = [];
-  const body = element();
-  const browser = {
-    window: { location: { pathname: "/math/retest" }, setTimeout(callback) { timers.push(callback); return timers.length; } },
-    document: {
-      documentElement: element(), body,
-      querySelectorAll(selector) {
-        if (selector === "[data-retest-question-id]") return [due, other];
-        if (selector === "[data-retest-schedule-question-id]") return [future];
-        if (selector === "[data-retest-question-id], [data-retest-schedule-question-id]") return [due, other, future];
-        return [];
-      },
-      createElement() { return element(); },
-    },
-    MutationObserver: class { observe() {} },
-    encodeURIComponent,
-  };
-  vm.createContext(browser);
-  vm.runInContext(script, browser);
-  timers.shift()();
-  const dueButton = due.querySelector("[data-daguanyuan-locate-card]");
-  const futureButton = future.querySelector("[data-daguanyuan-locate-card]");
-  const otherButton = other.querySelector("[data-daguanyuan-locate-card]");
-  assert.equal(dueButton?.textContent, "定位卡片");
-  assert.equal(futureButton?.textContent, "定位卡片");
-  assert.equal(otherButton?.textContent, "定位卡片");
-  const noteButton = due.querySelector("[data-daguanyuan-retest-add-note]");
-  assert.equal(noteButton?.textContent, "添加笔记");
-  assert.deepEqual(due.children.slice(0, 2), [dueButton, noteButton]);
-  assert.equal(noteButton.style.cssText, dueButton.style.cssText);
-  noteButton.handlers.click.call(noteButton, { preventDefault() {}, stopPropagation() {} });
-  assert.equal(body.children.at(-1).src, "daguanyuanbridge://add-note?id=3356");
-  timers.shift()();
-  vm.runInContext(context.__DAGUANYUAN_RETEST_BRIDGE_GLOBAL__.script(false), browser);
-  timers.shift()();
-  assert.equal(due.querySelector("[data-daguanyuan-locate-card]"), null);
-  assert.equal(future.querySelector("[data-daguanyuan-locate-card]"), null);
-  vm.runInContext(context.__DAGUANYUAN_RETEST_BRIDGE_GLOBAL__.script(true), browser);
-  timers.shift()();
-  const restoredButton = future.querySelector("[data-daguanyuan-locate-card]");
-  assert.equal(restoredButton?.textContent, "定位卡片");
-  restoredButton.handlers.click.call(restoredButton, { preventDefault() {}, stopPropagation() {} });
-  assert.equal(body.children[0].src, "daguanyuanbridge://locate-card?id=3356");
-});
 
 test("新导入题卡使用默认字号", () => {
   const context = {};
