@@ -19,13 +19,12 @@ import MNBridge from './lib/mnBridge.js';
   }
   function hide() { el('dialog').hidden = true; lock(false); state.busy = false; }
   function source() {
-    const url = new URL(location.href), math = /^(www\.)?cxyonly\.fans$/.test(url.hostname)
-      && /^\/math\/practice(?:\/(?:categories\/)?[1-9]\d*)?\/?$/.test(url.pathname);
+    const url = new URL(location.href), route = window.__DAGUANYUAN_MATH_IMPORT_ROUTE__(location.href), math = route.categoryId > 0 || route.conceptId > 0;
     const os = url.hostname === 'www.408os.cn' && /^\/exercise\/?$/.test(url.pathname);
     const collection = os && url.searchParams.get('mode') === 'collection' && /^[1-9]\d*$/.test(url.searchParams.get('collectionId') || '');
     const category = math || os && !url.searchParams.has('mode') && !url.searchParams.has('collectionId')
       && (/^[1-9]\d*$/.test(url.searchParams.get('knowledgeId') || '') || /^\d{4}$/.test(url.searchParams.get('year') || ''));
-    return { math, supported: category || collection, category, paper: os && !url.searchParams.has('knowledgeId') && !collection };
+    return { math, route, supported: category || collection, category, paper: os && !url.searchParams.has('knowledgeId') && !collection };
   }
   function currentPage() {
     const snapshot = window.__DAGUANYUAN_QUESTION_DOM__.read(), provider = snapshot.page.provider;
@@ -37,7 +36,16 @@ import MNBridge from './lib/mnBridge.js';
       excerpt.querySelectorAll('button, nav, script, style, [data-question-source], [data-note-workspace]').forEach(node => node.remove());
       questions.push({ id, title: (title || '题目 ' + id).slice(0, 200), summary: excerpt.textContent.replace(/\s+/g, ' ').trim().slice(0, 180) });
     });
-    return { provider, url: location.href, source: provider === 'math' ? '大观园数学 / 当前页面' : '408 / 当前页面', questions };
+    const current = source();
+    const importContext = provider === 'math' && current.math ? current.route : null;
+    if (importContext && !importContext.scope) {
+      const control = document.querySelector('.learning-shell__scope-toggle[data-scope]');
+      let saved = '';
+      try { saved = window.localStorage?.getItem('daguan:question-bank-scope'); } catch (ignored) {}
+      importContext.scope = control?.getAttribute('data-scope') || saved || 'complete';
+    }
+    return { provider, url: location.href, source: provider === 'math' ? '大观园数学 / 当前分类' : '408 / 当前页面', questions,
+      importContext, fullCategory: provider === '408' && current.supported };
   }
   function pageSnapshot() {
     if (!state.snapshot || state.snapshot.url !== location.href) throw Error('当前页面已切换，请重新打开选题导入');
@@ -116,11 +124,13 @@ import MNBridge from './lib/mnBridge.js';
     const navigationBusy = state.navigating || state.busy || state.directBusy || category?.importBusy || (!el('dialog').hidden && !state.done);
     el('toolbar').querySelector('[data-navigate="back"]').disabled = navigationBusy || !navigation.canGoBack;
     el('toolbar').querySelector('[data-navigate="reload"]').disabled = navigationBusy || !navigation.canReload;
-    direct.disabled = button.disabled || !source().category || state.directBusy || Boolean(category?.importBusy);
+    direct.disabled = button.disabled || state.directBusy || Boolean(category?.importBusy);
     const directTitle = state.directBusy || category?.importBusy ? '导入中…' : '导入题目';
     const directLabel = direct.querySelector('.dgy-tool-label');
     if (directLabel.textContent !== directTitle) directLabel.textContent = directTitle;
-    const hint = page.questions.length ? '导入当前页面已加载的 ' + page.questions.length + ' 道题目' : '当前页面暂无可导入题目';
+    const hint = !page.questions.length ? '当前页面暂无可导入题目' : page.importContext || page.fullCategory
+      ? '读取当前分类的完整题目列表，勾选后导入' : '从当前页面已加载的 ' + page.questions.length + ' 道题目中勾选导入';
+    direct.title = hint;
     if (button.title !== hint) { button.title = hint; button.setAttribute('aria-label', '选题导入：' + hint); }
     if (state.route !== location.href) { if (state.token) MNBridge.send('cancelQuestionImport', { token: state.token, dismiss: true }).catch(() => {}); hide(); state.snapshot = null; state.token = ''; state.route = location.href;
       MNBridge.send('getWebsiteNavigation').then(value => { window.__DAGUANYUAN_WEBSITE_NAVIGATION__ = value; refresh(); }).catch(() => {});
@@ -163,6 +173,7 @@ import MNBridge from './lib/mnBridge.js';
       refresh();
       if (direct.hidden || direct.disabled || state.busy || !dialog.hidden) return;
       const category = window.__DAGUANYUAN_BIND_CATEGORY_BUTTON__;
+      state.snapshot = currentPage();
       state.directBusy = true;
       if (category) category.importBusy = true;
       direct.disabled = true; direct.querySelector('.dgy-tool-label').textContent = '导入中…';

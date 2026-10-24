@@ -143,12 +143,34 @@ var __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = (function createRoutes(initialCatalo
     return records.filter(function (record) { return record.parentId === parentId; }).map(function (record) { return record.name; });
   }
 
+  // 纯函数同时交给网页执行，两个入口共用网址与范围解析。
+  function importContextFromURL(urlString) {
+    const value = String(urlString || '');
+    const match = value.match(/^https:\/\/(?:www\.)?cxyonly\.fans(\/[^?#]*)(?:\?([^#]*))?(?:#.*)?$/i);
+    if (!match) return { categoryId: 0, scope: '', examSubject: 'all' };
+    const query = {};
+    (match[2] || '').split('&').forEach(function (part) {
+      const pair = part.split('=');
+      try { query[decodeURIComponent(pair[0])] = decodeURIComponent((pair[1] || '').replace(/\+/g, ' ')); } catch (ignored) {}
+    });
+    const path = match[1], simple = path.match(/^\/math\/practice\/(?:categories\/)?([1-9]\d*)\/?$/);
+    const concept = path.match(/^\/math\/practice\/concepts\/([1-9]\d*)\/?$/);
+    const grouped = path.match(/^\/math\/practice\/([^/]+)\/(?:all|[1-9]\d*)\/([1-9]\d*)\/?$/);
+    const practice = /^\/math\/practice\/?$/.test(path) || Boolean(simple || grouped || concept);
+    const listId = query.listId || (grouped ? grouped[1] : '');
+    const categoryId = practice ? Number(query.resumeCategoryId || simple && simple[1] || grouped && grouped[2] || query.categoryId || query.categoryIds || 0) : 0;
+    const subjectMatch = /(?:^|-)math[-_]([123])$/.exec(listId);
+    const subject = query.examSubject || query.exam_subject || (subjectMatch ? 'math_' + subjectMatch[1] : 'all');
+    const scope = query.scope || (/^exam(?:-|$)/.test(listId) ? 'exam' : /^core(?:-|$)/.test(listId) ? 'core' : listId ? 'complete' : '');
+    return { categoryId: Number.isSafeInteger(categoryId) && categoryId > 0 ? categoryId : 0,
+      conceptId: practice ? Number(concept && concept[1] || query.conceptId || 0) : 0,
+      scope: scope, examSubject: subject, listId: listId, listRevision: query.listRevision || '',
+      query: query.q || '', mastery: query.mastery || '', favorite: query.favorite === 'true', hasNote: query.hasNote === 'true',
+      sort: query.sort || '', filters: query.filters || '', externalCategories: query.externalCategories || '' };
+  }
+
   function categoryIdFromURL(urlString) {
-    const value = String(urlString || "");
-    const resumed = value.match(/[?&]resumeCategoryId=(\d+)/i);
-    const routed = value.match(/\/math\/practice\/(?:categories\/)?(\d+)/i);
-    const selected = value.match(/[?&]categoryId=(\d+)(?:[&#]|$)/i);
-    const categoryId = Number(resumed && resumed[1] || routed && routed[1] || selected && selected[1] || 0);
+    const categoryId = importContextFromURL(urlString).categoryId;
     return Number.isSafeInteger(categoryId) && categoryId > 0 && recordsById[categoryId] ? categoryId : 0;
   }
 
@@ -180,6 +202,7 @@ var __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = (function createRoutes(initialCatalo
     resolve,
     resultForCategoryId,
     categoryIdFromURL,
+    importContextFromURL,
     urlFor,
     questionRouteFor,
     replaceCatalog,

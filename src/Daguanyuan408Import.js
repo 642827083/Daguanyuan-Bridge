@@ -151,7 +151,7 @@ var __DAGUANYUAN_408_IMPORT_GLOBAL__ = (function () {
       if (single && listing.ids.length !== 1) throw new Error("408 单题读取结果无效，已停止导入");
       result.total = listing.ids.length;
       let selected = listing.ids.map(function (id, index) { return { id, index }; });
-      if (page) {
+      if (page && !page.fullCategory) {
         const seen = new Set();
         selected = page.questions.map(function (question) {
           const index = listing.ids.indexOf(question.id);
@@ -202,9 +202,9 @@ var __DAGUANYUAN_408_IMPORT_GLOBAL__ = (function () {
       }
       if (!result.total) return result;
       return Promise.resolve(typeof beforeImport === "function" ? beforeImport({
-        source: page ? '408 / 当前页面' : "408 / " + (listing.category.path || [listing.category.title]).join(" / "),
+        source: page && !page.fullCategory ? '408 / 当前页面' : "408 / " + (listing.category.path || [listing.category.title]).join(" / "),
         target: session.targetTitle,
-        questions: page ? page.questions : listing.ids.map(function (id) { return { id: id, title: listing.sources && listing.sources[id] || "题目 " + id, summary: listing.summaries && listing.summaries[id] || '' }; }),
+        questions: page && !page.fullCategory ? page.questions : listing.ids.map(function (id) { return { id: id, title: listing.sources && listing.sources[id] || "题目 " + id, summary: listing.summaries && listing.summaries[id] || '' }; }),
       }) : true).then(function (accepted) {
         if (accepted === false) { result.cancelled = true; return result; }
         selected = __DAGUANYUAN_MATH_IMPORT_GLOBAL__.selectQuestions(selected, accepted);

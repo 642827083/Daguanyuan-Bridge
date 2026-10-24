@@ -92,7 +92,11 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
     return window.__DAGUANYUAN_QUESTION_DOM__;
   }
 
-  function questionDOMScript() { return '(' + questionDOMPageScript.toString() + ')();'; }
+  function mathContextScript() {
+    return typeof __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ === 'undefined' ? ''
+      : 'window.__DAGUANYUAN_MATH_IMPORT_ROUTE__=' + __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.importContextFromURL.toString() + ';';
+  }
+  function questionDOMScript() { return mathContextScript() + '(' + questionDOMPageScript.toString() + ')();'; }
 
   // 此函数只在网站 WebView 内运行，三个工具共用排列逻辑，避免观察器相互移动按钮。
   function questionToolsPageScript(locateEnabled, noteEnabled, singleEnabled) {
@@ -255,8 +259,9 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
 
   function readImportContext() {
     var query = new URLSearchParams(window.location.search || '');
+    var route = window.__DAGUANYUAN_MATH_IMPORT_ROUTE__ ? window.__DAGUANYUAN_MATH_IMPORT_ROUTE__(window.location.href) : {};
     var scopeControl = document.querySelector(".learning-shell__scope-toggle[data-scope]");
-    var scope = query.get('scope') || (scopeControl ? String(scopeControl.getAttribute("data-scope") || "") : "");
+    var scope = route.scope || query.get('scope') || (scopeControl ? String(scopeControl.getAttribute("data-scope") || "") : "");
     if (!scope && query.get('listId')) scope = 'complete';
     if (!scope) {
       try {
@@ -267,12 +272,14 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
     return JSON.stringify({
       url: String(window.location.href || ""),
       scope: scope,
+      categoryId: route.categoryId || 0,
+      examSubject: route.examSubject || 'all',
       selection: { listId: query.get('listId') || '' },
     });
   }
 
   function importContextScript() {
-    return "(" + readImportContext.toString() + ")();";
+    return mathContextScript() + "(" + readImportContext.toString() + ")();";
   }
 
   // 年份单题直接由网站按 ID 加载；这里只补齐标题和按需进入整卷的模式入口。

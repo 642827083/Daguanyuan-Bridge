@@ -45,7 +45,7 @@ test("工具栏与网站跳转仍保留", () => {
   assert.match(addonSource, /openDaguanyuanQuestion\(self\.panelController, route\)/);
 });
 
-test('导入导航复用独立页面，切回数学保留网页并停止旧任务，回执路由到导入 WebView', () => {
+test('隐藏的导入页不加载或恢复，旧入口返回当前题库并停止旧任务，独立网页通信仍隔离', () => {
   let methods, htmlLoads = 0, resumes = 0, bridgeContext;
   const button = () => ({ layer: {}, setTitleColorForState() {} });
   const controller = { activePage: 'math', currentContentPage: 'math', settingsPage: {}, categoryManagerPage: {},
@@ -63,9 +63,9 @@ test('导入导航复用独立页面，切回数学保留网页并停止旧任�
   };
   vm.runInNewContext(panelSource, context);
   methods.openImport();
-  assert.equal(controller.activePage, 'import'); assert.equal(controller.webView.hidden, true);
-  assert.equal(controller.importWebView.hidden, false); assert.equal(controller.importReportView.hidden, true);
-  assert.equal(htmlLoads, 1);
+  assert.equal(controller.activePage, 'math'); assert.equal(controller.webView.hidden, false);
+  assert.equal(controller.importWebView.hidden, true);
+  assert.equal(htmlLoads, 0);
   const allowed = address => methods.webViewShouldStartLoadWithRequestNavigationType(controller.importWebView, { URL: { absoluteString: address } });
   assert.equal(allowed('daguanyuanbridge://ui?payload=test'), false);
   assert.equal(bridgeContext.webView, controller.importWebView); assert.equal(bridgeContext.isImportWorkspace, true);
@@ -73,5 +73,7 @@ test('导入导航复用独立页面，切回数学保留网页并停止旧任�
   controller.importWorkspaceTask = { cancelled: false }; methods.openDaguanyuan();
   assert.equal(controller.webView.hidden, false); assert.equal(controller.importWebView.hidden, true);
   assert.equal(controller.importWorkspaceTask.cancelled, true);
-  methods.openImport(); assert.equal(htmlLoads, 1); assert.equal(resumes, 1);
+  controller.currentContentPage = '408'; methods.openImport();
+  assert.equal(controller.activePage, '408'); assert.equal(controller.importWebView.hidden, true);
+  assert.equal(htmlLoads, 0); assert.equal(resumes, 0);
 });

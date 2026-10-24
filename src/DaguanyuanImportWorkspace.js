@@ -77,12 +77,13 @@ var __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__ = (function () {
       if (!Number.isSafeInteger(id) || !ids.has(id) || wanted.has(id)) throw new Error('所选分类无效或重复');
       wanted.add(id);
     });
-    // 仅允许直属子分类全部为末级的父节点，阻止大分支递归读取。
-    selected.forEach(function (id) {
-      const leaves = (children.get(id) || []).filter(function (child) { return !children.has(child); });
-      if (!leaves.length || leaves.length !== children.get(id).length) throw new Error('只能勾选末级分类的父节点');
-      leaves.forEach(function (child) { wanted.add(child); });
-    });
+    // 父分类包含全部后代；用集合避免父子同时勾选时重复读取。
+    const pending = Array.from(wanted);
+    for (let index = 0; index < pending.length; index += 1) {
+      (children.get(pending[index]) || []).forEach(function (child) {
+        if (!wanted.has(child)) { wanted.add(child); pending.push(child); }
+      });
+    }
     return records.filter(function (r) { return wanted.has(r[0]); }).map(function (r) { return r[0]; });
   }
   function token(value) {

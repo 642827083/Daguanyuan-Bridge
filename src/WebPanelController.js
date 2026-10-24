@@ -182,6 +182,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
   function setActivePage(controller, page) {
     if (!controller || !controller.webView || !controller.settingsPage || !controller.categoryManagerPage) return;
+    if (page === 'import') page = controller.currentContentPage === '408' ? '408' : 'math';
     if (page !== 'settings' && typeof __DAGUANYUAN_SUPPORT_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_SUPPORT_UI_GLOBAL__.close(controller);
     if (page !== 'import' && controller.importWorkspaceTask) __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__.close(controller);
     if (page !== controller.activePage && controller.importTask) {
@@ -1262,13 +1263,6 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
     openImport: function () {
       setActivePage(self, 'import');
-      if (self.importReportView) self.importReportView.hidden = true;
-      if (!self.importWorkspaceLoaded) {
-        self.importWorkspaceLoaded = true;
-        self.importWebView.loadHTMLStringBaseURL(__DAGUANYUAN_IMPORT_WORKSPACE_HTML__, null);
-      } else {
-        self.importWebView.evaluateJavaScript('window.__DAGUANYUAN_IMPORT_WORKSPACE__&&window.__DAGUANYUAN_IMPORT_WORKSPACE__.resume()', function () {});
-      }
     },
 
     openSettings: function (sender) {

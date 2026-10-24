@@ -159,7 +159,7 @@ test("失败详情控件抛错时仍结束导入、恢复网页按钮，并保�
   assert.ok(messages.some((text) => text.includes("图片保存失败")));
 });
 
-test('数学和408只有选题入口打开网页确认，右下角导入题目立即导入并沿用原生提示', async () => {
+test('数学和408两个导入入口均打开同一网页选题确认流程', async () => {
   for (const provider of ['math', '408']) for (const selected of [false, true]) {
     const { context, controller } = runtime();
     let methods, beforeImport, starts = 0, shown = 0;
@@ -193,10 +193,10 @@ test('数学和408只有选题入口打开网页确认，右下角导入题目�
     const address = 'daguanyuanbridge://ui?payload=' + encodeURIComponent(JSON.stringify({ requestId: 'test', command: selected ? 'openQuestionImport' : 'importCurrentQuestions', payload: selected ? { scope: 'selected' } : null }));
     methods.webViewShouldStartLoadWithRequestNavigationType(controller.webView, { URL: { absoluteString: address } });
     await new Promise(resolve => setImmediate(resolve));
-    assert.equal(starts, selected ? 1 : 0); assert.equal(shown, selected ? 1 : 0);
-    assert.equal(typeof beforeImport, selected ? 'function' : 'undefined');
+    assert.equal(starts, 1); assert.equal(shown, 1);
+    assert.equal(typeof beforeImport, 'function');
     assert.equal(controller.categoryImportBusy, false);
-    if (!selected) assert.ok(messages.some(text => text.includes('导入完成：新建 1 道')));
+    assert.equal(messages.some(text => text.includes('导入完成：新建 1 道')), false);
   }
 });
 

@@ -270,7 +270,7 @@ test('选题导入入口向原生发送勾选范围', async () => {
   assert.deepEqual(calls, ['selected']);
 });
 
-test('导入题目在选题上方直接调用整类导入，运行中防止重复提交，完成后恢复', async () => {
+test('导入题目在选题上方调用同一选题流程，运行中防止重复提交，完成后恢复', async () => {
   for (const url of ['https://www.cxyonly.fans/math/practice/categories/345', 'https://www.408os.cn/exercise?year=2026']) {
     const run = runtime(url);
     run.document.body.innerHTML = url.includes('408os')
@@ -284,7 +284,7 @@ test('导入题目在选题上方直接调用整类导入，运行中防止重�
     assert.equal(direct.disabled, false);
     const scopes = []; run.bridgeContext.openCategory = scope => scopes.push(scope);
     run.click('[data-import-current]'); run.click('[data-import-current]'); await tick();
-    assert.deepEqual(scopes, ['all']);
+    assert.deepEqual(scopes, ['selected']);
     assert.equal(run.messages.at(-1).command, 'importCurrentQuestions');
     assert.equal(run.document.getElementById('dgy-dialog').hidden, true);
     assert.equal(direct.disabled, true); assert.equal(direct.textContent, '导入中…');
@@ -296,7 +296,7 @@ test('导入题目在选题上方直接调用整类导入，运行中防止重�
   }
 });
 
-test('直接导入拒绝时恢复按钮，空页面与题本页面不触发旧分类流程', async () => {
+test('导入题目拒绝时恢复按钮，空页面禁用，普通题目页与选题入口一致', async () => {
   const run = runtime(); await run.ui.inject(run.controller);
   const direct = run.document.querySelector('[data-import-current]');
   assert.equal(direct.disabled, true);
@@ -307,7 +307,7 @@ test('直接导入拒绝时恢复按钮，空页面与题本页面不触发旧�
   assert.equal(direct.disabled, false); assert.equal(direct.textContent, '导入题目');
   run.location.href = 'https://www.cxyonly.fans/math/papers/1';
   run.browser.window.__DAGUANYUAN_IMPORT_UI__.refresh();
-  assert.equal(direct.disabled, true);
+  assert.equal(direct.disabled, false);
   assert.equal(run.document.querySelector('[data-scope="selected"]').disabled, false);
   assert.throws(() => run.commands.commands.importCurrentQuestions({ ...run.bridgeContext, isImportWorkspace: true }), /题库网页/);
   run.controller.singleImportBusy = true;

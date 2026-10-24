@@ -61,7 +61,7 @@ import MNBridge from './lib/mnBridge.js';
     el('exam-subject-field').hidden = state.source !== 'math';
     el('organization408').hidden = state.source !== '408';
     el('tree-field').hidden = paperMode();
-    text('organization-hint', paperMode() ? '一次只能选择一个年份，按该年真题卷整理题目。' : '仅可勾选末级分类的父节点，读取所选节点及其直属末级分类。');
+    text('organization-hint', paperMode() ? '一次只能选择一个年份，按该年真题卷整理题目。' : '各级分类均可勾选，选择父分类会读取其全部子分类，重复题目自动去重。');
     root.querySelectorAll('[data-scope]').forEach(function (node) { node.setAttribute('aria-pressed', String(node.dataset.scope === state.scope)); });
     root.querySelectorAll('[data-exam-subject]').forEach(function (node) { node.setAttribute('aria-pressed', String(node.dataset.examSubject === state.examSubject)); });
     root.querySelectorAll('[data-content]').forEach(function (node) { node.setAttribute('aria-pressed', String(node.dataset.content === state.content)); });
@@ -75,10 +75,7 @@ import MNBridge from './lib/mnBridge.js';
       if (!children.has(r[1])) children.set(r[1], []);
       children.get(r[1]).push(r);
     });
-    const selectable = new Set(state.records.filter(function (r) {
-      const branch = children.get(r[0]) || [];
-      return branch.length > 0 && branch.every(function (child) { return !children.has(child[0]); });
-    }).map(function (r) { return r[0]; }));
+    const selectable = new Set(state.records.map(function (r) { return r[0]; }));
     state.categories = new Set(Array.from(state.categories).filter(function (id) { return selectable.has(id); }));
     function branch(parentId) {
       const box = document.createElement('div'); box.className = 'knowledge-tree';

@@ -50,8 +50,9 @@ function runtime(stored = new Map()) {
 
 test('主导航白底文字在窄宽窗口居中，下划线对齐选中文字，关闭按钮无圆底且保留点击范围', () => {
   const run = runtime(), c = run.controller;
-  assert.deepEqual(Array.from(c.mainNavigationButtons, view => view.title), ['数学', '408', '导入', '设置']);
-  assert.deepEqual(Array.from(c.mainNavigationButtons, view => view.action), ['openDaguanyuan:', 'open408:', 'openImport:', 'openSettings:']);
+  assert.deepEqual(Array.from(c.mainNavigationButtons, view => view.title), ['数学', '408', '设置']);
+  assert.deepEqual(Array.from(c.mainNavigationButtons, view => view.action), ['openDaguanyuan:', 'open408:', 'openSettings:']);
+  assert.equal(c.importButton.hidden, true); assert.equal(c.importButton.enabled, false);
   for (const width of [300, 560, 960, 1300]) {
     c.view.frame = { x: 0, y: 0, width, height: 656 }; run.methods.viewDidLayoutSubviews();
     const nav = c.mainNavigation.frame;
@@ -365,7 +366,7 @@ test('关于插件说明与反馈打开论坛，视频教程打开小红书，�
   doubleTap.point = { x: 10, y: 15 }; doubleTap.state = 1;
   doubleTapAction(doubleTap); assert.deepEqual(c.view.frame, movedFrame);
   doubleTap.state = 3;
-  for (const control of [c.homeButton, c.os408Button, c.importButton, c.settingsButton, c.closeButton]) {
+  for (const control of [c.homeButton, c.os408Button, c.settingsButton, c.closeButton]) {
     doubleTap.point = { x: (control.superview === c.mainNavigation ? c.mainNavigation.frame.x : 0) + control.frame.x + control.frame.width / 2, y: control.frame.y + control.frame.height / 2 };
     doubleTapAction(doubleTap); assert.deepEqual(c.view.frame, movedFrame);
   }

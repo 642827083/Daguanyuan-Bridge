@@ -224,6 +224,37 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
     });
   }
 
+  function practiceQuestionPage(context, page, controller, check) {
+    const scope = questionScope(context.scope), subject = examSubject(context.examSubject);
+    const number = positiveInteger(page, '页码');
+    if (number > 1000) throw new Error('页码超出范围');
+    const query = [];
+    function set(key, value) { query.push(key + '=' + encodeURIComponent(String(value))); }
+    if (context.categoryId) { set('category_id', positiveInteger(context.categoryId, '分类 ID')); set('include_children', 'true'); }
+    if (context.conceptId) set('concept_id', positiveInteger(context.conceptId, '考点 ID'));
+    if (!context.categoryId && !context.conceptId) throw new Error('请先进入具体分类或考点');
+    if (context.listId) {
+      if (!/^[a-zA-Z0-9_-]{1,100}$/.test(context.listId)) throw new Error('题单标识无效');
+      set('question_list_id', context.listId);
+      if (context.listRevision) set('question_list_revision', positiveInteger(context.listRevision, '题单版本'));
+    }
+    set('page', number); set('per_page', PAGE_SIZE); set('scope', scope); set('exam_subject', subject);
+    [['query', 'q'], ['mastery', 'mastery'], ['sort', 'sort'], ['filters', 'filters'], ['externalCategories', 'external_categories']].forEach(function (pair) {
+      if (context[pair[0]]) {
+        const value = String(context[pair[0]]);
+        if (value.length > 8000) throw new Error('题目筛选条件过长');
+        set(pair[1], value);
+      }
+    });
+    if (context.favorite) set('favorite', 'true');
+    if (context.hasNote) set('has_note', 'true');
+    return requestJSON(API_ROOT + '?' + query.join('&'), check, controller).then(function (payload) {
+      const data = payload && payload.data;
+      if (!data || !Array.isArray(data.items) || !Number.isSafeInteger(data.total) || data.total < 0) throw new Error('题目列表格式无效');
+      return { page: number, pageSize: PAGE_SIZE, total: data.total, questions: data.items.map(summary) };
+    });
+  }
+
   function questionDetail(questionId, content, readImage, check, controller) {
     const id = positiveInteger(questionId, "题目 ID");
     return requestJSON(`${API_ROOT}/${id}`, check, controller).then(function (item) {
@@ -294,5 +325,5 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
     });
   }
 
-  return { questionPage, questionDetail, positiveInteger, questionScope, examSubject, categoryRecords, summary };
+  return { questionPage, practiceQuestionPage, questionDetail, positiveInteger, questionScope, examSubject, categoryRecords, summary };
 })();

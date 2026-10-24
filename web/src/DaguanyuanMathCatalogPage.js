@@ -1,5 +1,5 @@
 (function () {
-  if (window.__DAGUANYUAN_MATH_CATALOG_PAGE__ && window.__DAGUANYUAN_MATH_CATALOG_PAGE__.version === 2) return;
+  if (window.__DAGUANYUAN_MATH_CATALOG_PAGE__ && window.__DAGUANYUAN_MATH_CATALOG_PAGE__.version === 3) return;
   const entries = new Map();
   const login = '请先打开插件“数学”页并登录大观园，再返回导入页重试';
   function identity() {
@@ -16,9 +16,25 @@
       || !['all', 'math_1', 'math_2', 'math_3'].includes(subject)) throw Error('分类读取参数无效');
     return beginRead(token, '/api/categories?scope=' + scope + '&exam_subject=' + subject);
   }
+  function validPracticePath(path) {
+    if (typeof path !== 'string' || !path.startsWith('/api/questions?') || path.length > 20000) return false;
+    const url = new URL(path, window.location.origin), query = url.searchParams;
+    const rules = {
+      category_id: /^[1-9]\d*$/, concept_id: /^[1-9]\d*$/, include_children: /^true$/,
+      question_list_id: /^[a-zA-Z0-9_-]{1,100}$/, question_list_revision: /^[1-9]\d*$/,
+      page: /^[1-9]\d*$/, per_page: /^20$/, scope: /^(complete|core|exam)$/, exam_subject: /^(all|math_[123])$/,
+      favorite: /^true$/, has_note: /^true$/, q: /^[\s\S]{1,8000}$/, mastery: /^[\s\S]{1,8000}$/,
+      sort: /^[\s\S]{1,8000}$/, filters: /^[\s\S]{1,8000}$/, external_categories: /^(all|selected)$/,
+    };
+    if (url.hash || !query.has('category_id') && !query.has('concept_id')) return false;
+    for (const [key, value] of query) if (!Object.prototype.hasOwnProperty.call(rules, key) || !rules[key].test(value) || query.getAll(key).length !== 1) return false;
+    return ['page', 'per_page', 'scope', 'exam_subject'].every(key => query.has(key)) && Number(query.get('page')) <= 1000
+      && (!query.has('question_list_revision') || query.has('question_list_id'));
+  }
   function beginRead(token, path) {
     if (!/^[a-z0-9-]{1,100}$/i.test(token) || !(/^\/api\/categories\?scope=(complete|core|exam)&exam_subject=(all|math_1|math_2|math_3)$/.test(path)
-      || /^\/api\/questions(?:\/[1-9]\d*|\?category_id=[1-9]\d*&include_children=false&page=[1-9]\d*&per_page=20&scope=(?:complete|core|exam)(?:&exam_subject=(?:all|math_1|math_2|math_3))?)$/.test(path))) throw Error('数学读取地址无效');
+      || /^\/api\/questions(?:\/[1-9]\d*|\?category_id=[1-9]\d*&include_children=false&page=[1-9]\d*&per_page=20&scope=(?:complete|core|exam)(?:&exam_subject=(?:all|math_1|math_2|math_3))?)$/.test(path)
+      || validPracticePath(path))) throw Error('数学读取地址无效');
     const category = path.indexOf('/api/categories?') === 0;
     const captured = identity(), route = window.location.href;
     if (!captured) throw Error(login);
@@ -70,5 +86,5 @@
     if (!item || item.status !== 'ready' || !Number.isSafeInteger(offset) || offset < 0) throw Error('分类传输已失效');
     item.check(); return item.data.slice(offset, offset + 65536);
   }
-  window.__DAGUANYUAN_MATH_CATALOG_PAGE__ = { version: 2, begin, beginRead, read, chunk, release };
+  window.__DAGUANYUAN_MATH_CATALOG_PAGE__ = { version: 3, begin, beginRead, read, chunk, release };
 })();

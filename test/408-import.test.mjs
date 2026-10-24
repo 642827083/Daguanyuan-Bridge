@@ -137,6 +137,16 @@ function runtime(questions, options = {}) {
     importer: context.__DAGUANYUAN_408_IMPORT_GLOBAL__, writer: context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__ };
 }
 
+test('408 分类选题包含网页未加载题目，确认后只读取所选题目', async () => {
+  const run = runtime([{ id: 81, stem: '已加载题目' }, { id: 82, stem: '未加载题目' }]);
+  const confirm = async plan => { assert.deepEqual(Array.from(plan.questions, q => q.id), [81, 82]); return [82]; };
+  const result = await run.importer.importCategory(run.controller, null, null, confirm, {
+    provider: '408', url: category.url, questions: [{ id: 81 }], fullCategory: true,
+  });
+  assert.equal(result.createdCount, 1);
+  assert.deepEqual(run.scripts.filter(s => s.includes('.prepare(')).map(s => Number(s.match(/,(\d+),/)[1])), [1]);
+});
+
 test('408 独立导入页保留列表连接，只转换指定成员，关闭后清理连接', async () => {
   const run = runtime([{ id: 81, stem: '第一题' }, { id: 82, stem: '第二题' }]);
   const prepared = await run.importer.prepareWorkspace(run.controller);

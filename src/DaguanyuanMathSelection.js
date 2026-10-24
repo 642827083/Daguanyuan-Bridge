@@ -3,16 +3,40 @@ var __DAGUANYUAN_MATH_SELECTION_GLOBAL__ = (function () {
     if (!page || page.provider !== 'math' || !/^https:\/\/(?:www\.)?cxyonly\.fans\//.test(page.url || '')
       || !Array.isArray(page.questions) || !page.questions.length || page.questions.length > 10000) throw new Error('当前页面题目列表无效，请重新打开选题导入');
     const seen = new Set();
-    const questions = page.questions.map(function (question) {
+    let questions = page.questions.map(function (question) {
       if (!question || !Number.isSafeInteger(question.id) || question.id < 1 || seen.has(question.id)) throw new Error('当前页面题目编号无效');
       seen.add(question.id);
       return { id: question.id, title: String(question.title || '题目 ' + question.id).slice(0, 200), summary: String(question.summary || '').slice(0, 180) };
     });
     const session = __DAGUANYUAN_MATH_IMPORT_GLOBAL__.preparedMathSession(addon);
+    const context = page.importContext;
+    const fullCategory = Boolean(context && (context.categoryId || context.conceptId));
     const result = { total: questions.length, createdCount: 0, answerAddedCount: 0, skippedCount: 0, failed: [] };
     function check() { if (confirmation.check) confirmation.check(); session.check(); }
+    function readCategory() {
+      const loaded = [], seenIds = new Set(); let total = -1;
+      function next(pageNumber) {
+        check();
+        return __DAGUANYUAN_MATH_API_GLOBAL__.practiceQuestionPage(context, pageNumber, addon.panelController, check).then(function (listing) {
+          check();
+          if (total < 0) total = listing.total;
+          if (total !== listing.total || Math.ceil(total / listing.pageSize) > 1000) throw new Error('题目数量已变化或超出可读取范围，请刷新');
+          listing.questions.forEach(function (q) {
+            if (!Number.isSafeInteger(q.id) || q.id < 1 || seenIds.has(q.id)) throw new Error('题目分页重复或编号无效，请刷新');
+            seenIds.add(q.id); loaded.push({ id: q.id, title: q.source || '题目 ' + q.id, summary: q.stem || '' });
+          });
+          if (loaded.length > total || loaded.length < total && !listing.questions.length) throw new Error('题目分页提前结束，请刷新后重试');
+          if (progress) progress({ phase: 'listing', processed: loaded.length, total: total });
+          return loaded.length < total ? next(pageNumber + 1) : loaded;
+        });
+      }
+      return next(1);
+    }
     return Promise.resolve().then(function () {
-      check(); return confirmation({ source: '大观园数学 / 当前页面', target: session.targetTitle, questions: questions });
+      check(); return fullCategory ? readCategory() : questions;
+    }).then(function (loaded) {
+      questions = loaded; result.total = questions.length;
+      check(); return confirmation({ source: fullCategory ? '大观园数学 / 当前分类' : '大观园数学 / 当前页面', target: session.targetTitle, questions: questions });
     }).then(function (accepted) {
       if (accepted === false) { result.cancelled = true; return result; }
       check();

@@ -120,6 +120,44 @@ test('新版分类网址和题单分类可以解析', () => {
   routes.replaceCatalog(JSON.parse(readFileSync(new URL('./fixtures/math-category-catalog.json', import.meta.url), 'utf8')));
   assert.equal(routes.categoryIdFromURL('https://www.cxyonly.fans/math/practice/categories/345'), 345);
   assert.equal(routes.categoryIdFromURL('https://www.cxyonly.fans/math/practice?listId=core&categoryId=345'), 345);
+  assert.equal(routes.categoryIdFromURL('https://www.cxyonly.fans/math/practice/concepts/345'), 0);
+  assert.equal(routes.importContextFromURL('https://cxyonly.fans/math/practice/core-math-2/326/566').categoryId, 566);
+});
+
+for (const path of ['/math/practice/concepts/345', '/math/practice/exam-by-year-math-2/all/345', '/math/practice/core-math-2/326/566']) test('新版分类页两个导入入口均可用，并保存完整分类取题上下文：' + path, () => {
+  const run = page('https://www.cxyonly.fans' + path);
+  vm.runInContext(build.pageScript(), run.context);
+  assert.equal(run.document.querySelector('[data-import-current]').disabled, false);
+  const selected = run.document.querySelector('[data-scope="selected"]');
+  selected.dispatchEvent(new run.context.Event('click', { bubbles: true }));
+  const snapshot = JSON.parse(run.window.__DAGUANYUAN_IMPORT_UI__.pageSnapshot());
+  if (path.includes('/concepts/')) { assert.equal(snapshot.importContext.conceptId, 345); assert.equal(snapshot.importContext.categoryId, 0); }
+  else if (path.includes('/core-math-2/')) {
+    assert.equal(snapshot.importContext.categoryId, 566); assert.equal(snapshot.importContext.scope, 'core'); assert.equal(snapshot.importContext.examSubject, 'math_2');
+  } else { assert.equal(snapshot.importContext.categoryId, 345); assert.equal(snapshot.importContext.scope, 'exam'); assert.equal(snapshot.importContext.examSubject, 'math_2'); }
+});
+
+test('数学分类选题读取未加载分页再确认，仅下载所选题目详情', async () => {
+  const context = native('DaguanyuanMathSelection');
+  const calls = [];
+  Object.assign(context, {
+    __DAGUANYUAN_MATH_API_GLOBAL__: {
+      async practiceQuestionPage(route, page) { calls.push(['page', page, route.scope, route.examSubject]); return { total: 2, pageSize: 1, questions: [{ id: page === 1 ? 1214 : 843 }] }; },
+      async categoryRecords(scope, subject) { calls.push(['catalog', scope, subject]); return [[345, 0, '积分']]; }
+    },
+    __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__: { replaceCatalog() {} },
+    __DAGUANYUAN_MATH_IMPORT_GLOBAL__: {
+      selectQuestions(questions, ids) { return questions.filter(q => ids.includes(q.id)); },
+      preparedMathSession() { return { check() {}, async importQuestions(ids) { assert.deepEqual(Array.from(ids), [843]); return { createdCount: 1, failed: [] }; } }; },
+    },
+  });
+  const confirm = async plan => { assert.deepEqual(Array.from(plan.questions, q => q.id), [1214, 843]); return [843]; }; confirm.check = () => {};
+  const result = await context.__DAGUANYUAN_MATH_SELECTION_GLOBAL__.importPage({}, {
+    provider: 'math', url: 'https://www.cxyonly.fans/math/practice/categories/345?scope=exam&examSubject=math_2',
+    questions: [{ id: 1214 }], importContext: { categoryId: 345, scope: 'exam', examSubject: 'math_2' },
+  }, null, confirm);
+  assert.equal(result.createdCount, 1);
+  assert.deepEqual(calls, [['page', 1, 'exam', 'math_2'], ['page', 2, 'exam', 'math_2'], ['catalog', 'complete', 'all']]);
 });
 
 test('新版分类按每页 30 题定位第 38 题，依据网址范围而非旧缓存', () => {

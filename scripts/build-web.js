@@ -8,6 +8,7 @@ function pageScript() {
   const page = read('DaguanyuanImportPage.js').replace("import MNBridge from './lib/mnBridge.js';", '');
   const style = "if(!document.getElementById('dgy-style')){var s=document.createElement('style');s.id='dgy-style';s.textContent=" + JSON.stringify(read('DaguanyuanImportDialog.css')) + ";document.head.appendChild(s);}";
   const website = {};
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'src/DaguanyuanCategoryRoutes.js'), 'utf8'), website);
   vm.runInNewContext(fs.readFileSync(path.join(root, 'src/DaguanyuanWebsiteBridge.js'), 'utf8'), website);
   const questionDOM = website.__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__.questionDOMScript();
   const script = questionDOM + '(function(){if(window.__DAGUANYUAN_IMPORT_UI__){window.__DAGUANYUAN_IMPORT_UI__.refresh();return;}\n' + style + bridge + page + '\n})();';

@@ -6,7 +6,7 @@ const source = file => fs.readFileSync(new URL('../' + file, import.meta.url), '
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function browser(options = {}) {
   const requests = [], storage = new Map([['daguan_token', 'fixture-login-secret']]);
-  const context = { location: new URL('https://www.cxyonly.fans/math/practice'),
+  const context = { URL, URLSearchParams, location: new URL('https://www.cxyonly.fans/math/practice'),
     localStorage: { getItem: key => storage.get(key) }, AbortController, setTimeout, clearTimeout,
     fetch: async (url, init) => { requests.push({ url, init }); return options.fetch ? options.fetch(url, init)
       : { ok: true, json: async () => [{ id: 1, parent_id: null, name: '高等数学', children: [] }] }; } };
@@ -40,6 +40,60 @@ test('网页只接受数学分类及题目 GET 地址，拒绝外站及写入接
   const run = browser();
   for (const path of ['https://evil.test/api/questions/1', '/api/questions/1/state', '/api/auth/csrf', '/api/questions/1?token=secret']) {
     assert.throws(() => run.page.beginRead('request', path), /地址无效/);
+  }
+  assert.equal(run.requests.length, 0);
+});
+
+for (const path of ['/math/practice/core-math-2/326/566', '/math/practice/concepts/42?scope=core&examSubject=math_2']) test('真实网页登录分页读取未加载题目并仅下载勾选详情：' + path, async () => {
+  const run = browser({ fetch: async address => {
+    const url = new URL(address, 'https://www.cxyonly.fans');
+    let payload;
+    if (url.pathname === '/api/questions') {
+      assert.equal(url.searchParams.get('scope'), 'core');
+      assert.equal(url.searchParams.get('exam_subject'), 'math_2');
+      if (path.includes('/concepts/')) { assert.equal(url.searchParams.get('concept_id'), '42'); assert.equal(url.searchParams.has('category_id'), false); }
+      else {
+        assert.equal(url.searchParams.get('category_id'), '566'); assert.equal(url.searchParams.get('include_children'), 'true');
+        assert.equal(url.searchParams.get('question_list_id'), 'core-math-2');
+      }
+      const page = Number(url.searchParams.get('page'));
+      const ids = page === 1 ? Array.from({ length: 20 }, (_, i) => i + 1) : [21];
+      payload = { data: { total: 21, items: ids.map(id => ({ id, category_id: 566, stem: '题干', source: '题目 ' + id })) } };
+    } else if (url.pathname === '/api/categories') payload = [{ id: 566, parent_id: null, name: '积分', children: [] }];
+    else { assert.equal(url.pathname, '/api/questions/21'); payload = { id: 21, category_id: 566, stem: '所选题' }; }
+    return { status: 200, ok: true, json: async () => payload };
+  } });
+  const native = { console, __DAGUANYUAN_MATH_CATALOG_PAGE_SCRIPT__: source('web/src/DaguanyuanMathCatalogPage.js'),
+    NSTimer: { scheduledTimerWithTimeInterval(seconds, repeat, cb) { const timer = setTimeout(cb, 1); return { invalidate() { clearTimeout(timer); } }; } },
+    NSURLConnection: { sendAsynchronousRequestQueueCompletionHandler() { throw Error('不应发送原生请求'); } } };
+  vm.createContext(native);
+  for (const name of ['DaguanyuanImportSelection', 'DaguanyuanMathApi', 'DaguanyuanCategoryRoutes', 'DaguanyuanMathSelection']) vm.runInContext(source('src/' + name + '.js'), native);
+  const controller = { webView: { evaluateJavaScript(script, cb) { try { cb(vm.runInContext(script, run.context), null); } catch (error) { cb(null, error); } } } };
+  const api = native.__DAGUANYUAN_MATH_API_GLOBAL__;
+  const downloaded = [];
+  native.__DAGUANYUAN_MATH_IMPORT_GLOBAL__ = {
+    selectQuestions(questions, ids) { return questions.filter(q => ids.includes(q.id)); },
+    preparedMathSession() { return { targetTitle: '学习集', check() {}, async importQuestions(ids) {
+      for (const id of ids) { downloaded.push(id); await api.questionDetail(id, 'question', undefined, undefined, controller); }
+      return { createdCount: ids.length, failed: [] };
+    } }; },
+  };
+  const address = 'https://cxyonly.fans' + path;
+  const confirm = async plan => { assert.equal(plan.questions.length, 21); assert.equal(run.requests.length, 2); return [21]; };
+  confirm.check = () => {};
+  const result = await native.__DAGUANYUAN_MATH_SELECTION_GLOBAL__.importPage({ panelController: controller }, {
+    provider: 'math', url: address, questions: [{ id: 1 }], importContext: native.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.importContextFromURL(address),
+  }, null, confirm);
+  assert.equal(result.createdCount, 1); assert.deepEqual(downloaded, [21]);
+  assert.equal(run.requests.length, 4);
+  assert.ok(run.requests.every(req => req.init.headers.Authorization === 'Bearer fixture-login-secret'));
+});
+
+test('分类分页读取地址拒绝凭证参数、重复条件和超范围页码', () => {
+  const run = browser();
+  const path = '/api/questions?category_id=566&include_children=true&page=1&per_page=20&scope=core&exam_subject=math_2';
+  for (const invalid of [path + '&token=secret', path + '&category_id=999', path.replace('page=1', 'page=1001'), path + '#state']) {
+    assert.throws(() => run.page.beginRead('invalid', invalid), /地址无效/);
   }
   assert.equal(run.requests.length, 0);
 });

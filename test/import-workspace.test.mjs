@@ -404,18 +404,20 @@ test('没有本地数学分类时，导入页仍可独立在线加载和选题',
   assert.equal(run.native.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.size, 0);
 });
 
-test('仅末级分类父节点有勾选框，原生拒绝上层、末级和混合层级请求', async () => {
+test('数学与408各级分类均可勾选，父分类递归包含后代且父子重选不重复', async () => {
   const run = runtime(); await tick();
-  assert.deepEqual([...run.document.querySelectorAll('[data-category]')].map(n => Number(n.dataset.category)), [2, 4]);
+  assert.deepEqual([...run.document.querySelectorAll('[data-category]')].map(n => Number(n.dataset.category)), [1, 2, 3, 4, 5]);
   const records = await run.native.__DAGUANYUAN_MATH_API_GLOBAL__.categoryRecords('complete', 'all');
-  for (const id of [1, 3, 5]) assert.throws(() => run.workspace.categoriesFor(records, [id]), /末级分类的父节点/);
+  assert.deepEqual(Array.from(run.workspace.categoriesFor(records, [1, 2, 3])), [1, 2, 3, 4, 5]);
+  assert.deepEqual(Array.from(run.workspace.categoriesFor(records, [3])), [3]);
   assert.deepEqual(Array.from(run.workspace.categoriesFor(records, [4, 2])), [2, 3, 4, 5]);
-  for (const id of [1, 3]) assert.throws(() => run.workspace.prepare(run.controller, { token: 'blocked', scope: 'complete', categoryIds: [id] }), /末级分类的父节点/);
-  assert.equal(run.requests.length, 0);
+  await run.load(1);
+  assert.deepEqual(run.requests.map(r => r.category), [1, 2, 3, 4, 5]);
+  assert.equal(run.controller.importWorkspaceTask.questions.length, 3);
   run.click('[data-source="408"]'); await tick();
-  assert.deepEqual([...run.document.querySelectorAll('[data-category]')].map(n => Number(n.dataset.category)), [10]);
-  assert.throws(() => run.workspace.prepare(run.controller, { token: 'blocked408', source: '408', organization: 'knowledge', categoryIds: [11] }), /末级分类的父节点/);
-  assert.equal(run.requests.length, 0);
+  assert.deepEqual([...run.document.querySelectorAll('[data-category]')].map(n => Number(n.dataset.category)), [10, 11]);
+  run.select('[data-category="11"]', true); await tick(); await run.controller.importWorkspaceTask.done;
+  assert.equal(run.controller.importWorkspaceTask.questions.length, 3);
 });
 
 test('408 先导入后面的分类再补前面分类，按目录插入并保留原卡和个人笔记', async () => {
@@ -525,7 +527,7 @@ test('点击分类文字只展开收起，箭头状态同步，不勾选也不�
   await tick(); await run.controller.importWorkspaceTask?.done; await tick();
   assert.equal(run.requests.length, 0);
   assert.equal(run.document.querySelectorAll('.question-card').length, 0);
-  assert.equal(run.document.querySelector('[data-category="1"]'), null);
+  assert.equal(run.document.querySelector('[data-category="1"]').checked, false);
   const toggle=run.document.querySelector('[data-toggle-category="1"]');
   assert.equal(toggle.getAttribute('aria-expanded'), 'true');
   assert.equal(toggle.closest('.knowledge-node').querySelector('.knowledge-tree').hidden, false);
@@ -551,7 +553,7 @@ test('只有方框更改分类选择，勾选不触发展开，点击末级文�
   run.document.querySelector('[data-category-row="5"]').querySelector('.knowledge-name').dispatchEvent(new run.document.defaultView.Event('click', { bubbles: true }));
   await tick();
   assert.equal(run.document.querySelector('[data-category="2"]').checked, true);
-  assert.equal(run.document.querySelector('[data-category="5"]'), null);
+  assert.equal(run.document.querySelector('[data-category="5"]').checked, false);
   assert.equal(run.requests.length, 0);
   assert.equal(run.document.querySelectorAll('.question-card').length, 3);
   run.requests.length=0; run.click('[data-toggle-category="1"]');

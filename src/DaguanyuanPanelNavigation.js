@@ -22,7 +22,9 @@ var __DAGUANYUAN_PANEL_NAVIGATION_GLOBAL__ = (function () {
     const indicator = new UIView({ x: 0, y: 0, width: 0, height: 0 });
     indicator.backgroundColor = UIColor.colorWithRedGreenBlueAlpha(0.1, 0.36, 0.72, 1);
     controller.mainNavigationIndicator = indicator; navigation.addSubview(indicator);
-    controller.mainNavigationButtons = [controller.homeButton, controller.os408Button, controller.importButton, controller.settingsButton];
+    controller.importButton.hidden = true;
+    controller.importButton.enabled = false;
+    controller.mainNavigationButtons = [controller.homeButton, controller.os408Button, controller.settingsButton];
     controller.mainNavigationButtons.forEach(function (view) {
       view.backgroundColor = UIColor.colorWithWhiteAlpha(1, 0);
       view.titleLabel.font = UIFont.boldSystemFontOfSize(14);
@@ -35,8 +37,8 @@ var __DAGUANYUAN_PANEL_NAVIGATION_GLOBAL__ = (function () {
     const indicator = controller.mainNavigationIndicator;
     if (!indicator) return;
     const active = controller.activePage === 'category-manager' ? 'settings' : controller.activePage;
-    const index = Math.max(0, ['math', '408', 'import', 'settings'].indexOf(active));
-    const slotWidth = Math.max(0, (controller.mainNavigation.bounds.width - 8) / 4);
+    const index = Math.max(0, ['math', '408', 'settings'].indexOf(active));
+    const slotWidth = Math.max(0, (controller.mainNavigation.bounds.width - 8) / controller.mainNavigationButtons.length);
     const width = Math.min(24, Math.max(0, slotWidth - 16));
     const height = controller.mainNavigation.bounds.height;
     const target = { x: 4 + index * slotWidth + (slotWidth - width) / 2, y: Math.max(0, height - 6), width, height: 3 };
@@ -71,10 +73,10 @@ var __DAGUANYUAN_PANEL_NAVIGATION_GLOBAL__ = (function () {
     } catch (error) { console.log('[Daguanyuan Bridge] 主导航动画未启用：' + String(error.message || error)); }
   }
   function layout(controller) {
-    const bounds = controller.titleBar.bounds, width = Math.min(328, Math.max(0, bounds.width - 112));
+    const bounds = controller.titleBar.bounds, width = Math.min(82 * controller.mainNavigationButtons.length, Math.max(0, bounds.width - 112));
     const x = (bounds.width - width) / 2, height = bounds.height;
     controller.mainNavigation.frame = { x, y: 0, width, height };
-    controller.mainNavigationButtons.forEach(function (view, index) { view.frame = { x: 4 + index * (width - 8) / 4, y: 0, width: Math.max(0, (width - 8) / 4), height }; });
+    controller.mainNavigationButtons.forEach(function (view, index) { view.frame = { x: 4 + index * (width - 8) / controller.mainNavigationButtons.length, y: 0, width: Math.max(0, (width - 8) / controller.mainNavigationButtons.length), height }; });
     controller.closeButton.frame = { x: Math.max(0, bounds.width - 48), y: 0, width: 44, height };
     controller.titleBarDragRegions[0].frame = { x: 0, y: 0, width: x, height };
     controller.titleBarDragRegions[1].frame = { x: x + width, y: 0, width: Math.max(0, controller.closeButton.frame.x - x - width), height };
