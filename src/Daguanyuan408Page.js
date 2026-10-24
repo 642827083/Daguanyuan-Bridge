@@ -617,6 +617,16 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
       codeBlocks.forEach(function (body, index) { result = result.split(codeMarker + index + "\uE001").join(body); });
       return result;
     }
+    function moduleAssetNames(entryText, prefix) {
+      // 按完整文件名识别模块，避免将其他脚本的版本后缀误当成资源地址。
+      var pattern = /(?:^|[^\w.-])([\w-]+\.js)(?![\w.-])/g;
+      var assets = [];
+      var match;
+      while ((match = pattern.exec(entryText)) !== null) {
+        if (match[1].indexOf(prefix + '-') === 0 && assets.indexOf(match[1]) === -1) assets.push(match[1]);
+      }
+      return assets;
+    }
     async function loadModules() {
       var entry = document.querySelector('script[type="module"][src*="/assets/index-"]');
       if (!entry) throw new Error("未找到 408 网站请求模块，请刷新后重试");
@@ -627,10 +637,9 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
       if (!request || typeof request.get !== "function") throw new Error("408 网站请求模块已变化，请反馈插件适配");
       var entryText = await (await fetchResource(url.href)).text();
       if (knowledgeId && !target) {
-        var knowledgeAssets = entryText.match(/\bknowledge-[\w-]+\.js\b/g) || [];
+        var knowledgeAssets = moduleAssetNames(entryText, 'knowledge');
         var knowledgeTree;
         for (var assetIndex = 0; assetIndex < knowledgeAssets.length; assetIndex += 1) {
-          if (knowledgeAssets.indexOf(knowledgeAssets[assetIndex]) !== assetIndex) continue;
           var knowledgeModule = await importModule(new URL(knowledgeAssets[assetIndex], url.href).href);
           if (Array.isArray(knowledgeModule.k)) { knowledgeTree = knowledgeModule.k; break; }
         }
@@ -650,13 +659,13 @@ var __DAGUANYUAN_408_PAGE_GLOBAL__ = (function () {
         category.path = matchedPaths[0];
         category.title = category.path[category.path.length - 1];
       }
-      var asset = entryText.match(/\bwdQuestionContent-[\w-]+\.js\b/);
-      if (asset) {
+      var asset = moduleAssetNames(entryText, 'wdQuestionContent');
+      if (asset.length) {
         var renderer = await importModule(new URL(asset[0], url.href).href);
         if (typeof renderer.r === "function") structuredRenderer = renderer.r;
       }
-      var staticAsset = entryText.match(/\bstaticHtml-[\w-]+\.js\b/);
-      if (staticAsset) {
+      var staticAsset = moduleAssetNames(entryText, 'staticHtml');
+      if (staticAsset.length) {
         var staticModule = await importModule(new URL(staticAsset[0], url.href).href);
         if (typeof staticModule.d === "function") staticDecoder = staticModule.d;
       }

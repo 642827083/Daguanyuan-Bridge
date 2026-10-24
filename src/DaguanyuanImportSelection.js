@@ -8,8 +8,11 @@ var __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__ = (function () {
         if (settled) return;
         settled = true; timer.invalidate();
         if (error && !(typeof NSNull !== 'undefined' && error instanceof NSNull)) {
-          if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.error('web.evaluate', error);
-          reject(new Error(String(error.message || error.localizedDescription || error)));
+          if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') {
+            if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.normalizeError === 'function') error = __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.normalizeError(error);
+            __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.error('web.evaluate', error);
+          }
+          reject(error instanceof Error ? error : new Error(String(error.message || error.localizedDescription || error)));
         }
         else resolve(value);
       }

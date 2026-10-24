@@ -22,6 +22,19 @@ function browser(options = {}) {
   vm.runInNewContext(read('web/src/DaguanyuanMasteryPage.js'), context);
   return { context, storage, calls, locks, api: context.__DAGUANYUAN_MASTERY_PAGE__ };
 }
+test('数学重复标记能复用页面并释放任务，失败回执带具体阶段且不补发写请求', async () => {
+  const run = browser();
+  for (const token of ['first', 'second']) {
+    run.api.begin(token, 1214, 'mastered'); await tick();
+    assert.equal(JSON.parse(run.api.read(token)).status, 'ready'); run.api.release(token);
+  }
+  assert.equal(run.calls.filter(call => call.init.method === 'PATCH').length, 2);
+  const failure = browser({ fetch: async () => { throw new TypeError('断开连接'); } });
+  failure.api.begin('failure', 1214, 'mastered'); await tick();
+  const result = JSON.parse(failure.api.read('failure'));
+  assert.equal(result.stage, 'read_retest_plan'); assert.equal(result.errorName, 'TypeError');
+  assert.equal(result.status, 'error'); assert.equal(failure.calls.length, 1); failure.api.release('failure');
+});
 for (const mastery of ['needs_practice', 'not_known', 'mastered']) test('同步正确题目和状态，凭据留在网页：' + mastery, async () => {
   const run = browser();
   assert.equal(run.api.begin('task-1', 1214, mastery), 'ok'); await tick();
@@ -205,6 +218,15 @@ function nativeUI() {
   function select(note, winRect = '{{200, 140}, {350, 250}}') { notebook.focusNote = note; ui.show(addon, { userInfo: { note, winRect } }); }
   return { View, stored, timers, observers, writes, messages, context, notebook, view, addon, ui, card, select };
 }
+test('点击时原生同步入口抛异常会留下题号与阶段日志，不再逸出宿主回调', () => {
+  const run = nativeUI(), errors = [];
+  run.context.__DAGUANYUAN_DIAGNOSTICS_GLOBAL__ = { error: (...args) => errors.push(args) };
+  run.context.__DAGUANYUAN_MASTERY_SYNC_GLOBAL__.save = () => { throw new TypeError('原生接口失效'); };
+  run.ui.setEnabled(run.addon, true); run.select(run.card(1214));
+  assert.doesNotThrow(() => run.ui.click(run.addon, run.addon.__daguanyuanMasteryButtons[2]));
+  assert.equal(errors[0][0], 'mastery.ui.error'); assert.equal(errors[0][2].questionId, 1214);
+  assert.equal(errors[0][2].stage, 'click_mastery'); assert.match(run.messages.at(-1), /诊断日志/);
+});
 
 test('题卡成功提示区分复测结果与普通掌握标记', async () => {
   for (const mode of ['mastery', 'retest']) {

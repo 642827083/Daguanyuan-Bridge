@@ -13,13 +13,14 @@ function runtime(size = 3) {
   vm.createContext(browser);
   const notebook = { notebookId: 'study', topicId: 'study', title: '考研数学', notes: [] };
   const selection = { notebookId: 'study' }, notes = new Map(), stored = new Map(), requests = [], details = [], copied = {};
-  const records = [[1, 0, '高等数学'], [2, 1, '极限'], [3, 2, '函数极限'], [4, 1, '连续']];
+  const records = [[1, 0, '高等数学'], [2, 1, '极限'], [3, 2, '函数极限'], [4, 1, '连续'], [5, 4, '连续性判断']];
   let serial = 0;
   function create(title, topic) {
     assert.equal(topic, 'study');
     const note = { noteId: 'n' + ++serial, notebookId: topic, noteTitle: title, comments: [], childNotes: [],
       appendMarkdownComment(text) { this.comments.push({ text }); },
-      addChild(child) { if (child.parentNote) child.parentNote.childNotes = child.parentNote.childNotes.filter(n => n !== child); child.parentNote = this; this.childNotes.push(child); notebook.notes = notebook.notes.filter(n => n !== child); } };
+      addChild(child) { if (child.parentNote) child.parentNote.childNotes = child.parentNote.childNotes.filter(n => n !== child); child.parentNote = this; this.childNotes.push(child); notebook.notes = notebook.notes.filter(n => n !== child); },
+      insertChildBefore(child, before) { this.addChild(child); this.childNotes.pop(); this.childNotes.splice(this.childNotes.indexOf(before), 0, child); } };
     notes.set(note.noteId, note); notebook.notes.push(note); return note;
   }
   const questions = Array.from({ length: size }, (_, i) => ({ id: i + 100, categoryId: 3, importCategoryId: 3,
@@ -136,8 +137,8 @@ test('408 按知识点读取，只导入所选题及答案，同号数学题不�
   await tick(); run.click('[data-source="408"]'); await tick();
   assert.equal(run.document.getElementById('scope-field').hidden, true);
   assert.equal(run.document.getElementById('organization408').hidden, false);
-  run.select('[data-category="11"]', true); await tick(); await run.controller.importWorkspaceTask.done;
-  assert.match(run.requests.at(-1).url, /knowledgeId=11.*sourcePage=overview/);
+  run.select('[data-category="10"]', true); await tick(); await run.controller.importWorkspaceTask.done;
+  assert.ok(run.requests.some(r => /knowledgeId=11.*sourcePage=overview/.test(r.url)));
   assert.equal(run.document.querySelectorAll('.question-card').length, 3);
   assert.equal(run.document.getElementById('commit').textContent, '导入 3 道题');
   run.click('#none'); run.select('[data-question="100"]', true);
@@ -251,10 +252,26 @@ test('408 年份选择读取对应真题页，知识点与年份模式可切换'
   assert.equal(run.document.querySelectorAll('.question-card').length, 0);
 });
 
+test('408 年份为单选，切换年份仅加载新年份，原生拒绝多年份请求', async () => {
+  const run = runtime(); await tick();
+  assert.throws(() => run.workspace.prepare(run.controller, { source: '408', token: 'multi-year', organization: 'year', paperYears: [2026, 2025] }), /一次只能选择一个/);
+  assert.equal(run.requests.length, 0);
+  run.click('[data-source="408"]'); await tick(); run.click('[data-organization="year"]'); await tick();
+  assert.ok([...run.document.querySelectorAll('#years input')].every(input => input.type === 'radio' && input.name === 'daguanyuan-408-paper-year'));
+  run.select('#years input[value="2026"]', true); await tick(); await run.controller.importWorkspaceTask.done;
+  run.requests.length = 0;
+  run.select('#years input[value="2025"]', true); await tick(); await run.controller.importWorkspaceTask.done;
+  assert.deepEqual([...run.document.querySelectorAll('#years input')].filter(input => input.checked).map(input => input.value), ['2025']);
+  assert.deepEqual(run.requests.map(r => r.url), ['https://www.408os.cn/exercise?year=2025']);
+  assert.ok(run.controller.importWorkspaceTask.questions.every(q => q.url.endsWith('year=2025')));
+  run.click('#reset'); await tick();
+  assert.equal([...run.document.querySelectorAll('#years input')].filter(input => input.checked).length, 0);
+});
+
 test('408 分类和年份校验、学习集切换和目录成员变化都在写卡前停止', async () => {
   const run = runtime(); await tick();
   for (const values of [{ organization: 'year', paperYears: [2027] }, { organization: 'year', paperYears: [2026, 2026] }, { organization: 'knowledge', categoryIds: [999] }]) {
-    assert.throws(() => run.workspace.prepare(run.controller, { source: '408', token: 'valid', ...values }), /无效|重复/);
+    assert.throws(() => run.workspace.prepare(run.controller, { source: '408', token: 'valid', ...values }), /无效|重复|一次只能选择一个/);
   }
   assert.equal(run.requests.length, 0);
   run.click('[data-source="408"]'); await tick(); run.select('[data-category="10"]', true); await tick(); await run.controller.importWorkspaceTask.done;
@@ -271,7 +288,7 @@ test('408 分类和年份校验、学习集切换和目录成员变化都在写�
 test('408 下载期间停止或切换学习集，保留已完成题卡，余下题目不写入', async () => {
   for (const action of ['stop', 'switch']) {
     const run = runtime(); await tick(); run.click('[data-source="408"]'); await tick();
-    run.select('[data-category="11"]', true); await tick(); await run.controller.importWorkspaceTask.done;
+    run.select('[data-category="10"]', true); await tick(); await run.controller.importWorkspaceTask.done;
     const original = run.native.__DAGUANYUAN_408_IMPORT_GLOBAL__.prepareWorkspace;
     run.native.__DAGUANYUAN_408_IMPORT_GLOBAL__.prepareWorkspace = async (...args) => {
       const prepared = await original(...args), read = prepared.readQuestion;
@@ -294,14 +311,14 @@ test('408 下载期间停止或切换学习集，保留已完成题卡，余下�
 });
 
 test('501 题选题分块提交，原生校验全体成员后才建卡', async () => {
-  const run = runtime(501); await run.load(3);
+  const run = runtime(501); await run.load(2);
   run.click('#commit'); await tick(); await run.controller.importWorkspaceTask.done;
   assert.equal(run.details.length, 501); assert.match(run.document.getElementById('result-text').textContent, /新建 501/);
 });
 
 test('篡改成员、重复选择及缺失分块都不会写卡，可刷新后重试', async () => {
   for (const ids of [[999], [100, 100], []]) {
-    const run = runtime(); await run.load(3);
+    const run = runtime(); await run.load(2);
     run.browser.window.__DAGUANYUAN_IMPORT_WORKSPACE__.selectionChunk = () => JSON.stringify(ids);
     run.workspace.commit(run.controller, { token: run.controller.importWorkspaceTask.token, count: ids.length || 1, content: 'question' });
     await run.controller.importWorkspaceTask.done;
@@ -333,7 +350,7 @@ test('MN Utils 缺失时提示安装并启用，不读取题目或建卡', async
 });
 
 test('运行中停止保留已建题卡，取消剩余下载；新的读取不会混入迟到的列表', async () => {
-  const run = runtime(25); await run.load(3);
+  const run = runtime(25); await run.load(2);
   let secondWave;
   const detail = run.native.__DAGUANYUAN_MATH_API_GLOBAL__.questionDetail;
   run.native.__DAGUANYUAN_MATH_API_GLOBAL__.questionDetail = async (...args) => {
@@ -360,7 +377,7 @@ test('读取中切换页面或分页重复都会废弃列表，不授权部分�
       }
       return page(category, number, scope);
     };
-    await run.load(3);
+    await run.load(2);
     assert.equal(run.document.getElementById('commit').disabled, true);
     assert.match(run.document.getElementById('error').textContent, /停止|重复/);
     assert.equal(run.notes.size, 0);
@@ -379,12 +396,59 @@ test('没有本地数学分类时，导入页仍可独立在线加载和选题',
   const run = runtime();
   run.native.__DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__.currentCatalog = () => { throw Error('不应读取本地分类'); };
   assert.equal(run.workspace.initialize().records.length, 0);
-  await run.load(3);
-  assert.ok(run.document.querySelector('[data-category="3"]'));
+  await run.load(2);
+  assert.ok(run.document.querySelector('[data-category="2"]'));
   assert.ok(run.document.querySelectorAll('.question-card').length > 0);
   run.click('#commit'); await tick(); await run.controller.importWorkspaceTask.done;
   assert.match(run.document.getElementById('result-text').textContent, /新建 3/);
   assert.equal(run.native.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.size, 0);
+});
+
+test('仅末级分类父节点有勾选框，原生拒绝上层、末级和混合层级请求', async () => {
+  const run = runtime(); await tick();
+  assert.deepEqual([...run.document.querySelectorAll('[data-category]')].map(n => Number(n.dataset.category)), [2, 4]);
+  const records = await run.native.__DAGUANYUAN_MATH_API_GLOBAL__.categoryRecords('complete', 'all');
+  for (const id of [1, 3, 5]) assert.throws(() => run.workspace.categoriesFor(records, [id]), /末级分类的父节点/);
+  assert.deepEqual(Array.from(run.workspace.categoriesFor(records, [4, 2])), [2, 3, 4, 5]);
+  for (const id of [1, 3]) assert.throws(() => run.workspace.prepare(run.controller, { token: 'blocked', scope: 'complete', categoryIds: [id] }), /末级分类的父节点/);
+  assert.equal(run.requests.length, 0);
+  run.click('[data-source="408"]'); await tick();
+  assert.deepEqual([...run.document.querySelectorAll('[data-category]')].map(n => Number(n.dataset.category)), [10]);
+  assert.throws(() => run.workspace.prepare(run.controller, { token: 'blocked408', source: '408', organization: 'knowledge', categoryIds: [11] }), /末级分类的父节点/);
+  assert.equal(run.requests.length, 0);
+});
+
+test('408 先导入后面的分类再补前面分类，按目录插入并保留原卡和个人笔记', async () => {
+  const { run, names } = instructionRuntime(); await tick(); run.click('[data-source="408"]'); await tick();
+  run.select('[data-category="60"]', true); await tick(); await run.controller.importWorkspaceTask.done;
+  run.click('#none'); run.select('[data-question="102"]', true); run.click('#commit'); await tick(); await run.controller.importWorkspaceTask.done;
+  const chapter = [...run.notes.values()].find(n => n.noteTitle === '指令系统');
+  const original = chapter.childNotes[0];
+  const personal = run.native.Database.sharedInstance().createNoteWithTitleTopicid('个人笔记', 'study'); chapter.addChild(personal);
+  run.click('#none'); run.select('[data-question="100"]', true); run.click('#commit'); await tick(); await run.controller.importWorkspaceTask.done;
+  assert.deepEqual(chapter.childNotes.map(n => n.noteTitle), [names[0], names[2], '个人笔记']);
+  assert.equal(chapter.childNotes[1], original);
+  run.click('#commit'); await tick(); await run.controller.importWorkspaceTask.done;
+  assert.deepEqual(chapter.childNotes.map(n => n.noteTitle), [names[0], names[2], '个人笔记']);
+  assert.equal(chapter.childNotes[2], personal);
+});
+
+test('数学通过真实导入流程先导连续再补极限，章节按在线目录顺序插入', async () => {
+  const run = runtime(2), api = run.native.__DAGUANYUAN_MATH_API_GLOBAL__;
+  run.questions[0].categoryId = 5; run.questions[0].importCategoryId = 5;
+  api.questionPage = async category => {
+    const questions = run.questions.filter(q => q.categoryId === category);
+    return { total: questions.length, pageSize: 20, questions };
+  };
+  await run.load(4); run.click('#commit'); await tick(); await run.controller.importWorkspaceTask.done;
+  const subject = [...run.notes.values()].find(n => n.noteTitle === '高等数学');
+  const original = subject.childNotes[0]; assert.equal(original.noteTitle, '连续');
+  run.select('[data-category="4"]', false); await tick();
+  run.select('[data-category="2"]', true); await tick(); await run.controller.importWorkspaceTask.done;
+  run.click('#commit'); await tick(); await run.controller.importWorkspaceTask.done;
+  assert.deepEqual(subject.childNotes.map(n => n.noteTitle), ['极限', '连续']);
+  assert.equal(subject.childNotes[1], original);
+  assert.equal([...run.notes.values()].filter(n => n.comments[1]?.text.includes('DAGUANYUAN_QUESTION_ID:')).length, 2);
 });
 
 test('备考科目同步筛选目录和所有分页，公共题来源混合仍保留，父分类不展开排除的分支', async () => {
@@ -392,10 +456,10 @@ test('备考科目同步筛选目录和所有分页，公共题来源混合仍�
   const api=run.native.__DAGUANYUAN_MATH_API_GLOBAL__;
   const records=await api.categoryRecords('complete','all');
   api.categoryRecords=async (scope,subject)=>records.filter(r=>subject!=='math_2'||r[0]!==4);
-  await run.load(1); run.requests.length=0;
+  await run.load(2); run.requests.length=0;
   run.click('[data-exam-subject="math_2"]'); await tick(); await run.controller.importWorkspaceTask.done;
   assert.equal(run.document.querySelector('[data-category="4"]'),null);
-  assert.deepEqual(run.requests.map(r=>[r.category,r.page]),[[1,1],[2,1],[3,1],[3,2]]);
+  assert.deepEqual(run.requests.map(r=>[r.category,r.page]),[[2,1],[3,1],[3,2]]);
   assert.ok(run.requests.every(r=>r.examSubject==='math_2'));
   assert.equal(run.document.querySelectorAll('.question-card').length,25);
   assert.equal(run.stored.get('cn.marginnote.daguanyuan-bridge.import-workspace.exam-subject'),'math_2');
@@ -405,7 +469,7 @@ test('备考科目同步筛选目录和所有分页，公共题来源混合仍�
 });
 
 test('切换科目移除不适用的已选分类和题目，旧列表不能继续导入；无选题也保存选择', async () => {
-  const run=runtime(); await run.load(3); const old=run.controller.importWorkspaceTask;
+  const run=runtime(); await run.load(2); const old=run.controller.importWorkspaceTask;
   run.native.__DAGUANYUAN_MATH_API_GLOBAL__.categoryRecords=async()=>[[1,0,'高等数学'],[4,1,'其他适用分类']];
   run.requests.length=0; run.click('[data-exam-subject="math_3"]'); await tick();
   assert.equal(run.document.querySelector('[data-category="3"]'),null);
@@ -427,7 +491,7 @@ test('旧偏好默认全部，数二偏好恢复，非法旧值回退全部，�
   assert.match(run.document.getElementById('empty').textContent,/分类读取失败/);
   assert.equal(run.document.getElementById('commit').disabled,true); assert.equal(run.document.querySelectorAll('#tree input').length,0);
   run.click('[data-source="408"]'); await tick();
-  assert.equal(run.document.getElementById('exam-subject-field').hidden,true); assert.ok(run.document.querySelector('[data-category="11"]'));
+  assert.equal(run.document.getElementById('exam-subject-field').hidden,true); assert.ok(run.document.querySelector('[data-category="10"]'));
 });
 
 test('导入结果保持右侧文档流，左侧筛选可继续使用并可收起详情', async () => {
@@ -441,7 +505,7 @@ test('导入结果保持右侧文档流，左侧筛选可继续使用并可收�
 });
 
 test('持续限流中止剩余批次，保留已经完成的题卡，并显示中断原因', async () => {
-  const run = runtime(25); await run.load(3);
+  const run = runtime(25); await run.load(2);
   const api = run.native.__DAGUANYUAN_MATH_API_GLOBAL__, original = api.questionDetail;
   api.questionDetail = async (...args) => {
     if (args[0] === 120) { const error = new Error('网站限流，请稍后重试'); error.rateLimited = true; error.stopImport = true; throw error; }
@@ -461,7 +525,7 @@ test('点击分类文字只展开收起，箭头状态同步，不勾选也不�
   await tick(); await run.controller.importWorkspaceTask?.done; await tick();
   assert.equal(run.requests.length, 0);
   assert.equal(run.document.querySelectorAll('.question-card').length, 0);
-  assert.equal(run.document.querySelector('[data-category="1"]').checked, false);
+  assert.equal(run.document.querySelector('[data-category="1"]'), null);
   const toggle=run.document.querySelector('[data-toggle-category="1"]');
   assert.equal(toggle.getAttribute('aria-expanded'), 'true');
   assert.equal(toggle.closest('.knowledge-node').querySelector('.knowledge-tree').hidden, false);
@@ -484,10 +548,10 @@ test('只有方框更改分类选择，勾选不触发展开，点击末级文�
   run.select('[data-category="2"]', true); await tick(); await run.controller.importWorkspaceTask.done; await tick();
   assert.equal(toggle.getAttribute('aria-expanded'), 'true');
   run.requests.length=0;
-  run.document.querySelector('[data-category="4"]').closest('.knowledge-row').querySelector('.knowledge-name').dispatchEvent(new run.document.defaultView.Event('click', { bubbles: true }));
+  run.document.querySelector('[data-category-row="5"]').querySelector('.knowledge-name').dispatchEvent(new run.document.defaultView.Event('click', { bubbles: true }));
   await tick();
   assert.equal(run.document.querySelector('[data-category="2"]').checked, true);
-  assert.equal(run.document.querySelector('[data-category="4"]').checked, false);
+  assert.equal(run.document.querySelector('[data-category="5"]'), null);
   assert.equal(run.requests.length, 0);
   assert.equal(run.document.querySelectorAll('.question-card').length, 3);
   run.requests.length=0; run.click('[data-toggle-category="1"]');
@@ -498,7 +562,7 @@ test('只有方框更改分类选择，勾选不触发展开，点击末级文�
 test('同层级名称对齐，分支名称为展开按钮，末级名称是普通文字', async () => {
   const run=runtime(); await tick();
   const branch=run.document.querySelector('[data-category="2"]').closest('.knowledge-row');
-  const leaf=run.document.querySelector('[data-category="4"]').closest('.knowledge-row');
+  const leaf=run.document.querySelector('[data-category-row="5"]');
   assert.equal(branch.firstElementChild.className, 'knowledge-toggle');
   assert.equal(leaf.firstElementChild.className, 'knowledge-toggle-placeholder');
   assert.equal(branch.querySelector('.knowledge-name').tagName, 'BUTTON');

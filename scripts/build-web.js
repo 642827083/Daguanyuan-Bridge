@@ -7,7 +7,10 @@ function pageScript() {
   const bridge = read('lib/mnBridge.js').replace('export default MNBridge;', '');
   const page = read('DaguanyuanImportPage.js').replace("import MNBridge from './lib/mnBridge.js';", '');
   const style = "if(!document.getElementById('dgy-style')){var s=document.createElement('style');s.id='dgy-style';s.textContent=" + JSON.stringify(read('DaguanyuanImportDialog.css')) + ";document.head.appendChild(s);}";
-  const script = '(function(){if(window.__DAGUANYUAN_IMPORT_UI__){window.__DAGUANYUAN_IMPORT_UI__.refresh();return;}\n' + style + bridge + page + '\n})();';
+  const website = {};
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'src/DaguanyuanWebsiteBridge.js'), 'utf8'), website);
+  const questionDOM = website.__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__.questionDOMScript();
+  const script = questionDOM + '(function(){if(window.__DAGUANYUAN_IMPORT_UI__){window.__DAGUANYUAN_IMPORT_UI__.refresh();return;}\n' + style + bridge + page + '\n})();';
   new vm.Script(script);
   return script;
 }
@@ -18,6 +21,9 @@ function buildWeb() {
   fs.writeFileSync(path.join(destination, 'DaguanyuanImportPageScript.js'), 'var __DAGUANYUAN_IMPORT_PAGE_SCRIPT__ = ' + JSON.stringify(pageScript()) + ';\n');
   fs.writeFileSync(path.join(destination, 'DaguanyuanImportWorkspaceHTML.js'), 'var __DAGUANYUAN_IMPORT_WORKSPACE_HTML__ = ' + JSON.stringify(workspaceHTML()) + ';\n');
   const imageScript = fs.readFileSync(path.join(root, 'web/src/DaguanyuanMathImagePage.js'), 'utf8');
+  const catalogScript = fs.readFileSync(path.join(root, 'web/src/DaguanyuanMathCatalogPage.js'), 'utf8');
+  new vm.Script(catalogScript);
+  fs.writeFileSync(path.join(destination, 'DaguanyuanMathCatalogPageScript.js'), 'var __DAGUANYUAN_MATH_CATALOG_PAGE_SCRIPT__ = ' + JSON.stringify(catalogScript) + ';\n');
   new vm.Script(imageScript);
   fs.writeFileSync(path.join(destination, 'DaguanyuanMathImagePageScript.js'), 'var __DAGUANYUAN_MATH_IMAGE_PAGE_SCRIPT__ = ' + JSON.stringify(imageScript) + ';\n');
   const masteryScript = fs.readFileSync(path.join(root, 'web/src/DaguanyuanMasteryPage.js'), 'utf8');

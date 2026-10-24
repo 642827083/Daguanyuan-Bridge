@@ -53,8 +53,16 @@ test('图片页面切到外站、格式不支持或导入取消时拒绝继续�
   assert.equal(cancelled.requests.length, 0);
 });
 
-test('实际单题入口对1716使用网页登录图片传输后建卡，原生端仅请求公开题干', async () => {
+test('实际单题入口对1716使用网页登录读取题干及图片，原生端不发送未认证请求', async () => {
   const run = pageRuntime(), context = run.context, requests = [], written = [];
+  const fetchImage = run.browser.window.fetch;
+  run.browser.setTimeout = setTimeout; run.browser.clearTimeout = clearTimeout;
+  run.browser.window.fetch = async (url, options) => {
+    if (!url.startsWith('/api/questions/')) return fetchImage(url, options);
+    run.requests.push({ url, options });
+    return { status: 200, ok: true, json: async () => ({ id: 1716, category_id: 1, stem: '![图](asset://sha256/' + 'a'.repeat(64) + ')' }) };
+  };
+  context.__DAGUANYUAN_MATH_CATALOG_PAGE_SCRIPT__ = fs.readFileSync(new URL('../web/src/DaguanyuanMathCatalogPage.js', import.meta.url), 'utf8');
   Object.assign(context, {
     NSURL: { URLWithString(url) { return url; } },
     NSMutableURLRequest: { requestWithURL(url) { return { url, setHTTPMethod() {}, setTimeoutInterval() {}, setAllHTTPHeaderFields() {} }; } },
@@ -70,7 +78,8 @@ test('实际单题入口对1716使用网页登录图片传输后建卡，原生�
   });
   for (const file of ['DaguanyuanMathApi', 'DaguanyuanSingleImport']) vm.runInContext(fs.readFileSync(new URL('../src/' + file + '.js', import.meta.url), 'utf8'), context);
   const result = await context.__DAGUANYUAN_SINGLE_IMPORT_GLOBAL__.importQuestion({ addon: {}, webView: {} }, { provider: 'math', id: 1716, url: 'https://www.cxyonly.fans/math/practice/1' });
-  assert.equal(result.createdCount, 1); assert.equal(result.failed.length, 0); assert.equal(requests.length, 1);
+  assert.equal(result.createdCount, 1); assert.equal(result.failed.length, 0); assert.equal(requests.length, 0);
+  assert.equal(run.requests.length, 2);
   assert.match(written[0].stem, /data:image\/png;base64/); assert.equal(run.requests[0].options.headers.Authorization, 'Bearer TEST_AUTH_TOKEN');
 });
 

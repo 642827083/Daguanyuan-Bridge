@@ -32,7 +32,7 @@
     if (task) throw Error('正在同步掌握状态，请稍后再试');
     const identity = auth(provider);
     if (!identity.token || provider === 'math' && !identity.user) throw Error(loginMessage);
-    const request = { token, id, mastery, provider, route: location.href, status: 'loading', error: '', abort: new AbortController() };
+    const request = { token, id, mastery, provider, route: location.href, status: 'loading', stage: 'check_session', error: '', abort: new AbortController() };
     task = request;
     request.timer = setTimeout(() => request.abort.abort(), 25000);
     function check() {
@@ -65,12 +65,14 @@
       const score = { mastered: 1, needs_practice: 2, not_known: 3 }[mastery];
       const options = { signal: request.abort.signal, silentError: true };
       // 与网站相同：本页面首次标记新增记录，再次标记更新本次记录。
+      request.stage = 'save_408_mastery';
       const saved = await api.post('/api/zt/question-mastery/mark', { questionId: id, score, isUpdate: session408.marked.has(id) }, options);
       checkUser();
       session408.marked.add(id);
       if (!saved || !saved.id || saved.questionId !== undefined && String(saved.questionId) !== String(id)
         || saved.score !== undefined && Number(saved.score) !== score) throw Error('408 标记回执不一致，网站可能已保存，请查看原题确认');
       // 成功回执还需与重新读取的题目状态一致，避免仅凭请求完成就报告成功。
+      request.stage = 'verify_408_mastery';
       const detail = await api.get('/api/zt/question/detail/' + id, options);
       checkUser();
       if (!detail || !detail.question || String(detail.question.id) !== String(id)
@@ -97,6 +99,7 @@
       // 按题号精确查询有效复测队列，包含尚未到期的计划，不受当前页面筛选影响。
       const query = new URLSearchParams({ page: '1', per_page: '2', scope: 'complete', include_upcoming: 'true',
         filters: JSON.stringify({ match: 'all', conditions: [{ field: 'question_id', operator: 'between', value: [id, id] }] }) });
+      request.stage = 'read_retest_plan';
       const queue = await send('/api/retest/queue?' + query, { method: 'GET', headers });
       if (!queue || !Array.isArray(queue.items) || queue.items.length > 1 || queue.total !== queue.items.length
         || queue.items.some(item => !item || !item.question || item.question.id !== id)) throw Error('无法确认当前题目的复测计划，请查看原题后重试');
@@ -105,6 +108,7 @@
       const review = schedule && schedule.active;
       if (review && (!Number.isSafeInteger(schedule.revision) || schedule.revision < 0
         || !['due_today', 'overdue', 'upcoming'].includes(schedule.due_status))) throw Error('复测计划格式无效，请查看原题后重试');
+      request.stage = 'read_csrf';
       const csrf = await send('/api/auth/csrf', { method: 'GET', headers });
       const csrfToken = csrf && (csrf.csrf_token || csrf.token);
       if (typeof csrfToken !== 'string' || !csrfToken) throw Error('无法验证登录状态，请重新登录后重试');
@@ -112,6 +116,7 @@
       const writeHeaders = { ...headers, 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken };
       let saved;
       if (review) {
+        request.stage = 'save_retest';
         // 沿用网站复测的版本校验与幂等键；失败不再降级为普通标记，避免重复写入。
         writeHeaders['Idempotency-Key'] = 'retest-review:' + id + ':' + mastery + ':' + token;
         saved = await send('/api/retest/questions/' + id + '/review', {
@@ -124,6 +129,7 @@
         }
         request.mode = 'retest';
       } else {
+        request.stage = 'save_mastery';
         saved = await send('/api/questions/' + id + '/state', {
           method: 'PATCH', headers: writeHeaders, body: JSON.stringify({ mastery })
         });
@@ -137,14 +143,14 @@
     const saveTask = provider === '408' ? save408 : save;
     const lockKey = provider === '408' ? 'daguanyuan:408:question-state:' + id : 'daguan:question-state:' + identity.user + ':' + id;
     Promise.resolve().then(() => navigator.locks ? navigator.locks.request(lockKey, saveTask) : saveTask())
-      .catch(error => { request.status = 'error'; request.error = error.name === 'AbortError' ? '同步超时，网站可能已保存，请查看原题确认后重试' : String(error.message || error); })
+      .catch(error => { request.status = 'error'; request.errorName = error && error.name || 'Error'; request.error = error && error.name === 'AbortError' ? '同步超时，网站可能已保存，请查看原题确认后重试' : String(error && error.message || error); })
       .finally(() => clearTimeout(request.timer));
     return 'ok';
   }
   function read(token) {
     if (!task || task.token !== token) throw Error('掌握标记任务已失效');
     task.check();
-    return JSON.stringify({ status: task.status, error: task.error, id: task.id, mastery: task.mastery, mode: task.mode, provider: task.provider });
+    return JSON.stringify({ status: task.status, error: task.error, errorName: task.errorName, stage: task.stage, id: task.id, mastery: task.mastery, mode: task.mode, provider: task.provider });
   }
   window.__DAGUANYUAN_MASTERY_PAGE__ = { begin, read, release };
 })();

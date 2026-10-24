@@ -36,7 +36,7 @@ for (const [mastery, score] of [['mastered', 1], ['needs_practice', 2], ['not_kn
   test('408 同步真实接口并回读核验：' + mastery, async () => {
     const run = browser(); assert.equal(run.api.begin('t', 1214, mastery, '408'), 'ok'); await tick();
     const result = run.api.read('t');
-    assert.deepEqual(JSON.parse(result), { status: 'ready', error: '', id: 1214, mastery, mode: 'mastery', provider: '408' });
+    assert.deepEqual(JSON.parse(result), { status: 'ready', error: '', stage: 'verify_408_mastery', id: 1214, mastery, mode: 'mastery', provider: '408' });
     assert.equal(run.calls[0].path, '/api/zt/question-mastery/mark');
     assert.deepEqual(JSON.parse(JSON.stringify(run.calls[0].body)), { questionId: 1214, score, isUpdate: false });
     assert.equal(run.calls[1].path, '/api/zt/question/detail/1214');

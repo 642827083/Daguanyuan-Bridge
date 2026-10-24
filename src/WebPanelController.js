@@ -58,6 +58,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   }
 
   function performClosePanel(controller) {
+    if (typeof __DAGUANYUAN_AI_GLOBAL__ !== "undefined") __DAGUANYUAN_AI_GLOBAL__.cancel(controller);
     if (!controller || !controller.view) return;
     if (controller.mainNavigation) __DAGUANYUAN_PANEL_NAVIGATION_GLOBAL__.stop(controller);
     if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') { __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.info('panel.close'); __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.flush(); }
@@ -589,6 +590,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   }
 
   function loadURL(controller, urlString, provider) {
+    if (typeof __DAGUANYUAN_AI_GLOBAL__ !== "undefined") __DAGUANYUAN_AI_GLOBAL__.cancel(controller);
     if (controller.importTask) __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__.close(controller);
     const url = NSURL.URLWithString(urlString);
     if (!url) throw new Error("题库地址无效");
@@ -784,8 +786,19 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     if (route.provider === "408") {
       if (!/^https:\/\/www\.408os\.cn\/exercise\?/.test(route.url)) throw new Error("408 题目地址无效");
       showPanel(controller);
-      loadURL(controller, __DAGUANYUAN_408_ROUTES_GLOBAL__.detailURL(route.url, route.questionId, route.year), "408os");
+      // 问 AI 使用单题入口，避免分类分页尚未定位时打开另一题的 AI。
+      const sourceURL = route.askAi ? 'https://www.408os.cn/exercise?questionId=' + route.questionId : route.url;
+      const url = __DAGUANYUAN_408_ROUTES_GLOBAL__.detailURL(sourceURL, route.questionId, route.year);
+      loadURL(controller, url, "408os");
+      if (route.askAi) __DAGUANYUAN_AI_GLOBAL__.open408(controller, url, route.questionId);
       showMessage(controller, "正在打开导入的 408 题目");
+      return;
+    }
+    if (route.askAi) {
+      controller.pendingQuestionLocator = undefined;
+      controller.questionLocatorRequestToken = Number(controller.questionLocatorRequestToken || 0) + 1;
+      showPanel(controller);
+      loadURL(controller, "https://www.cxyonly.fans/math/questions/" + route.questionId + "?assistant=1", "daguanyuan");
       return;
     }
     const token = Number(controller.questionLocatorRequestToken || 0) + 1;

@@ -133,6 +133,16 @@ var __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = (function createRoutes(initialCatalo
     };
   }
 
+  function childNames(path) {
+    let parentId = 0;
+    for (const name of path || []) {
+      const matches = records.filter(function (record) { return record.parentId === parentId && record.name === name; });
+      if (matches.length !== 1) return [];
+      parentId = matches[0].id;
+    }
+    return records.filter(function (record) { return record.parentId === parentId; }).map(function (record) { return record.name; });
+  }
+
   function categoryIdFromURL(urlString) {
     const value = String(urlString || "");
     const resumed = value.match(/[?&]resumeCategoryId=(\d+)/i);
@@ -175,6 +185,7 @@ var __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = (function createRoutes(initialCatalo
     replaceCatalog,
     reloadFromStore,
     forCatalog: createRoutes,
+    childNames,
     get size() { return records.length; },
     get updatedAt() { return String(activeCatalog.updatedAt || ""); },
   };

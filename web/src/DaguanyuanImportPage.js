@@ -28,33 +28,9 @@ import MNBridge from './lib/mnBridge.js';
     return { math, supported: category || collection, category, paper: os && !url.searchParams.has('knowledgeId') && !collection };
   }
   function currentPage() {
-    const url = new URL(location.href);
-    const provider = url.protocol === 'https:' && /^(www\.)?cxyonly\.fans$/.test(url.hostname) ? 'math'
-      : url.protocol === 'https:' && url.hostname === 'www.408os.cn' ? '408' : '';
+    const snapshot = window.__DAGUANYUAN_QUESTION_DOM__.read(), provider = snapshot.page.provider;
     const seen = new Set(), questions = [];
-    function visible(row) {
-      for (let node = row; node; node = node.parentElement) {
-        if (node.hidden || node.hasAttribute('inert')) return false;
-        if (typeof window.getComputedStyle === 'function') {
-          const style = window.getComputedStyle(node);
-          if (style.display === 'none' || style.visibility === 'hidden') return false;
-        }
-      }
-      return true;
-    }
-    const selector = provider === 'math' ? '[data-learning-question-id], article.question-document[data-question-id], [data-retest-question-id], [data-retest-schedule-question-id]' : '.question-card';
-    if (provider) document.querySelectorAll(selector).forEach(row => {
-      if (!visible(row) || row.closest('#dgy-dialog, #dgy-toolbar')) return;
-      let id, title;
-      if (provider === 'math') {
-        id = Number(row.getAttribute('data-learning-question-id') || row.getAttribute('data-question-id') || row.getAttribute('data-retest-question-id') || row.getAttribute('data-retest-schedule-question-id'));
-        title = row.querySelector('[data-question-source]')?.textContent.trim();
-      } else {
-        const year = Number((row.querySelector('.year-tag')?.textContent || '').match(/\d{4}/)?.[0]);
-        const number = Number((row.querySelector('.index-tag')?.textContent || '').match(/\d+/)?.[0]);
-        if (!Number.isSafeInteger(year) || year < 2009 || year > 2100 || !Number.isSafeInteger(number) || number < 1 || number > 47) return;
-        id = (year - 2009) * 47 + number; title = year + '年 第' + number + '题';
-      }
+    snapshot.questions.forEach(({ row, id, title }) => {
       if (!Number.isSafeInteger(id) || id <= 0 || seen.has(id)) return;
       seen.add(id);
       const excerpt = (row.querySelector('article.question-document') || row).cloneNode(true);

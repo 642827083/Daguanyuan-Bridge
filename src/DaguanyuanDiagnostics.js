@@ -1,13 +1,38 @@
 var __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ = (function () {
   const DIRECTORY_NAME = 'DaguanyuanBridge';
   const MAX_ENTRIES = 2000, MAX_BYTES = 1024 * 1024;
-  const KEYS = 'taskId provider scope examSubject command action stage status httpStatus questionId total createdCount answerAddedCount skippedCount failedCount processed elapsedMs mode pluginVersion mnVersion mnBuild osType'.split(' ');
+  const KEYS = 'taskId provider scope examSubject command action stage status mastery httpStatus questionId total createdCount answerAddedCount skippedCount failedCount processed elapsedMs mode pluginVersion mnVersion mnBuild osType'.split(' ');
   const session = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
   let entries = [], sizes = [], bytes = 0, loaded = false, dirty = false, timer = null, sequence = 0;
   let storageWarning = '', readBlocked = false;
 
   function member(object, key) {
-    try { const value = object && object[key]; return typeof value === 'function' ? value.call(object) : value; } catch (_) { return undefined; }
+    try {
+      let value = object && object[key];
+      if (typeof value === 'undefined' && object && typeof object.objectForKey === 'function') value = object.objectForKey(key);
+      return typeof value === 'function' ? value.call(object) : value;
+    } catch (_) { return undefined; }
+  }
+  function normalizeError(error, stage) {
+    const info = member(error, 'userInfo');
+    const message = member(info, 'WKJavaScriptExceptionMessage') || member(error, 'message') || member(error, 'localizedDescription')
+      || (typeof error === 'string' ? error : '未知错误');
+    const result = new Error(clean(message));
+    result.stage = clean(stage || member(error, 'stage'), 120);
+    const name = member(error, 'name');
+    if (typeof name === 'string' && /^[A-Za-z][A-Za-z0-9_.]{0,79}$/.test(name)) result.name = name;
+    const stack = member(error, 'stack');
+    if (typeof stack === 'string') result.stack = stack;
+    const source = member(error, 'script') || member(info, 'WKJavaScriptExceptionSourceURL') || '';
+    const file = String(source).match(/(?:^|[\\/])((?:Daguanyuan|Web)[A-Za-z0-9_-]*\.js|main\.js)(?:[?#].*)?$/);
+    if (file) result.script = file[1];
+    ['line', 'column'].forEach(function (key) {
+      const value = Number(member(error, key) || member(info, key === 'line' ? 'WKJavaScriptExceptionLineNumber' : 'WKJavaScriptExceptionColumnNumber'));
+      if (Number.isSafeInteger(value) && value > 0) result[key] = value;
+    });
+    const code = Number(member(error, 'nativeCode') || member(error, 'code'));
+    if (Number.isSafeInteger(code)) result.nativeCode = code;
+    return result;
   }
   function clean(value, limit) {
     if (typeof value !== 'string' && typeof value !== 'number') return '';
@@ -37,13 +62,16 @@ var __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ = (function () {
     return output;
   }
   function errorFor(error) {
+    const originalError = error;
+    error = normalizeError(error);
     const raw = typeof error === 'string' ? error : member(error, 'message') || member(error, 'localizedDescription') || '未知错误';
     const stack = String(member(error, 'stack') || '').split('\n').slice(1).map(function (line) {
       const match = line.match(/((?:Daguanyuan|Web)[A-Za-z0-9_-]*\.js|main\.js):\d+(?::\d+)?/);
       return match ? match[0] : '';
     }).filter(Boolean).slice(0, 20).join('\n');
     const output = { message: clean(raw), stage: clean(member(error, 'stage'), 120), stack };
-    const diagnostics = member(error, 'diagnostics'), image = {};
+    ['name', 'script', 'line', 'column', 'nativeCode'].forEach(function (key) { if (typeof error[key] !== 'undefined') output[key] = error[key]; });
+    const diagnostics = member(originalError, 'diagnostics'), image = {};
     'imageCount base64Chars width height nestedImages foreignObjects remainingImages mediaChanged processorAvailable'.split(' ').forEach(function (key) {
       const value = member(diagnostics, key);
       if (typeof value === 'boolean' || typeof value === 'number' && Number.isFinite(value)) image[key] = value;
@@ -90,7 +118,7 @@ var __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ = (function () {
     const rows = saved.entries.slice(-MAX_ENTRIES).map(function (entry) {
       if (!entry || !/^\d{4}-\d\d-\d\dT[\d:.]+Z$/.test(entry.time) || !/^[a-z][a-z0-9_.-]{0,79}$/i.test(entry.event)) return null;
       const row = { time: entry.time, session: /^[a-z0-9-]{1,100}$/i.test(entry.session) ? entry.session : '', level: ['info', 'warn', 'error'].indexOf(entry.level) >= 0 ? entry.level : 'info', event: entry.event, details: detailsFor(entry.details) };
-      if (entry.error) row.error = errorFor({ message: member(entry.error, 'message'), stage: member(entry.error, 'stage'), stack: '\n' + String(member(entry.error, 'stack') || ''), diagnostics: member(entry.error, 'image') });
+      if (entry.error) row.error = errorFor({ message: member(entry.error, 'message'), stage: member(entry.error, 'stage'), stack: '\n' + String(member(entry.error, 'stack') || ''), diagnostics: member(entry.error, 'image'), name: member(entry.error, 'name'), script: member(entry.error, 'script'), line: member(entry.error, 'line'), column: member(entry.error, 'column'), nativeCode: member(entry.error, 'nativeCode') });
       return row;
     }).filter(Boolean);
     return rows;
@@ -184,5 +212,5 @@ var __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ = (function () {
       return saved;
     } catch (_) { return false; }
   }
-  return { info, warn, error, begin, result, flush, text, copy, exportFile, clear };
+  return { info, warn, error, begin, result, flush, text, copy, exportFile, clear, normalizeError };
 })();

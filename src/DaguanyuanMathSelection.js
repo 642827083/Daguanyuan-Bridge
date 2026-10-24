@@ -19,7 +19,7 @@ var __DAGUANYUAN_MATH_SELECTION_GLOBAL__ = (function () {
       const selected = __DAGUANYUAN_MATH_IMPORT_GLOBAL__.selectQuestions(questions, accepted);
       result.total = selected.length;
       // 页面只提供当前题目编号；分类和正文在确认后按各题真实详情读取。
-      return __DAGUANYUAN_MATH_API_GLOBAL__.categoryRecords('complete', 'all').then(function (records) {
+      return __DAGUANYUAN_MATH_API_GLOBAL__.categoryRecords('complete', 'all', addon.panelController, check).then(function (records) {
         check(); __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.replaceCatalog({ records: records, updatedAt: new Date().toISOString().slice(0, 10) });
         function write(offset) {
           check(); if (offset >= selected.length) return result;

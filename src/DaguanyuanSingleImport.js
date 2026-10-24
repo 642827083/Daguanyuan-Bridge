@@ -48,7 +48,7 @@ var __DAGUANYUAN_SINGLE_IMPORT_GLOBAL__ = (function () {
       }
       try {
         const readImage = typeof __DAGUANYUAN_MATH_IMAGES_GLOBAL__ !== 'undefined' ? __DAGUANYUAN_MATH_IMAGES_GLOBAL__.reader(controller) : undefined;
-        __DAGUANYUAN_MATH_API_GLOBAL__.questionDetail(id, 'question', readImage).then(function (question) { finish(question); }, function (error) { finish(null, error); });
+        __DAGUANYUAN_MATH_API_GLOBAL__.questionDetail(id, 'question', readImage, undefined, controller).then(function (question) { finish(question); }, function (error) { finish(null, error); });
       } catch (error) { finish(null, error); }
     });
   }

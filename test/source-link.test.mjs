@@ -167,3 +167,18 @@ test('从查看原题评论读取唯一网址、题库和题号，无需 SOURCE_
   assert.equal(run.source.fromComment(comment.replace('&url=', '&wrong=')), null);
   assert.equal(run.source.fromComment('<!-- DAGUANYUAN_408_URL:' + url + ' -->'), null);
 });
+
+
+test('问 AI 只接受受支持的题目路由并交给当前窗口，旧打开指令保持原义', () => {
+  const r = runtime();
+  for (const provider of ['math', '408']) {
+    const url = provider === 'math' ? 'https://www.cxyonly.fans/math/questions/42' : 'https://www.408os.cn/exercise?questionId=42';
+    const message = r.source.link(provider, 42, url, 0).replace('marginnote4app://addon/', '').replace('?action=open&', '?action=ask-ai&');
+    const route = r.source.parse(message); assert.equal(route.askAi, true); assert.equal(route.questionId, 42);
+    assert.equal(r.source.receive({ window: r.windows[1] }, { userInfo: { message } }), false);
+    assert.equal(r.source.receive({ window: r.windows[0] }, { userInfo: { message } }), true);
+    assert.equal(r.calls.at(-1)[2].askAi, true);
+    assert.equal(r.source.parse(message.replace('action=ask-ai', 'action=open')).askAi, undefined);
+    assert.equal(r.source.parse(message + '&send=true'), null);
+  }
+});

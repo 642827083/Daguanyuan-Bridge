@@ -42,7 +42,10 @@ var __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__ = (function () {
     const revision = Number(controller.importCatalogRevision || 0) + 1;
     controller.importCatalogRevision = revision;
     controller.importMathCatalog = null;
-    return API.categoryRecords(scope, examSubject).then(function (records) {
+    function checkCatalog() {
+      if (revision !== controller.importCatalogRevision || controller.activePage !== 'import') throw new Error('分类读取已失效，请重新打开导入页');
+    }
+    return API.categoryRecords(scope, examSubject, controller, checkCatalog).then(function (records) {
       if (revision !== controller.importCatalogRevision || controller.activePage !== 'import') throw new Error('分类读取已失效，请重新打开导入页');
       controller.importMathCatalog = { records, scope, examSubject };
       const defaults = NSUserDefaults.standardUserDefaults();
@@ -65,18 +68,21 @@ var __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__ = (function () {
     if (!Array.isArray(selected) || !selected.length || selected.length > records.length) throw new Error('请先选择分类');
     const ids = new Set(records.map(function (r) { return r[0]; }));
     const wanted = new Set();
+    const children = new Map();
+    records.forEach(function (r) {
+      if (!children.has(r[1])) children.set(r[1], []);
+      children.get(r[1]).push(r[0]);
+    });
     selected.forEach(function (id) {
       if (!Number.isSafeInteger(id) || !ids.has(id) || wanted.has(id)) throw new Error('所选分类无效或重复');
       wanted.add(id);
     });
-    // 分类树按原始目录顺序展开，包含分支自身的直接归属题目。
-    let changed = true;
-    while (changed) {
-      changed = false;
-      records.forEach(function (r) {
-        if (wanted.has(r[1]) && !wanted.has(r[0])) { wanted.add(r[0]); changed = true; }
-      });
-    }
+    // 仅允许直属子分类全部为末级的父节点，阻止大分支递归读取。
+    selected.forEach(function (id) {
+      const leaves = (children.get(id) || []).filter(function (child) { return !children.has(child); });
+      if (!leaves.length || leaves.length !== children.get(id).length) throw new Error('只能勾选末级分类的父节点');
+      leaves.forEach(function (child) { wanted.add(child); });
+    });
     return records.filter(function (r) { return wanted.has(r[0]); }).map(function (r) { return r[0]; });
   }
   function token(value) {
@@ -110,7 +116,7 @@ var __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__ = (function () {
       const categorySeen = new Set();
       function nextPage() {
         check(controller, task);
-        return API.questionPage(categoryId, page, scope, examSubject).then(function (listing) {
+        return API.questionPage(categoryId, page, scope, examSubject, controller, function () { check(controller, task); }).then(function (listing) {
           check(controller, task);
           if (total < 0) total = listing.total;
           if (total !== listing.total || Math.ceil(total / listing.pageSize) > 1000) throw new Error('题目数量已变化或超出可读取范围，请刷新');
@@ -147,6 +153,7 @@ var __DAGUANYUAN_IMPORT_WORKSPACE_GLOBAL__ = (function () {
     const data = __DAGUANYUAN_408_CATALOG_DATA__;
     if (payload.organization === 'year') {
       if (!Array.isArray(payload.paperYears) || !payload.paperYears.length) throw new Error('请先选择年份');
+      if (payload.paperYears.length !== 1) throw new Error('408 年份一次只能选择一个');
       const seen = new Set();
       return payload.paperYears.map(function (year) {
         if (!Number.isSafeInteger(year) || data.years.indexOf(year) < 0 || seen.has(year)) throw new Error('408 年份无效或重复');

@@ -61,7 +61,7 @@ import MNBridge from './lib/mnBridge.js';
     el('exam-subject-field').hidden = state.source !== 'math';
     el('organization408').hidden = state.source !== '408';
     el('tree-field').hidden = paperMode();
-    text('organization-hint', paperMode() ? '选择年份，按真题卷整理题目。' : '按网站分类整理题目，选择分支会包含其下级分类。');
+    text('organization-hint', paperMode() ? '一次只能选择一个年份，按该年真题卷整理题目。' : '仅可勾选末级分类的父节点，读取所选节点及其直属末级分类。');
     root.querySelectorAll('[data-scope]').forEach(function (node) { node.setAttribute('aria-pressed', String(node.dataset.scope === state.scope)); });
     root.querySelectorAll('[data-exam-subject]').forEach(function (node) { node.setAttribute('aria-pressed', String(node.dataset.examSubject === state.examSubject)); });
     root.querySelectorAll('[data-content]').forEach(function (node) { node.setAttribute('aria-pressed', String(node.dataset.content === state.content)); });
@@ -75,12 +75,17 @@ import MNBridge from './lib/mnBridge.js';
       if (!children.has(r[1])) children.set(r[1], []);
       children.get(r[1]).push(r);
     });
+    const selectable = new Set(state.records.filter(function (r) {
+      const branch = children.get(r[0]) || [];
+      return branch.length > 0 && branch.every(function (child) { return !children.has(child[0]); });
+    }).map(function (r) { return r[0]; }));
+    state.categories = new Set(Array.from(state.categories).filter(function (id) { return selectable.has(id); }));
     function branch(parentId) {
       const box = document.createElement('div'); box.className = 'knowledge-tree';
       (children.get(parentId) || []).forEach(function (r) {
         const hasChildren = children.has(r[0]);
         const node = document.createElement('div'); node.className = 'knowledge-node';
-        const row = document.createElement('div'); row.className = 'knowledge-row';
+        const row = document.createElement('div'); row.className = 'knowledge-row'; row.dataset.categoryRow = String(r[0]);
         const toggle = document.createElement(hasChildren ? 'button' : 'span');
         toggle.className = hasChildren ? 'knowledge-toggle' : 'knowledge-toggle-placeholder';
         if (hasChildren) {
@@ -96,10 +101,14 @@ import MNBridge from './lib/mnBridge.js';
           name.setAttribute('aria-label', '展开分类：' + r[2]); name.setAttribute('aria-expanded', 'false');
           name.setAttribute('aria-controls', 'category-children-' + r[0]);
         }
-        const label = document.createElement('label'); label.className = 'knowledge-check';
-        const input = document.createElement('input'); input.type = 'checkbox'; input.dataset.category = String(r[0]);
-        input.setAttribute('aria-label', '选择分类：' + r[2]); input.checked = state.categories.has(r[0]);
-        label.appendChild(input); row.appendChild(toggle); row.appendChild(name); row.appendChild(label); node.appendChild(row);
+        row.appendChild(toggle); row.appendChild(name);
+        if (selectable.has(r[0])) {
+          const label = document.createElement('label'); label.className = 'knowledge-check';
+          const input = document.createElement('input'); input.type = 'checkbox'; input.dataset.category = String(r[0]);
+          input.setAttribute('aria-label', '选择分类：' + r[2]); input.checked = state.categories.has(r[0]);
+          label.appendChild(input); row.appendChild(label);
+        }
+        node.appendChild(row);
         if (hasChildren) {
           const childTree = branch(r[0]); childTree.id = 'category-children-' + r[0]; childTree.hidden = true;
           node.appendChild(childTree);
@@ -115,7 +124,9 @@ import MNBridge from './lib/mnBridge.js';
     if (!values.length) { box.textContent = '选择分类后显示'; return; }
     values.forEach(function (value) {
       const label = document.createElement('label'); label.className = 'filter-chip';
-      const input = document.createElement('input'); input.type = 'checkbox'; input.dataset.filter = id; input.value = value; input.checked = selected.has(value);
+      const input = document.createElement('input'); input.type = id === 'years' && paperMode() ? 'radio' : 'checkbox';
+      if (input.type === 'radio') input.name = 'daguanyuan-408-paper-year';
+      input.dataset.filter = id; input.value = value; input.checked = selected.has(value);
       const span = document.createElement('span'); span.textContent = labelFor(value);
       label.appendChild(input); label.appendChild(span); box.appendChild(label);
     });
@@ -230,7 +241,9 @@ import MNBridge from './lib/mnBridge.js';
       const id = Number(input.dataset.category); if (input.checked) state.categories.add(id); else state.categories.delete(id); prepare();
     } else if (input.dataset.filter) {
       if (input.dataset.filter === 'years' && paperMode()) {
-        if (input.checked) state.paperYears.add(input.value); else state.paperYears.delete(input.value); prepare(); return;
+        state.paperYears.clear();
+        if (input.checked) state.paperYears.add(input.value);
+        prepare(); return;
       }
       const selected = state[input.dataset.filter]; if (input.checked) selected.add(input.value); else selected.delete(input.value); renderQuestions(true);
     }

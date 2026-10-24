@@ -15,9 +15,9 @@ var __DAGUANYUAN_MASTERY_SYNC_GLOBAL__ = (function () {
     if (!target || ['math', '408'].indexOf(provider) < 0 || !Number.isSafeInteger(target.questionId) || target.questionId < 1 || ['needs_practice', 'not_known', 'mastered'].indexOf(mastery) < 0) {
       return Promise.reject(new Error('掌握标记参数无效'));
     }
-    const task = { token: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2), controller, cancelled: false };
+    const task = { token: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2), controller, cancelled: false, stage: 'inject_mastery' };
     addon.__daguanyuanMasteryTask = task;
-    if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') task.logTaskId = __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.begin('mastery.save', { provider, questionId: target.questionId });
+    if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') task.logTaskId = __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.begin('mastery.save', { provider, questionId: target.questionId, mastery });
     const deadline = Date.now() + 30000;
     function evaluate(script) {
       if (task.cancelled || addon.panelController !== controller) throw new Error('掌握标记已停止');
@@ -28,7 +28,12 @@ var __DAGUANYUAN_MASTERY_SYNC_GLOBAL__ = (function () {
       return evaluate(PAGE + '.read(' + JSON.stringify(task.token) + ')').then(function (raw) {
         if (task.cancelled || addon.panelController !== controller) throw new Error('掌握标记已停止');
         const result = JSON.parse(String(raw));
-        if (result.status === 'error') throw new Error(result.error);
+        if (result.stage) task.stage = result.stage;
+        if (result.status === 'error') {
+          const error = new Error(result.error); error.stage = task.stage;
+          if (typeof result.errorName === 'string' && /^[A-Za-z][A-Za-z0-9_.]{0,79}$/.test(result.errorName)) error.name = result.errorName;
+          throw error;
+        }
         if (result.status === 'ready') {
           if (result.id !== target.questionId || result.mastery !== mastery || (result.provider || 'math') !== provider) throw new Error('掌握标记回执不一致');
           return result;
@@ -42,15 +47,16 @@ var __DAGUANYUAN_MASTERY_SYNC_GLOBAL__ = (function () {
         .catch(function () {}).then(function () { if (addon.__daguanyuanMasteryTask === task) addon.__daguanyuanMasteryTask = null; });
     }
     return Promise.resolve().then(function () {
-      return evaluate(__DAGUANYUAN_MASTERY_PAGE_SCRIPT__ + ';' + PAGE + '.begin(' + JSON.stringify(task.token) + ',' + target.questionId + ',' + JSON.stringify(mastery) + ',' + JSON.stringify(provider) + ')');
+      return evaluate(__DAGUANYUAN_MASTERY_PAGE_SCRIPT__ + '\n//# sourceURL=DaguanyuanMasteryPage.js\n;' + PAGE + '.begin(' + JSON.stringify(task.token) + ',' + target.questionId + ',' + JSON.stringify(mastery) + ',' + JSON.stringify(provider) + ')');
     }).then(function (result) {
       if (String(result) !== 'ok') throw new Error(loginMessage);
+      task.stage = 'read_receipt';
       return read();
     }).then(function (result) {
       if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.info('mastery.save.result', { taskId: task.logTaskId, provider, questionId: target.questionId, status: 'complete' });
       return release().then(function () { return result; });
     }, function (error) {
-      if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.error('mastery.save.result', error, { taskId: task.logTaskId, provider, questionId: target.questionId });
+      if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.error('mastery.save.result', error, { taskId: task.logTaskId, provider, questionId: target.questionId, mastery, stage: task.stage });
       return release().then(function () { throw error; });
     });
   }

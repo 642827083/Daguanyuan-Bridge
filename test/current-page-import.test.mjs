@@ -10,7 +10,7 @@ function page(url, html = '') {
   const { document, Event } = parseHTML('<html><head></head><body>' + html + '</body></html>');
   const timers = [], location = { href: url }; let observe;
   const window = { innerHeight: 700, document, addEventListener() {}, getComputedStyle(node) { return node.style; } };
-  const context = { window, document, location, URL, Event, console, setTimeout(fn) { timers.push(fn); return timers.length; }, clearTimeout() {},
+  const context = { window, document, location, URL, URLSearchParams, Event, console, setTimeout(fn) { timers.push(fn); return timers.length; }, clearTimeout() {},
     MutationObserver: class { constructor(fn) { observe = fn; } observe() {} } };
   vm.runInNewContext(build.pageScript(), context);
   const api = window.__DAGUANYUAN_IMPORT_UI__;

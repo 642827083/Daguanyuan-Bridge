@@ -24,11 +24,12 @@ async function listing(query, options = {}) {
   const location = { href: 'https://www.408os.cn/exercise?' + query };
   const context = { console, URL, Map, Set, document: { querySelector() { return { src: entryURL }; } },
     window: { location, setTimeout, clearTimeout, async fetch() { return {
-      ok: true, async text() { return options.missingModule ? '' : (options.helperFirst ? 'import{a}from"./knowledge-helper.js";' : '') + 'import{k}from"./knowledge-test.js";'; },
+      ok: true, async text() { return options.entryText !== undefined ? options.entryText : options.missingModule ? '' : (options.helperFirst ? 'import{a}from"./knowledge-helper.js";' : '') + 'import{k}from"./knowledge-test.js";'; },
     }; } },
     Function() { return async url => {
       imports.push(url);
       if (url === entryURL) return { r: request };
+      if (options.modules && Object.prototype.hasOwnProperty.call(options.modules, url)) return options.modules[url];
       if (url.endsWith('/knowledge-helper.js')) return { a() {} };
       if (url.endsWith('/knowledge-test.js')) return { k: options.tree || tree };
       throw new Error('意外模块：' + url);
@@ -38,7 +39,7 @@ async function listing(query, options = {}) {
   vm.runInContext(source, context);
   const receiver = context.__DAGUANYUAN_408_PAGE_GLOBAL__;
   const target = options.single ? { provider: '408', year: 2026, number: 1, url: location.href } : undefined;
-  assert.equal(vm.runInContext(receiver.pageScript('category-path', target), context), 'true');
+  assert.equal(vm.runInContext(receiver.pageScript('category-path', target, options.workspace), context), 'true');
   const state = context.window.__DAGUANYUAN_408_IMPORT_PAGE__;
   for (let attempt = 0; attempt < 20 && !state.ready && !state.error; attempt++) {
     await new Promise(resolve => setImmediate(resolve));
@@ -104,6 +105,39 @@ test('408 知识点请求模块与目录模块同时存在时，读取真正的�
   const result = await listing('knowledgeId=53', { helperFirst: true });
   assert.equal(result.error, '');
   assert.deepEqual(result.payload.category.path, ['计算机组成原理', '数据的机器表示', '数据类型转换']);
+});
+
+test('408 导入页忽略其他脚本版本后缀中的知识点模块片段', async () => {
+  const suffix = 'stage-note-fix-20261022-share-knowledge-20261022-paper-types-difficulty-20261022';
+  const helper = 'knowledge-helper-' + suffix + '.js';
+  const catalog = 'knowledge-catalog-' + suffix + '.js';
+  const assetURL = name => 'https://www.408os.cn/assets/' + name;
+  const result = await listing('knowledgeId=53&sourcePage=overview', {
+    workspace: true,
+    entryText: JSON.stringify(['assets/LegalView-test-' + suffix + '.js', 'assets/' + helper, 'assets/' + catalog, 'assets/' + catalog]),
+    modules: { [assetURL(helper)]: { a() {} }, [assetURL(catalog)]: { k: tree } },
+  });
+  assert.equal(result.error, '');
+  assert.deepEqual(result.payload.category.path, ['计算机组成原理', '数据的机器表示', '数据类型转换']);
+  assert.deepEqual(result.payload.ids, [9001]);
+  assert.ok(result.payload.previews);
+  assert.deepEqual(result.imports, [assetURL('index-test.js'), assetURL(helper), assetURL(catalog)]);
+  assert.equal(result.requests[0].url, '/api/zt/question/list-with-details-by-knowledge');
+  assert.equal(result.requests[0].params.sourcePage, 'overview');
+});
+
+test('408 图文模块也只识别完整文件名，不把其他资源的后缀当成模块', async () => {
+  const suffix = 'wdQuestionContent-20261022-staticHtml-20261022';
+  const renderer = 'wdQuestionContent-test-' + suffix + '.js';
+  const decoder = 'staticHtml-test-' + suffix + '.js';
+  const assetURL = name => 'https://www.408os.cn/assets/' + name;
+  const result = await listing('year=2026', {
+    entryText: 'import "./LegalView-test-' + suffix + '.js";import "./' + renderer + '";import "./' + decoder + '";',
+    modules: { [assetURL(renderer)]: { r() {} }, [assetURL(decoder)]: { d() {} } },
+  });
+  assert.equal(result.error, '');
+  assert.deepEqual(result.payload.ids, [9001]);
+  assert.deepEqual(result.imports, [assetURL('index-test.js'), assetURL(renderer), assetURL(decoder)]);
 });
 
 test('408 分类模块缺失、ID 未找到或重名 ID 时明确报错，避免导入错误层级', async () => {

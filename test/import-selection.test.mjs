@@ -10,7 +10,7 @@ function runtime(url = 'https://www.cxyonly.fans/math/practice/1') {
   const { document, Event, HTMLElement } = parseHTML('<html><head></head><body></body></html>');
   HTMLElement.prototype.scrollIntoView = function () {};
   const location = { href: url }, messages = [], copied = {};
-  const browser = { document, location, URL, console, setTimeout() { return 1; }, clearTimeout() {},
+  const browser = { document, location, URL, URLSearchParams, console, setTimeout() { return 1; }, clearTimeout() {},
     MutationObserver: class { observe() {} }, window: { innerHeight: 700, addEventListener() {} } };
   browser.window.document = document;
   vm.createContext(browser);

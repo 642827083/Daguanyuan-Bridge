@@ -127,7 +127,7 @@ var __DAGUANYUAN_MASTERY_UI_GLOBAL__ = (function () {
     hide(addon);
     function message(text) { if (addon.panelController && active(addon)) __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.showMessage(addon, text); }
     message('正在同步“' + choice.title + '”…');
-    __DAGUANYUAN_MASTERY_SYNC_GLOBAL__.save(addon, selected, choice.value).then(function (result) {
+    return __DAGUANYUAN_MASTERY_SYNC_GLOBAL__.save(addon, selected, choice.value).then(function (result) {
       message(result && result.mode === 'retest' ? '已记录本次复测：' + choice.title : '已同步到' + (selected.provider === '408' ? '408 网站' : '大观园') + '：' + choice.title);
     }, function (error) { message(String(error.message || error)); }).then(function () {
       (addon.__daguanyuanMasteryButtons || []).forEach(function (button) { button.enabled = true; });
@@ -155,5 +155,22 @@ var __DAGUANYUAN_MASTERY_UI_GLOBAL__ = (function () {
     if (!flag) hide(addon);
     return enabled();
   }
-  return { enabled, setEnabled, register, unregister, show, close, hide, press, click, target, rect, frame };
+  function guarded(action, handler) {
+    return function (addon, sender) {
+      const selected = addon.__daguanyuanMasteryTarget;
+      function failed(error) {
+        if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.error('mastery.ui.error', error,
+          { stage: action, provider: selected && selected.provider, questionId: selected && selected.questionId });
+        hide(addon);
+        try { __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.showMessage(addon, '掌握标记发生异常，请在“关于插件 → 诊断日志”查看详情'); }
+        catch (_) { /* 提示不可用时仍保留本地诊断记录。 */ }
+      }
+      try {
+        const result = handler(addon, sender);
+        return result && typeof result.catch === 'function' ? result.catch(failed) : result;
+      } catch (error) { failed(error); }
+    };
+  }
+  return { enabled, setEnabled, register, unregister, show: guarded('show_toolbar', show), close: guarded('close_toolbar', close), hide,
+    press: guarded('press_mastery', press), click: guarded('click_mastery', click), target, rect, frame };
 })();

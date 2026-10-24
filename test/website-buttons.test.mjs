@@ -174,7 +174,7 @@ function browser(hostname, pathname, search = "") {
         return body.querySelector(selector);
       },
       querySelectorAll(selector) {
-        if (selector === "[data-learning-question-id], article.question-document[data-question-id]" || selector === '.question-card') return rows;
+        if (selector.startsWith("[data-learning-question-id], article.question-document[data-question-id]") || selector === '.question-card') return rows;
         const found = [];
         const attribute = selector.match(/^\[([^\]]+)\]$/);
         function visit(node) {

@@ -133,6 +133,22 @@ test('错误对象的异常 getter 或运行时缺失不会让日志接口抛出
   assert.doesNotThrow(() => run.logs.info('test.no.native')); assert.equal(run.logs.flush(), false);
 });
 
+test('网页原生异常提取具体消息及行列，只保存插件脚本名，重启后保留诊断字段', () => {
+  const run = runtime();
+  const error = { localizedDescription: () => '发生 JS 异常', code: () => 4, userInfo: () => ({ objectForKey(key) {
+    return { WKJavaScriptExceptionMessage: 'TypeError: 保存失败 token=private-token', WKJavaScriptExceptionLineNumber: 72,
+      WKJavaScriptExceptionColumnNumber: 9, WKJavaScriptExceptionSourceURL: 'https://site.test/private/DaguanyuanMasteryPage.js?token=source-secret', Cookie: 'private-cookie' }[key];
+  } }) };
+  const normalized = run.logs.normalizeError(error, 'read_receipt');
+  run.logs.error('mastery.save.result', normalized, { questionId: 1214, provider: 'math', mastery: 'mastered' });
+  const entry = runtime(run.files).snapshot().entries.find(row => row.event === 'mastery.save.result');
+  assert.match(entry.error.message, /TypeError: 保存失败/);
+  assert.equal(entry.error.line, 72); assert.equal(entry.error.column, 9); assert.equal(entry.error.nativeCode, 4);
+  assert.equal(entry.error.script, 'DaguanyuanMasteryPage.js'); assert.equal(entry.error.stage, 'read_receipt');
+  assert.equal(entry.details.mastery, 'mastered');
+  assert.doesNotMatch(JSON.stringify(entry), /private-token|private-cookie|source-secret|site.test/);
+});
+
 test('图片失败只保留允许的计数及状态，重启后仍过滤额外诊断数据', () => {
   const run = runtime();
   const error = Error('图片保存失败'); error.diagnostics = { imageCount: 3, base64Chars: 1024, remainingImages: 1, processorAvailable: true,

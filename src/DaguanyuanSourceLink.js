@@ -23,9 +23,15 @@ var __DAGUANYUAN_SOURCE_LINK_GLOBAL__ = (function () {
       });
   }
   function parse(message) {
+    const ai = String(message || "").indexOf(KEY + "?action=ask-ai&") === 0;
+    if (ai) message = String(message).replace("?action=ask-ai&", "?action=open&");
     const match = /^daguanyuan-bridge\?action=open&provider=(math|408)&question=([1-9]\d*)&year=(0|\d{4})&url=([^&]+)$/.exec(String(message || ''));
     if (!match) return null;
-    try { return target(match[1], match[2], decodeURIComponent(match[4]), match[3]); }
+    try {
+      const route = target(match[1], match[2], decodeURIComponent(match[4]), match[3]);
+      if (route && ai) route.askAi = true;
+      return route;
+    }
     catch (ignored) { return null; }
   }
   function fromComment(text) {

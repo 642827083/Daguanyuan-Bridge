@@ -23,6 +23,28 @@ function page(address, focus = false) {
   return { context, document, window, flush() { for (let i = 0; timers.length && i < 10; i++) timers.shift()(); } };
 }
 
+test('单题工具与选题导入复用同一识别器，切题和 CSS 隐藏在两个入口同时生效', () => {
+  const run = page('https://www.cxyonly.fans/math/practice/categories/345', true);
+  run.document.defaultView.HTMLElement.prototype.scrollIntoView = function () {};
+  const tools = native('DaguanyuanWebsiteBridge').__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__;
+  vm.runInContext(tools.practiceScript(true, false), run.context); run.flush();
+  const shared = run.window.__DAGUANYUAN_QUESTION_DOM__;
+  vm.runInContext(build.pageScript(), run.context);
+  assert.equal(run.window.__DAGUANYUAN_QUESTION_DOM__, shared);
+  const row = run.document.querySelector('[data-learning-question-id]');
+  row.setAttribute('data-learning-question-id', '843');
+  run.window.__DAGUANYUAN_QUESTION_TOOLS__.schedule(); run.flush();
+  run.document.querySelector('#dgy-toolbar [data-scope="selected"]').dispatchEvent(new run.context.Event('click', { bubbles: true }));
+  const snapshot = JSON.parse(run.window.__DAGUANYUAN_IMPORT_UI__.pageSnapshot());
+  assert.deepEqual(snapshot.questions.map(q => q.id), [843]);
+  assert.equal(run.document.querySelector('[data-daguanyuan-practice-locate-card]').getAttribute('data-daguanyuan-practice-locate-card'), '843');
+  run.window.getComputedStyle = node => node.style;
+  row.style.display = 'none';
+  run.window.__DAGUANYUAN_QUESTION_TOOLS__.schedule(); run.flush();
+  assert.equal(shared.read().questions.length, 0);
+  assert.equal(run.document.querySelector('[data-daguanyuan-question-target]'), null);
+});
+
 for (const [path, focus] of [
   ['/math/practice/categories/345', false],
   ['/math/practice?listId=exam&categoryId=836', true],

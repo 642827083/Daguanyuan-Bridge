@@ -7,10 +7,97 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
     window.setTimeout(function () { if (frame.parentNode) frame.parentNode.removeChild(frame); }, 600);
   }
 
+  // 在网站内安装一次；题目工具与选题快照共用身份、可见性和来源位置的判断。
+  function questionDOMPageScript() {
+    if (window.__DAGUANYUAN_QUESTION_DOM__) return window.__DAGUANYUAN_QUESTION_DOM__;
+    function context() {
+      var current = window.location || location;
+      var address = current.hostname ? current : new URL(current.href);
+      var host = address.hostname || '', path = address.pathname || '';
+      var provider = address.protocol && address.protocol !== 'https:' ? ''
+        : /^(?:www\.)?cxyonly\.fans$/i.test(host) ? 'math' : /^www\.408os\.cn$/i.test(host) ? '408' : '';
+      var search = new URLSearchParams(address.search || '');
+      var retest = provider === 'math' && /^\/math\/retest(?:\/|$)/.test(path);
+      var collection = search.get('mode') === 'collection' && /^[1-9]\d*$/.test(search.get('collectionId') || '');
+      var supported = provider === 'math'
+        ? /^\/math\/(?:practice(?:\/(?:(?:categories|concepts)\/)?[1-9]\d*|\/[^/\s?#]+\/(?:all|[1-9]\d*)\/[1-9]\d*)?|questions\/[1-9]\d*|paper|retest(?:\/[^?#]*)?)\/?$/.test(path)
+        : provider === '408' && /^\/exercise\/?$/.test(path) && (collection || !search.has('mode') && !search.has('collectionId')
+          && /[?&](?:year=\d{4}|knowledgeId=[1-9]\d*)(?:[&#]|$)/.test(address.search || ''));
+      return { provider: provider, supported: supported, retest: retest, url: String(current.href || '') };
+    }
+    function visible(row) {
+      for (var node = row; node; node = node.parentElement || node.parentNode) {
+        if (node.hidden || node.getAttribute && (node.getAttribute('hidden') !== null || node.getAttribute('aria-hidden') === 'true'
+          || node.getAttribute('inert') !== null)) return false;
+        if (node.nodeType === 1 && typeof window.getComputedStyle === 'function') {
+          var style = window.getComputedStyle(node);
+          if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') return false;
+        }
+      }
+      return true;
+    }
+    function read() {
+      var page = context(), math = page.provider === 'math', questions = [], seen = [];
+      if (!page.provider) return { page: page, questions: questions };
+      var selector = math ? '[data-learning-question-id], article.question-document[data-question-id], [data-retest-question-id], [data-retest-schedule-question-id]' : '.question-card';
+      var rows = Array.prototype.slice.call(document.querySelectorAll(selector));
+      if (page.retest) rows = rows.concat(Array.prototype.slice.call(document.querySelectorAll('[role="dialog"]')));
+      rows.forEach(function (original) {
+        if (original.closest('#dgy-dialog, #dgy-toolbar')) return;
+        if (math && original.matches('article.question-document[data-question-id]')
+          && original.closest('[data-learning-question-id], [data-retest-question-id], [data-retest-schedule-question-id]')) return;
+        if (page.retest && original.getAttribute('role') !== 'dialog' && original.closest('[role="dialog"]')) return;
+        var id = math ? Number(original.getAttribute('data-learning-question-id') || original.getAttribute('data-question-id')
+          || original.getAttribute('data-retest-question-id') || original.getAttribute('data-retest-schedule-question-id')) : 0;
+        var row = math && original.matches('article.question-document[data-question-id]') ? original.closest('[data-learning-question-card]') || original : original;
+        if (seen.indexOf(row) >= 0) return;
+        seen.push(row);
+        if (!visible(row)) return;
+        if (page.retest && row.getAttribute('role') === 'dialog') {
+          var headingId = row.getAttribute('aria-labelledby');
+          var heading = headingId && document.getElementById(headingId) || row.querySelector('h1, h2, [role="heading"]');
+          var title = heading && String(heading.textContent).match(/^\s*题目\s+([1-9]\d*)\s*$/);
+          id = title ? Number(title[1]) : 0;
+        }
+        var focus = math && row.querySelector('[data-focus-question-metadata]');
+        var metadata = focus && focus.querySelector('[data-question-source]') ? focus
+          : row.querySelector(math ? '[data-learning-question-card] > header > div:first-child' : '.question-header > .header-tags');
+        var source = row.querySelector('[data-question-source]');
+        var anchor = metadata && metadata.querySelector(math ? '[data-question-source]' : '.score-tag');
+        var target = { provider: page.provider, url: page.url };
+        if (math) {
+          target.id = id;
+          if (!page.retest && metadata && !anchor) for (var c = 0; c < metadata.children.length; c += 1) {
+            if (metadata.children[c].tagName !== 'BUTTON') anchor = metadata.children[c];
+          }
+          // 复测计划摘要只提供预览入口，不是完整题目。
+          if (page.retest && original.getAttribute('data-retest-schedule-question-id') && !source && !original.querySelector('[data-learning-question-card], article.question-document')) return;
+        } else {
+          var year = row.querySelector('.year-tag'), number = row.querySelector('.index-tag');
+          var yearMatch = year && String(year.textContent).match(/^\s*(\d{4})(?:年)?\s*$/);
+          var numberMatch = number && String(number.textContent).match(/^\s*第\s*(\d+)\s*题\s*$/);
+          target.year = yearMatch ? Number(yearMatch[1]) : 0;
+          target.number = numberMatch ? Number(numberMatch[1]) : 0;
+          if (target.year < 2009 || target.year > 2100 || target.number < 1 || target.number > 47) return;
+          id = (target.year - 2009) * 47 + target.number;
+          anchor = anchor || metadata && metadata.querySelector('.index-tag');
+        }
+        if (!Number.isSafeInteger(id) || id < 1) return;
+        questions.push({ row: row, id: id, target: target, metadata: metadata, anchor: anchor,
+          title: math ? source && String(source.textContent).trim() : target.year + '年 第' + target.number + '题' });
+      });
+      return { page: page, questions: questions };
+    }
+    window.__DAGUANYUAN_QUESTION_DOM__ = { read: read };
+    return window.__DAGUANYUAN_QUESTION_DOM__;
+  }
+
+  function questionDOMScript() { return '(' + questionDOMPageScript.toString() + ')();'; }
+
   // 此函数只在网站 WebView 内运行，三个工具共用排列逻辑，避免观察器相互移动按钮。
   function questionToolsPageScript(locateEnabled, noteEnabled, singleEnabled) {
     var state = window.__DAGUANYUAN_QUESTION_TOOLS__;
-    if (!state || state.version !== 6) {
+    if (!state || state.version !== 7) {
       if (state) {
         if (state.timer !== null && typeof window.clearTimeout === 'function') window.clearTimeout(state.timer);
         state.timer = -1;
@@ -22,7 +109,7 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
       }
       var legacy = document.querySelectorAll('[data-daguanyuan-locate-card], [data-daguanyuan-retest-add-note]');
       for (var l = 0; l < legacy.length; l += 1) if (legacy[l].parentNode) legacy[l].parentNode.removeChild(legacy[l]);
-      state = { version: 6, enabled: false, noteEnabled: false, singleEnabled: false, busy: false, noteBusy: false, locateBusy: false, timer: null };
+      state = { version: 7, enabled: false, noteEnabled: false, singleEnabled: false, busy: false, noteBusy: false, locateBusy: false, timer: null };
       window.__DAGUANYUAN_QUESTION_TOOLS__ = state;
       window.__DAGUANYUAN_PRACTICE_CARD_BUTTONS__ = state;
       window.__DAGUANYUAN_SINGLE_IMPORT_BUTTONS__ = state;
@@ -35,64 +122,19 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
       }
       function sync() {
         state.timer = null;
-        var host = window.location.hostname || '';
-        var path = window.location.pathname || '';
-        var math = /^(?:www\.)?cxyonly\.fans$/i.test(host)
-          && /^\/math\/(?:practice(?:\/(?:(?:categories|concepts)\/)?[1-9]\d*|\/[^/\s?#]+\/(?:all|[1-9]\d*)\/[1-9]\d*)?|questions\/[1-9]\d*|paper|retest(?:\/[^?#]*)?)\/?$/.test(path);
-        var retest = math && /^\/math\/retest(?:\/|$)/.test(path);
-        var search = new URLSearchParams(window.location.search || '');
-        var collection = search.get('mode') === 'collection' && /^[1-9]\d*$/.test(search.get('collectionId') || '');
-        var os408 = /^www\.408os\.cn$/i.test(host) && /^\/exercise\/?$/.test(path)
-          && (collection || /[?&](?:year=\d{4}|knowledgeId=[1-9]\d*)(?:[&#]|$)/.test(window.location.search || '')
-            && !search.has('mode') && !search.has('collectionId'));
-        if (!math && !os408) {
+        var snapshot = window.__DAGUANYUAN_QUESTION_DOM__.read();
+        var math = snapshot.page.provider === 'math', retest = snapshot.page.retest;
+        if (!snapshot.page.supported) {
           // 离开题目页时清理旧按钮，避免同页导航后遗留可点击的旧题目操作。
           var stale = document.querySelectorAll('[data-daguanyuan-question-target]');
           for (var s = 0; s < stale.length; s += 1) if (stale[s].parentNode) stale[s].parentNode.removeChild(stale[s]);
           return;
         }
-        var rows = Array.prototype.slice.call(document.querySelectorAll(math ? '[data-learning-question-id], article.question-document[data-question-id]' : '.question-card'));
-        if (retest) rows = rows.concat(Array.prototype.slice.call(document.querySelectorAll('[data-retest-question-id], [data-retest-schedule-question-id], [role="dialog"]')));
-        var seen = [], kept = [];
-        for (var index = 0; index < rows.length; index += 1) {
-          var row = rows[index];
-          if (math && row.matches('article.question-document[data-question-id]') && row.closest('[data-learning-question-id]')) continue;
-          if (retest && row.getAttribute('role') !== 'dialog' && row.closest('[role="dialog"]')) continue;
-          if (retest && row.matches('article.question-document[data-question-id]') && row.closest('[data-retest-question-id], [data-retest-schedule-question-id]')) continue;
-          var questionId = math && Number(row.getAttribute('data-learning-question-id') || row.getAttribute('data-question-id') || row.getAttribute('data-retest-question-id') || row.getAttribute('data-retest-schedule-question-id'));
-          if (math && row.matches('article.question-document[data-question-id]')) row = row.closest('[data-learning-question-card]') || row;
-          if (seen.indexOf(row) >= 0) continue;
-          seen.push(row);
-          if (math && row.closest('[hidden], [aria-hidden="true"], [inert]')) { removeButtons(row); continue; }
-          if (retest && row.getAttribute('role') === 'dialog') {
-            // 预览标题由网站使用真实题目 ID 生成，不使用列表序号或来源年份。
-            var titleId = row.getAttribute('aria-labelledby');
-            var heading = titleId && document.getElementById(titleId) || row.querySelector('h1, h2, [role="heading"]');
-            var titleMatch = heading && String(heading.textContent).match(/^\s*题目\s+([1-9]\d*)\s*$/);
-            questionId = titleMatch ? Number(titleMatch[1]) : 0;
-          }
-          // 新布局保留旧标题栏，来源则位于独立信息栏，优先选择包含来源的新信息栏。
-          var focus = math && row.querySelector('[data-focus-question-metadata]');
-          var metadata = focus && focus.querySelector('[data-question-source]') ? focus : row.querySelector(math ? '[data-learning-question-card] > header > div:first-child' : '.question-header > .header-tags');
-          var target = { provider: math ? 'math' : '408', url: String(window.location.href || '') };
-          var anchor = null;
-          if (math) {
-            target.id = questionId;
-            // 来源可能是带视频入口的按钮，也可能是文本标签，均以网站的来源标记定位。
-            anchor = metadata && metadata.querySelector('[data-question-source]');
-            if (!retest && metadata && !anchor) for (var c = 0; c < metadata.children.length; c += 1) {
-              if (metadata.children[c].tagName !== 'BUTTON') anchor = metadata.children[c];
-            }
-            if (!Number.isSafeInteger(target.id) || target.id < 1) anchor = null;
-          } else {
-            var year = metadata && metadata.querySelector('.year-tag');
-            var number = metadata && metadata.querySelector('.index-tag');
-            var yearMatch = year && String(year.textContent).match(/^\s*(\d{4})(?:年)?\s*$/);
-            var numberMatch = number && String(number.textContent).match(/^\s*第\s*(\d+)\s*题\s*$/);
-            target.year = yearMatch && Number(yearMatch[1]);
-            target.number = numberMatch && Number(numberMatch[1]);
-            if (target.year && target.number) anchor = metadata.querySelector('.score-tag') || number;
-          }
+        var kept = [];
+        for (var index = 0; index < snapshot.questions.length; index += 1) {
+          var question = snapshot.questions[index], row = question.row;
+          if (!retest && !row.getAttribute('data-learning-question-id') && (row.getAttribute('data-retest-question-id') || row.getAttribute('data-retest-schedule-question-id') || row.getAttribute('role') === 'dialog')) { removeButtons(row); continue; }
+          var metadata = question.metadata, target = question.target, anchor = question.anchor;
           if (!metadata || !anchor) { removeButtons(row); continue; }
           var specs = [
             { key: math ? 'data-daguanyuan-practice-locate-card' : 'data-daguanyuan-408-locate-card', text: '定位卡片', command: 'locate-card', show: state.enabled, busy: state.locateBusy },
@@ -203,7 +245,7 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
   function singleImportPageScript(enabled) { return questionToolsPageScript(null, null, enabled); }
 
   function toolsScript(receiver, args) {
-    return '(function () { var sendCommand = ' + sendCommand.toString() + '; var questionToolsPageScript = ' + questionToolsPageScript.toString() + '; return (' + receiver.toString() + ')(' + args + '); })();';
+    return questionDOMScript() + '(function () { var sendCommand = ' + sendCommand.toString() + '; var questionToolsPageScript = ' + questionToolsPageScript.toString() + '; return (' + receiver.toString() + ')(' + args + '); })();';
   }
   function singleImportScript(enabled) { return toolsScript(singleImportPageScript, enabled ? 'true' : 'false'); }
   function practiceScript(enabled, noteEnabled) { return toolsScript(practicePageScript, (enabled === false ? 'false' : 'true') + ',' + (noteEnabled ? 'true' : 'false')); }
@@ -500,5 +542,5 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
     return "(function(){var direct=(" + directYearQuestionPageScript.toString() + ")();return direct||(" + exerciseQuestionPageScript.toString() + ")();})();";
   }
 
-  return { practiceScript, bindCategoryScript, singleImportScript, importContextScript, exerciseQuestionScript };
+  return { practiceScript, bindCategoryScript, singleImportScript, importContextScript, exerciseQuestionScript, questionDOMScript };
 })();

@@ -150,9 +150,28 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
     return root;
   }
 
-  function findOrCreatePath(root, path, context) {
+  function siblingTitles(path, context, provider) {
+    if (provider !== '408') {
+      const routes = context.categoryRoutes || __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__;
+      return typeof routes.childNames === 'function' ? routes.childNames(path) : [];
+    }
+    if (path[0] !== '408' || typeof __DAGUANYUAN_408_CATALOG_DATA__ === 'undefined') return [];
+    const data = __DAGUANYUAN_408_CATALOG_DATA__;
+    const records = data.records || [];
+    let parentId = 0;
+    for (const title of path.slice(1)) {
+      const matches = records.filter(function (r) { return r[1] === parentId && r[2] === title; });
+      if (matches.length !== 1) return [];
+      parentId = matches[0][0];
+    }
+    const names = records.filter(function (r) { return r[1] === parentId; }).map(function (r) { return r[2]; });
+    if (path.length === 1) (data.years || []).forEach(function (year) { names.push(year + '年真题'); });
+    return names;
+  }
+
+  function findOrCreatePath(root, path, context, provider) {
     let parent = root;
-    path.forEach(function (part) {
+    path.forEach(function (part, depth) {
       const title = String(part || "").trim();
       if (!title) throw new Error("题目分类路径无效");
       const parentId = noteId(parent);
@@ -161,8 +180,22 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
           && noteId(value(item, "parentNote")) === parentId;
       });
       if (!child) {
+        const titles = siblingTitles(path.slice(0, depth), context, provider);
+        const rank = titles.indexOf(title);
+        const before = rank < 0 ? null : nativeItems(parent.childNotes).map(liveNote).filter(Boolean).find(function (item) {
+          const nextRank = titles.indexOf(String(value(item, 'noteTitle') || '').trim());
+          return noteId(value(item, 'parentNote')) === parentId && nextRank > rank && !linkedQuestion(item);
+        });
+        if (before && typeof parent.insertChildBefore !== 'function') throw new Error('当前 MarginNote 无法按章节顺序插入分类');
         child = createNote(title, context);
-        parent.addChild(child);
+        // 只定位新分类的插入位置，保留已有卡片及用户笔记的相对顺序。
+        try {
+          if (before) parent.insertChildBefore(child, before);
+          else parent.addChild(child);
+        } catch (error) {
+          if (context.database && typeof context.database.deleteBookNoteTree === 'function') context.database.deleteBookNoteTree(noteId(child));
+          throw error;
+        }
       }
       parent = child;
     });
@@ -541,7 +574,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
           if (existing) { outcome = writeQuestionParts(context, existing, question, url, '408', content, false); return; }
           if (legacy) {
             const originalParent = value(legacy, 'parentNote');
-            const parent = findOrCreatePath(findRoot(context), categoryPath, context);
+            const parent = findOrCreatePath(findRoot(context), categoryPath, context, '408');
             try {
               moveImportedQuestion(parent, legacy);
               outcome = writeQuestionParts(context, legacy, question, url, '408', content, false);
@@ -553,7 +586,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
             return;
           }
           try {
-            const parent = findOrCreatePath(findRoot(context), categoryPath, context);
+            const parent = findOrCreatePath(findRoot(context), categoryPath, context, '408');
             note = createNote(titleFor(question), context);
             writeQuestionParts(context, note, question, url, '408', content, true);
             parent.addChild(note);
@@ -606,7 +639,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
       if (check) check();
       if (offset >= pending.length) return Promise.resolve();
       return Promise.all(pending.slice(offset, offset + 3).map(function (id) {
-        return __DAGUANYUAN_MATH_API_GLOBAL__.questionDetail(id, content, readImage, checkRequest).then(function (question) {
+        return __DAGUANYUAN_MATH_API_GLOBAL__.questionDetail(id, content, readImage, checkRequest, addon.panelController).then(function (question) {
           readyById[id] = question;
         }).catch(function (error) {
           if (error.stopImport) { stoppedError = error; throw error; }
@@ -685,7 +718,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
     function nextPage() {
       if (beforeImport && beforeImport.check) beforeImport.check();
       if (pageCount && page > pageCount) return Promise.resolve();
-      return __DAGUANYUAN_MATH_API_GLOBAL__.questionPage(categoryId, page, scope).then(function (listing) {
+      return __DAGUANYUAN_MATH_API_GLOBAL__.questionPage(categoryId, page, scope, undefined, addon.panelController, beforeImport && beforeImport.check).then(function (listing) {
         if (page === 1) {
           result.total = listing.total;
           pageCount = Math.ceil(listing.total / listing.pageSize);

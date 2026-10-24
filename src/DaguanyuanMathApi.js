@@ -62,7 +62,7 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
     return typeof value === "function" ? value.call(object) : value;
   }
 
-  function requestJSON(url, check) {
+  function requestJSON(url, check, controller) {
     if (!/^https:\/\/www\.cxyonly\.fans\/api\/(?:questions(?:\/\d+|\?[\w.~=&%+-]+)|categories\?[\w=&%]+)$/.test(url)) {
       return Promise.reject(new Error("题目接口地址无效"));
     }
@@ -73,7 +73,7 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
       return delay(Math.max(0, waiting), check).then(function () {
         // 仅在网站返回 429 后等待；其他请求保持原有并发速度。
         if (nextRequestAt > Date.now()) return attempt(number);
-        return requestOnce(url);
+        return controller ? requestFromPage(controller, url, check) : requestOnce(url);
       }).catch(function (error) {
         if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.error('math.request', error, { httpStatus: error.httpStatus, stage: url.indexOf('/api/categories') >= 0 ? '读取分类目录' : '读取题目' });
         if (error.httpStatus !== 429) throw error;
@@ -132,10 +132,57 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
     };
   }
 
-  function categoryRecords(rawScope, rawSubject) {
+  function requestFromPage(controller, url, check) {
+    if (!controller.webView) return Promise.reject(new Error('请先打开插件“数学”页并登录大观园，再返回导入页重试'));
+    const view = controller.webView, token = 'catalog-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+    const page = 'window.__DAGUANYUAN_MATH_CATALOG_PAGE__', deadline = Date.now() + 30000;
+    function evaluate(script) {
+      if (check) check();
+      if (controller.webView !== view) throw new Error('数学网页已关闭，请重新打开');
+      return __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__.evaluate({ webView: view }, script);
+    }
+    function poll() {
+      if (Date.now() > deadline) throw new Error('数学数据读取超时，请重试');
+      return evaluate(page + '.read(' + JSON.stringify(token) + ')').then(function (raw) {
+        const state = JSON.parse(String(raw));
+        if (state.status === 'error') {
+          const error = new Error(state.error);
+          if (Number.isInteger(state.httpStatus)) error.httpStatus = state.httpStatus;
+          if ([401, 403, 428].indexOf(error.httpStatus) >= 0) error.stopImport = true;
+          if (error.httpStatus === 429) error.response = { allHeaderFields: { 'Retry-After': String(state.retryAfter || '') } };
+          throw error;
+        }
+        if (state.status === 'loading') return new Promise(function (resolve) { NSTimer.scheduledTimerWithTimeInterval(0.15, false, resolve); }).then(poll);
+        if (state.status !== 'ready' || !Number.isSafeInteger(state.length) || state.length < 2 || state.length > 4 * 1024 * 1024) throw new Error('数学数据回执格式无效');
+        const parts = []; let offset = 0;
+        function take() {
+          if (offset === state.length) return JSON.parse(parts.join(''));
+          return evaluate(page + '.chunk(' + JSON.stringify(token) + ',' + offset + ')').then(function (raw) {
+            const part = String(raw || '');
+            if (!part.length || part.length > 65536 || offset + part.length > state.length) throw new Error('数学数据分块传输不完整');
+            parts.push(part); offset += part.length; return take();
+          });
+        }
+        return take();
+      });
+    }
+    function cleanup() {
+      return Promise.resolve().then(function () { return __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__.evaluate({ webView: view }, page + '&&' + page + '.release(' + JSON.stringify(token) + ')'); }).catch(function () {});
+    }
+    return Promise.resolve().then(function () {
+      return evaluate(__DAGUANYUAN_MATH_CATALOG_PAGE_SCRIPT__ + ';' + page + '.beginRead(' + JSON.stringify(token) + ',' + JSON.stringify(url.replace('https://www.cxyonly.fans', '')) + ')');
+    }).then(function (result) {
+      if (String(result) !== 'accepted') throw new Error('分类读取未启动，请先打开插件“数学”页并登录');
+      return poll();
+    }).then(function (tree) { return cleanup().then(function () { return tree; }); }, function (error) {
+      return cleanup().then(function () { throw error; });
+    });
+  }
+
+  function categoryRecords(rawScope, rawSubject, controller, check) {
     const scope = questionScope(rawScope), subject = examSubject(rawSubject);
-    return requestJSON('https://www.cxyonly.fans/api/categories?scope=' + scope
-      + '&exam_subject=' + subject).then(function (tree) {
+    const reading = requestJSON('https://www.cxyonly.fans/api/categories?scope=' + scope + '&exam_subject=' + subject, check, controller);
+    return reading.then(function (tree) {
       const records = [], seen = new Set();
       function visit(nodes, parent, depth) {
         if (!Array.isArray(nodes) || depth > 30) throw new Error('分类目录格式无效，请重试');
@@ -154,7 +201,7 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
     });
   }
 
-  function questionPage(categoryId, page, rawScope, rawSubject) {
+  function questionPage(categoryId, page, rawScope, rawSubject, controller, check) {
     const category = positiveInteger(categoryId, "分类 ID");
     const number = positiveInteger(page, "页码");
     const scope = questionScope(rawScope);
@@ -162,7 +209,7 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
     if (number > 1000) return Promise.reject(new Error("页码超出范围"));
     const url = `${API_ROOT}?category_id=${category}&include_children=false&page=${number}&per_page=${PAGE_SIZE}&scope=${scope}`
       + (typeof rawSubject === 'undefined' ? '' : '&exam_subject=' + subject);
-    return requestJSON(url).then(function (payload) {
+    return requestJSON(url, check, controller).then(function (payload) {
       const data = payload && payload.data;
       if (!data || !Array.isArray(data.items)) throw new Error("题目列表格式无效");
       return {
@@ -177,9 +224,9 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
     });
   }
 
-  function questionDetail(questionId, content, readImage, check) {
+  function questionDetail(questionId, content, readImage, check, controller) {
     const id = positiveInteger(questionId, "题目 ID");
-    return requestJSON(`${API_ROOT}/${id}`, check).then(function (item) {
+    return requestJSON(`${API_ROOT}/${id}`, check, controller).then(function (item) {
       if (check) check();
       if (!item || Number(item.id) !== id) throw new Error("题目详情格式无效");
       const result = summary(item);
