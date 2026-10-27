@@ -83,6 +83,54 @@ async function importOnce(run, provider) {
     : run.writer.prepared408Session(run.addon).write(run.question, { title: '2026年真题', url: 'https://www.408os.cn/exercise?year=2026' });
 }
 
+test('数学主分类未收录但其他真实归属分类有效时仍可建卡并保持重导查重', async () => {
+  const run = runtime();
+  run.question.categoryId = 999;
+  run.question.categoryIds = [999, 1];
+  run.context.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resultForCategoryId = id => Number(id) === 1
+    ? { status: 'resolved', categoryId: 1, path: ['数学', '分类'] } : { status: 'missing' };
+  const session = run.writer.preparedMathSession(run.addon);
+  const first = await session.importQuestions([123], {}, 'question');
+  assert.equal(first.failed.length, 0);
+  assert.equal(first.createdCount, 1);
+  const again = await session.importQuestions([123], {}, 'question');
+  assert.equal(again.skippedCount, 1);
+  assert.equal(again.createdCount, 0);
+});
+
+test('66 题跨页选题与分类修复贯通真实建卡，重复导入全部跳过且保留原有评论', async () => {
+  const run = runtime();
+  vm.runInContext(readFileSync(new URL('../src/DaguanyuanCategoryRoutes.js', import.meta.url), 'utf8'), run.context);
+  vm.runInContext(readFileSync(new URL('../src/DaguanyuanMathSelection.js', import.meta.url), 'utf8'), run.context);
+  const records = [[1, 0, '数学'], [2, 1, '积分计算']];
+  const pages = [], details = [];
+  const api = run.context.__DAGUANYUAN_MATH_API_GLOBAL__;
+  api.practiceQuestionPage = async (context, number) => {
+    pages.push(number); assert.equal(context.categoryId, 2);
+    return { total: 66, pageSize: 20, questions: Array.from({ length: Math.min(20, 66 - (number - 1) * 20) }, (_, index) => ({ id: (number - 1) * 20 + index + 1 })) };
+  };
+  api.categoryRecords = async () => records;
+  api.questionDetail = async id => { details.push(id); return { ...run.question, id, categoryId: id % 3 ? 2 : 999, categoryIds: [999, 2] }; };
+  const confirm = async plan => {
+    assert.equal(plan.questions.length, 66);
+    return Array.from(plan.questions, question => question.id);
+  };
+  confirm.check = () => {}; confirm.content = 'question';
+  const page = { provider: 'math', url: 'https://www.cxyonly.fans/math/practice?rootCategoryId=2',
+    questions: Array.from({ length: 30 }, (_, index) => ({ id: index + 1 })), importContext: { categoryId: 2, scope: 'complete', examSubject: 'all' } };
+  const importer = run.context.__DAGUANYUAN_MATH_SELECTION_GLOBAL__;
+  const first = await importer.importPage(run.addon, page, null, confirm);
+  assert.equal(first.total, 66); assert.equal(first.createdCount, 66, JSON.stringify(first.failed.slice(0, 2))); assert.equal(first.failed.length, 0);
+  assert.deepEqual(pages, [1, 2, 3, 4]); assert.equal(details.length, 66);
+  const cards = [...run.notes.values()].filter(note => run.writer.linkedQuestion(note)?.id > 0);
+  assert.equal(cards.length, 66); assert.ok(cards.every(note => note.parentNote.noteTitle === '积分计算'));
+  cards[0].appendMarkdownComment('个人补充笔记');
+  const before = run.creations.length;
+  const again = await importer.importPage(run.addon, page, null, confirm);
+  assert.equal(again.createdCount, 0); assert.equal(again.failed.length, 0); assert.equal(again.skippedCount, 66);
+  assert.equal(run.creations.length, before); assert.equal(cards[0].comments.at(-1).text, '个人补充笔记');
+});
+
 for (const provider of ['math', '408']) {
   for (const reader of [false, true]) test(`${provider} 分类导入在纯学习集建卡，${reader ? '不读取打开的文档' : '没有阅读器也可导入'}，重导查重`, async () => {
     const run = runtime({ reader });

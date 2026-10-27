@@ -63,7 +63,7 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
   }
 
   function requestJSON(url, check, controller) {
-    if (!/^https:\/\/www\.cxyonly\.fans\/api\/(?:questions(?:\/\d+|\?[\w.~=&%+-]+)|categories\?[\w=&%]+)$/.test(url)) {
+    if (!/^https:\/\/www\.cxyonly\.fans\/api\/(?:questions(?:\/\d+|\?[\w.~=&%+-]+)|categories\?[\w=&%]+|question-lists\/[a-zA-Z0-9_-]{1,100}(?:\?revision=[1-9]\d*|\/(?:directory|position)\?[\w=&%]+)?)$/.test(url)) {
       return Promise.reject(new Error("题目接口地址无效"));
     }
     function attempt(number) {
@@ -115,10 +115,10 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
 
   function summary(item) {
     const id = positiveInteger(item && item.id, "题目 ID");
-    const categoryId = Number(item.category_id) || Number((item.category_ids || [])[0]) || 0;
-    const categoryIds = [categoryId].concat(item.category_ids || []).map(Number).filter(function (value) {
+    const categoryIds = [item.category_id].concat(item.category_ids || []).map(Number).filter(function (value) {
       return Number.isSafeInteger(value) && value > 0;
     });
+    const categoryId = categoryIds[0] || 0;
     return {
       id,
       categoryId,
@@ -201,6 +201,24 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
     });
   }
 
+  function questionListDirectory(selection, controller, check) {
+    if (!selection || !/^[a-zA-Z0-9_-]{1,100}$/.test(selection.listId)) throw new Error('题单标识无效');
+    const base = 'https://www.cxyonly.fans/api/question-lists/' + selection.listId;
+    const revision = selection.listRevision ? positiveInteger(selection.listRevision, '题单版本') : 0;
+    const query = 'exam_subject=' + examSubject(selection.examSubject) + '&scope=' + questionScope(selection.scope);
+    // 先取得真实题单版本，再固定目录和取题请求，避免题单更新时混用两版数据。
+    return requestJSON(base + (revision ? '?revision=' + revision : ''), check, controller).then(function (payload) {
+      const info = payload && payload.data && payload.data.revision ? payload.data : payload;
+      const actualRevision = positiveInteger(info && info.revision, '题单版本');
+      if (revision && revision !== actualRevision) throw new Error('题单版本已变化，请刷新数学页面后重试');
+      return requestJSON(base + '/directory?' + query + '&revision=' + actualRevision, check, controller).then(function (payload) {
+        const directory = payload && payload.data && Array.isArray(payload.data.roots) ? payload.data : payload;
+        if (!directory || !Array.isArray(directory.roots)) throw new Error('题单目录格式无效，请刷新数学页面后重试');
+        return Object.assign({}, directory, { definition_revision: actualRevision });
+      });
+    });
+  }
+
   function questionPage(categoryId, page, rawScope, rawSubject, controller, check) {
     const category = positiveInteger(categoryId, "分类 ID");
     const number = positiveInteger(page, "页码");
@@ -221,6 +239,31 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
           return Object.assign(summary(item), { importCategoryId: category });
         }),
       };
+    });
+  }
+
+  function questionNavigationInfo(questionId, controller, check) {
+    const id = positiveInteger(questionId, '题目 ID');
+    return requestJSON(API_ROOT + '/' + id, check, controller).then(function (item) {
+      if (!item || Number(item.id) !== id) throw new Error('原题信息无效');
+      const info = summary(item);
+      return { id: info.id, categoryId: info.categoryId, categoryIds: info.categoryIds };
+    });
+  }
+
+  function questionListPosition(context, questionId, controller, check) {
+    if (!context || !/^[a-zA-Z0-9_-]{1,100}$/.test(context.listId)) throw new Error('题单标识无效');
+    const id = positiveInteger(questionId, '题目 ID'), revision = positiveInteger(context.listRevision, '题单版本');
+    const query = 'question_id=' + id + '&per_page=30&revision=' + revision
+      + '&category_id=' + positiveInteger(context.categoryId, '分类 ID') + '&include_children=true'
+      + '&exam_subject=' + examSubject(context.examSubject) + '&scope=' + questionScope(context.scope) + '&external_categories=all';
+    return requestJSON('https://www.cxyonly.fans/api/question-lists/' + context.listId + '/position?' + query, check, controller).then(function (payload) {
+      const result = payload && payload.data && typeof payload.data === 'object' ? payload.data : payload;
+      if (!result || result.available !== true) throw new Error('这道原题不在保存的题单分类中，请核对来源分类');
+      if (Number(result.question_id) !== id || Number(result.definition_revision) !== revision) throw new Error('原题或题单版本已变化，请刷新数学页面后重试');
+      const position = positiveInteger(result.position, '原题位置'), page = positiveInteger(result.page, '原题页码');
+      if (page !== Math.ceil(position / 30)) throw new Error('原题分页信息不一致，请刷新数学页面后重试');
+      return { questionId: id, position, page };
     });
   }
 
@@ -325,5 +368,5 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
     });
   }
 
-  return { questionPage, practiceQuestionPage, questionDetail, positiveInteger, questionScope, examSubject, categoryRecords, summary };
+  return { questionPage, practiceQuestionPage, questionDetail, positiveInteger, questionScope, examSubject, categoryRecords, questionListDirectory, questionNavigationInfo, questionListPosition, summary };
 })();

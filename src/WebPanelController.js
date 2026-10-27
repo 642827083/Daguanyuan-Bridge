@@ -4,6 +4,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   const FRAME_KEY = "cn.marginnote.daguanyuan-bridge.panel-frame";
   const PANEL_KEY = "cn.marginnote.daguanyuan-bridge.panel-visible";
   const WEBSITE_LOCATE_KEY = "cn.marginnote.daguanyuan-bridge.question-navigation.website-locate-card-visible";
+  const NOTE_ADD_KEY = "cn.marginnote.daguanyuan-bridge.question-tools.add-note-visible";
   const CATEGORY_IMPORT_KEY = "cn.marginnote.daguanyuan-bridge.question-navigation.import-category-visible";
   const SELECTION_IMPORT_KEY = "cn.marginnote.daguanyuan-bridge.question-tools.import-selection-visible";
   const SINGLE_IMPORT_KEY = "cn.marginnote.daguanyuan-bridge.question-tools.import-single-visible";
@@ -60,6 +61,8 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   function performClosePanel(controller) {
     if (typeof __DAGUANYUAN_AI_GLOBAL__ !== "undefined") __DAGUANYUAN_AI_GLOBAL__.cancel(controller);
     if (!controller || !controller.view) return;
+    controller.questionLocatorRequestToken = Number(controller.questionLocatorRequestToken || 0) + 1;
+    controller.pendingQuestionLocator = undefined;
     if (controller.mainNavigation) __DAGUANYUAN_PANEL_NAVIGATION_GLOBAL__.stop(controller);
     if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') { __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.info('panel.close'); __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.flush(); }
     if (typeof __DAGUANYUAN_SUPPORT_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_SUPPORT_UI_GLOBAL__.close(controller);
@@ -263,13 +266,18 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   }
 
   function noteAddVisible() {
-    return false;
+    try {
+      const value = NSUserDefaults.standardUserDefaults().objectForKey(NOTE_ADD_KEY);
+      if (value === undefined || value === null) return true;
+      if (typeof value.booleanValue === "function") return Boolean(value.booleanValue());
+      return !(value === false || value === 0 || String(value).toLowerCase() === "false");
+    } catch (ignored) { return true; }
   }
 
   function refreshNoteAddSetting(controller) {
     if (!controller || !controller.noteAddSwitch) return;
-    controller.noteAddSwitch.on = false;
-    controller.noteAddSwitch.enabled = false;
+    controller.noteAddSwitch.on = noteAddVisible();
+    controller.noteAddSwitch.enabled = true;
   }
 
   function categoryImportVisible() {
@@ -509,15 +517,14 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     controller.noteAddDivider.backgroundColor = UIColor.colorWithRedGreenBlueAlpha(227 / 255, 231 / 255, 237 / 255, 1);
     controller.questionToolsSettingsSection.addSubview(controller.noteAddDivider);
 
-    controller.noteAddTitle = label("显示添加笔记", UIFont.boldSystemFontOfSize(16), UIColor.colorWithRedGreenBlueAlpha(122 / 255, 129 / 255, 139 / 255, 1));
+    controller.noteAddTitle = label("显示添加笔记", UIFont.boldSystemFontOfSize(16), UIColor.colorWithRedGreenBlueAlpha(37 / 255, 40 / 255, 48 / 255, 1));
     controller.questionToolsSettingsSection.addSubview(controller.noteAddTitle);
 
-    controller.noteAddDescription = label("暂不可用", UIFont.systemFontOfSize(12), UIColor.colorWithRedGreenBlueAlpha(122 / 255, 129 / 255, 139 / 255, 1));
+    controller.noteAddDescription = label("在数学、408 题目页及数学错题复测页添加剪贴板图片", UIFont.systemFontOfSize(12), UIColor.colorWithRedGreenBlueAlpha(122 / 255, 129 / 255, 139 / 255, 1));
     controller.questionToolsSettingsSection.addSubview(controller.noteAddDescription);
 
     controller.noteAddSwitch = new UISwitch({ x: DEFAULT_WIDTH - 108, y: 69, width: 51, height: 31 });
-    controller.noteAddSwitch.on = false;
-    controller.noteAddSwitch.enabled = false;
+    controller.noteAddSwitch.addTargetActionForControlEvents(controller, "toggleNoteAddDisplay:", 1 << 12);
     controller.questionToolsSettingsSection.addSubview(controller.noteAddSwitch);
 
     controller.selectionImportDivider = new UIView({ x: 20, y: 398, width: DEFAULT_WIDTH - 80, height: 1 });
@@ -603,8 +610,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
 
   function openDaguanyuanCategory(controller, urlString) {
     if (!controller) throw new Error("大观园面板当前不可用");
-    showPanel(controller);
-    loadURL(controller, urlString, "daguanyuan");
+    navigateDaguanyuanCategory(controller, { url: urlString, categoryOnly: true });
   }
 
   function open408Page(controller, urlString) {
@@ -619,11 +625,15 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     const imported = Boolean(route && route.imported);
     const offset = route && route.modern && !imported ? (route.page - 1) * route.pageSize : 0;
     const scope = JSON.stringify(String(route && route.scope || ""));
+    const listId = JSON.stringify(String(route && route.listId || ''));
+    const categoryId = Number(route && route.categoryId) || 0;
+    const listRevision = Number(route && route.listRevision) || 0;
     return `(function () {
       var questionId = ${questionId};
       var questionNumber = ${questionNumber};
       var imported = ${imported};
       var expectedScope = ${scope};
+      var expectedList = ${listId};
       var marker = "data-daguanyuan-bridge-question-locator";
       var root = document.documentElement;
       var attempts = 0;
@@ -633,6 +643,8 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       var stalled = 0;
       var scopeSelected = false;
       var pending = true;
+      if (window.__DAGUANYUAN_QUESTION_LOCATOR__) window.__DAGUANYUAN_QUESTION_LOCATOR__.cancel();
+      window.__DAGUANYUAN_QUESTION_LOCATOR__ = { cancel: function () { pending = false; } };
       root.setAttribute(marker, "pending:" + questionNumber);
       function finish(status) {
         if (!pending) return;
@@ -644,7 +656,21 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       function locate() {
         if (!pending) return;
         attempts += 1;
-        if (imported && !scopeSelected) {
+        if (expectedList) {
+          var query = new URLSearchParams(window.location.search || '');
+          var parts = String(window.location.pathname || '').split('/').filter(Boolean);
+          var grouped = parts.length === 5 && parts[0] === 'math' && parts[1] === 'practice';
+          var activeList = query.get('listId') || (grouped ? decodeURIComponent(parts[2]) : '');
+          var activeCategory = Number(query.get('categoryId') || (grouped ? parts[4] : 0));
+          if (activeList !== expectedList || activeCategory !== ${categoryId} || Number(query.get('listRevision')) !== ${listRevision}
+            || query.get('examSubject') !== ${JSON.stringify(String(route && route.examSubject || 'all'))}
+            || questionId > 0 && Number(query.get('questionId')) !== questionId) {
+            if (attempts >= 60) finish('failed');
+            else window.setTimeout(locate, 150);
+            return;
+          }
+        }
+        if (imported && !expectedList && !scopeSelected) {
           var scopeButtons = document.querySelectorAll('button');
           for (var scopeIndex = 0; scopeIndex < scopeButtons.length; scopeIndex += 1) {
             if (String(scopeButtons[scopeIndex].textContent || '').trim() !== '完整') continue;
@@ -657,10 +683,11 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
             break;
           }
         }
-        if (!imported) {
+        if (!imported || expectedList) {
           var scopeControl = document.querySelector('.learning-shell__scope-toggle[data-scope]');
           var activeScope = scopeControl ? String(scopeControl.getAttribute('data-scope') || '') : '';
           if (window.location && window.location.search) activeScope = new URLSearchParams(window.location.search).get('scope') || activeScope;
+          if (!activeScope && expectedList) activeScope = 'complete';
           if (!activeScope) {
             try { activeScope = String(window.localStorage.getItem('daguan:question-bank-scope') || 'complete'); } catch (ignored) {}
           }
@@ -672,7 +699,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
         }
         var rows = document.querySelectorAll('[data-learning-question-id]');
         if (!rows.length) rows = document.querySelectorAll('article.question-document[data-question-id]');
-        var target = imported
+        var target = questionId > 0
           ? document.querySelector('[data-learning-question-id="' + questionId + '"]')
             || document.querySelector('article.question-document[data-question-id="' + questionId + '"]')
           : rows[questionNumber - ${offset} - 1];
@@ -745,23 +772,11 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   }
 
   function startDaguanyuanQuestionLocator(controller, route) {
-    // 旧题卡继续读取原链接，实际打开时转换成新版分类网址。
-    const category = Number(route.categoryId || (String(route.url).match(/[?&]resumeCategoryId=(\d+)/) || [])[1]
-      || (String(route.url).match(/\/practice\/(?:categories\/)?(\d+)/) || [])[1]);
-    if (category > 0) {
-      const page = route.imported ? 1 : Math.ceil(route.questionNumber / 30);
-      const query = 'scope=' + encodeURIComponent(route.imported ? 'complete' : route.scope) + '&page=' + page
-        + (route.imported ? '&questionId=' + route.questionId : '');
-      const url = route.imported ? 'https://www.cxyonly.fans/math/practice?listId=complete&categoryId=' + category + '&' + query
-        : 'https://www.cxyonly.fans/math/practice/categories/' + category + '?' + query;
-      route = Object.assign({}, route, { url: url,
-        modern: true, page: page, pageSize: 30 });
-    }
-    controller.pendingQuestionLocator = route;
+    controller.pendingQuestionLocator = route.categoryOnly ? undefined : route;
     showPanel(controller);
     loadURL(controller, route.url, "daguanyuan");
-    showMessage(controller, route.questionNumber
-      ? `正在定位当前题库范围的第 ${route.questionNumber} 题`
+    showMessage(controller, route.categoryOnly ? '正在打开当前题单中的分类' : route.questionNumber
+      ? `正在定位当前题单分类的第 ${route.questionNumber} 题`
       : `正在加载并定位题目 ${route.questionId}`);
   }
 
@@ -776,6 +791,46 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
         const list = current.selection && current.selection.listId;
         completion(null, __DAGUANYUAN_MATH_API_GLOBAL__.questionScope(list === 'core' || list === 'exam' ? list : current.scope));
       } catch (failure) { completion(failure); }
+    });
+  }
+
+  function navigateDaguanyuanCategory(controller, route) {
+    const navigation = __DAGUANYUAN_MATH_NAVIGATION_GLOBAL__;
+    const token = Number(controller.questionLocatorRequestToken || 0) + 1, view = controller.webView;
+    controller.questionLocatorRequestToken = token;
+    controller.pendingQuestionLocator = undefined;
+    function check() {
+      if (controller.questionLocatorRequestToken !== token || controller.webView !== view) throw new Error('题目定位已取消');
+    }
+    function context() {
+      return new Promise(function (resolve, reject) {
+        if (!view || typeof view.evaluateJavaScript !== 'function') { reject(new Error('请先打开数学题库并选择题单')); return; }
+        view.evaluateJavaScript(__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__.navigationContextScript(), function (raw, error) {
+          try {
+            check();
+            if (error) throw error;
+            const current = JSON.parse(String(raw || ''));
+            if (controller.currentContentPage !== 'math' || !/^https:\/\/(?:www\.)?cxyonly\.fans\//i.test(String(current.url || ''))) {
+              throw new Error('请先打开数学题库并选择题单');
+            }
+            resolve(current);
+          } catch (failure) { reject(failure); }
+        });
+      });
+    }
+    return context().then(function (current) {
+      const key = navigation.contextKey(current);
+      return navigation.prepare(controller, route, current, check).then(function (prepared) {
+        return context().then(function (latest) {
+          check();
+          if (navigation.contextKey(latest) !== key) throw new Error('数学网页或题单已变化，请重新点击定位');
+          startDaguanyuanQuestionLocator(controller, prepared);
+        });
+      });
+    }).catch(function (error) {
+      if (controller.questionLocatorRequestToken !== token || controller.webView !== view) return;
+      if (error.chooseList) { showPanel(controller); loadURL(controller, 'https://cxyonly.fans/math/lists/market', 'daguanyuan'); }
+      showMessage(controller, String(error && error.message || error));
     });
   }
 
@@ -802,17 +857,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       loadURL(controller, "https://www.cxyonly.fans/math/questions/" + route.questionId + "?assistant=1", "daguanyuan");
       return;
     }
-    const token = Number(controller.questionLocatorRequestToken || 0) + 1;
-    controller.questionLocatorRequestToken = token;
-    if (route.imported) {
-      startDaguanyuanQuestionLocator(controller, route);
-      return;
-    }
-    currentQuestionScope(controller, function (error, scope) {
-      if (token !== controller.questionLocatorRequestToken) return;
-      if (error) { showMessage(controller, String(error && error.message || error)); return; }
-      startDaguanyuanQuestionLocator(controller, Object.assign({}, route, { scope }));
-    });
+    return navigateDaguanyuanCategory(controller, route);
   }
 
   function open408Question(controller, boundURL, questionNumber) {
@@ -1330,7 +1375,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
         } catch (reloadError) {
           showMessage(self, reloadError && reloadError.message ? reloadError.message : String(reloadError));
         }
-      });
+      }, self);
     },
 
     openManagedBinding: function (sender) {
@@ -1431,6 +1476,8 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     },
 
     toggleNoteAddDisplay: function (sender) {
+      const requested = sender && typeof sender.on !== "undefined" ? Boolean(sender.on) : !noteAddVisible();
+      NSUserDefaults.standardUserDefaults().setObjectForKey(requested, NOTE_ADD_KEY);
       refreshNoteAddSetting(self);
       injectWebsiteLocateButtons(self);
     },

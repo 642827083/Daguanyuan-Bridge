@@ -36,6 +36,10 @@ function runtime(options = {}) {
       if (options.noImage) return Promise.reject(Error('剪贴板中没有图片'));
       controller.notePasteOperation = { token: '123-456' }; return Promise.resolve('123-456');
     } },
+    __DAGUANYUAN_NOTE_PASTE_GLOBAL__: { start(controller, id) {
+      calls.push(['note', id]);
+      controller.notePasteOperation = { token: '123-456' }; return Promise.resolve('123-456');
+    } },
   };
   vm.createContext(context);
   for (const name of ['DaguanyuanSingleImport', 'WebPanelController']) vm.runInContext(fs.readFileSync(new URL(`../src/${name}.js`, import.meta.url), 'utf8'), context);
@@ -125,13 +129,15 @@ test('408 读取失败、导入锁及添加笔记不收起面板', async () => {
     }
   }
   const note = runtime(); note.send('add-note'); await tick();
-  assert.equal(note.calls.length, 0); assert.equal(note.messages.at(-1), '添加笔记暂不可用');
+  note.complete(); await tick();
+  assert.deepEqual(note.calls.map(call => call[0]), ['lookup', 'note']);
+  assert.equal(note.messages.at(-1), '正在添加图片，等待 408 网站保存');
   assert.equal(note.panel.panelVisible, true); assert.equal(note.panel.view.hidden, false);
 });
 
-test('旧版开启状态也无法触发数学或 408 添加笔记，定位卡片仍受独立开关控制', async () => {
+test('关闭添加笔记时阻止数学或 408 操作，定位卡片仍受独立开关控制', async () => {
   for (const provider of ['math', '408']) {
-    const run = runtime({ note: true });
+    const run = runtime({ note: false });
     if (provider === 'math') {
       run.panel.currentContentPage = run.panel.activePage = 'math';
       run.sendMath('add-note');
@@ -145,6 +151,22 @@ test('旧版开启状态也无法触发数学或 408 添加笔记，定位卡片
   }
   const off = runtime({ locate: false }); off.send('locate-card');
   assert.equal(off.calls.length, 0); assert.match(off.messages.at(-1), /开关/);
+});
+
+test('开启添加笔记时数学和 408 均可添加图片，关闭定位开关不影响添加', async () => {
+  for (const provider of ['math', '408']) {
+    const run = runtime({ note: true, locate: false });
+    if (provider === 'math') {
+      run.panel.currentContentPage = run.panel.activePage = 'math';
+      run.sendMath('add-note');
+    } else {
+      run.send('add-note'); run.complete();
+    }
+    await tick();
+    assert.equal(run.calls.filter(call => call[0] === 'note').length, 1);
+    assert.equal(run.panel.notePasteOperation.token, '123-456');
+    assert.equal(run.panel.panelVisible, true);
+  }
 });
 
 test('408 定位卡片读取失败时恢复按钮并返回原因', async () => {

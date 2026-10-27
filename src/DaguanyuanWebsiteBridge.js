@@ -282,6 +282,65 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
     return mathContextScript() + "(" + readImportContext.toString() + ")();";
   }
 
+  function readNavigationContext() {
+    var address = new URL(window.location.href), query = address.searchParams;
+    var route = window.__DAGUANYUAN_MATH_IMPORT_ROUTE__(address.href);
+    var listId = route.listId || '', revision = route.listRevision || '', ambiguousLinks = false;
+    var detail = address.pathname.match(/^\/math\/lists\/([^/]+)\/?$/);
+    if (!listId && detail && detail[1] !== 'market' && detail[1] !== 'new') {
+      listId = decodeURIComponent(detail[1]); revision = query.get('revision') || '';
+    }
+    // 仅接受页面明确标记为当前项的题单链接，不从题单菜单中猜测选择。
+    if (!listId) {
+      var links = document.querySelectorAll('a[aria-current="page"][href]'), candidates = [];
+      for (var index = 0; index < links.length; index += 1) {
+        var link = new URL(links[index].getAttribute('href'), address.href);
+        var match = link.pathname.match(/^\/math\/lists\/([^/]+)\/?$/);
+        if (link.origin !== address.origin || !match || match[1] === 'market' || match[1] === 'new') continue;
+        var candidate = { id: decodeURIComponent(match[1]), revision: link.searchParams.get('revision') || '' };
+        if (!candidates.some(function (entry) { return entry.id === candidate.id && entry.revision === candidate.revision; })) candidates.push(candidate);
+      }
+      if (candidates.length === 1) { listId = candidates[0].id; revision = candidates[0].revision; }
+      ambiguousLinks = candidates.length > 1;
+    }
+    var user = {};
+    try { user = JSON.parse(window.localStorage.getItem('daguan_user') || '{}') || {}; } catch (ignored) {}
+    var suffix = listId.match(/-math[-_]([123])$/);
+    var subject = query.get('examSubject') || query.get('exam_subject') || (suffix ? 'math_' + suffix[1] : '')
+      || user.math_exam_subject || 'all';
+    var scope = query.get('scope') || 'complete';
+    // 传统侧栏没有题单链接；网站按当前单选范围和备考科目确定官方题单。
+    if (!listId && !ambiguousLinks) {
+      var controls = document.querySelectorAll('.learning-shell__scope-toggle'), scopes = [];
+      var labels = { '完整': 'complete', '严选': 'core', '真题': 'exam' };
+      for (var controlIndex = 0; controlIndex < controls.length; controlIndex += 1) {
+        var control = controls[controlIndex], values = [];
+        var active = control.querySelectorAll('[role="radio"][aria-checked="true"], button[aria-pressed="true"]');
+        for (var activeIndex = 0; activeIndex < active.length; activeIndex += 1) {
+          var label = String(active[activeIndex].textContent || '').replace(/\s+/g, '');
+          if (Object.prototype.hasOwnProperty.call(labels, label)) values.push(labels[label]);
+        }
+        var description = String(control.getAttribute('aria-label') || '').match(/^题单[，,]\s*当前(完整|严选|真题)$/);
+        if (description) values.push(labels[description[1]]);
+        var dataScope = String(control.getAttribute('data-scope') || '');
+        if (['complete', 'core', 'exam'].indexOf(dataScope) >= 0) values.push(dataScope);
+        values.forEach(function (value) { if (scopes.indexOf(value) < 0) scopes.push(value); });
+      }
+      if (scopes.length === 1 && (!query.get('scope') || query.get('scope') === scopes[0])) {
+        scope = scopes[0];
+        listId = (scope === 'exam' ? 'exam-chapters' : scope)
+          + (subject === 'all' ? '' : '-' + subject.replace('_', '-'));
+      }
+    }
+    return JSON.stringify({ url: address.href, ownerKey: String(user.id || ''),
+      scope: scope, examSubject: subject,
+      selection: { listId: listId, listRevision: revision ? (/^[1-9]\d*$/.test(String(revision)) ? Number(revision) : -1) : 0 } });
+  }
+
+  function navigationContextScript() {
+    return mathContextScript() + '(' + readNavigationContext.toString() + ')();';
+  }
+
   // 年份单题直接由网站按 ID 加载；这里只补齐标题和按需进入整卷的模式入口。
   function directYearQuestionPageScript() {
     var state = window.__DAGUANYUAN_408_DIRECT_YEAR__;
@@ -549,5 +608,5 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
     return "(function(){var direct=(" + directYearQuestionPageScript.toString() + ")();return direct||(" + exerciseQuestionPageScript.toString() + ")();})();";
   }
 
-  return { practiceScript, bindCategoryScript, singleImportScript, importContextScript, exerciseQuestionScript, questionDOMScript };
+  return { practiceScript, bindCategoryScript, singleImportScript, importContextScript, navigationContextScript, exerciseQuestionScript, questionDOMScript };
 })();

@@ -158,7 +158,8 @@ var __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = (function createRoutes(initialCatalo
     const grouped = path.match(/^\/math\/practice\/([^/]+)\/(?:all|[1-9]\d*)\/([1-9]\d*)\/?$/);
     const practice = /^\/math\/practice\/?$/.test(path) || Boolean(simple || grouped || concept);
     const listId = query.listId || (grouped ? grouped[1] : '');
-    const categoryId = practice ? Number(query.resumeCategoryId || simple && simple[1] || grouped && grouped[2] || query.categoryId || query.categoryIds || 0) : 0;
+    const categoryId = practice ? Number(query.resumeCategoryId || simple && simple[1] || grouped && grouped[2] || query.categoryId || query.categoryIds
+      || !concept && !query.conceptId && query.rootCategoryId || 0) : 0;
     const subjectMatch = /(?:^|-)math[-_]([123])$/.exec(listId);
     const subject = query.examSubject || query.exam_subject || (subjectMatch ? 'math_' + subjectMatch[1] : 'all');
     const scope = query.scope || (/^exam(?:-|$)/.test(listId) ? 'exam' : /^core(?:-|$)/.test(listId) ? 'core' : listId ? 'complete' : '');

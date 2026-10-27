@@ -28,6 +28,13 @@ test("数学接口只保留题目内容，不导入答案", () => {
   assert.equal(JSON.stringify(parsed).includes("秘密解析"), false);
 });
 
+test('数学分类列表前面的空值和无效项不遮住后续有效归属分类', () => {
+  const context = {}; vm.createContext(context); vm.runInContext(apiSource, context);
+  const result = context.__DAGUANYUAN_MATH_API_GLOBAL__.summary({ id: 12495, category_id: null, category_ids: [null, 0, 'invalid', 566, 566], stem: '题干' });
+  assert.equal(result.categoryId, 566);
+  assert.deepEqual(Array.from(result.categoryIds), [566]);
+});
+
 test('数学仅在选择题目加答案时读取答案解析并下载其中的图片', async () => {
   for (const content of ['question', 'questionAnswer']) {
     const hash = 'a'.repeat(64), requests = [];
@@ -440,7 +447,7 @@ test("题目工具定位卡片开关同时控制题目页和错题复测网页�
   assert.deepEqual(injected.slice(2), ["retest-true", "practice-true"]);
 });
 
-test("添加笔记固定关闭且禁用，旧设置为开启也不能恢复网页按钮", () => {
+test("添加笔记开关可操作并保存状态，同时更新题目页和复测页按钮", () => {
   let methods;
   const stored = { "cn.marginnote.daguanyuan-bridge.question-tools.add-note-visible": true };
   const injected = [];
@@ -463,11 +470,16 @@ test("添加笔记固定关闭且禁用，旧设置为开启也不能恢复网�
     webView: { evaluateJavaScript(script, callback) { injected.push(script); callback(true, null); } },
   };
   methods.toggleNoteAddDisplay({ on: true });
-  assert.equal(context.self.noteAddSwitch.on, false);
-  assert.equal(context.self.noteAddSwitch.enabled, false);
-  assert.deepEqual(injected, ["retest-true-false", "practice-true-false"]);
+  assert.equal(context.self.noteAddSwitch.on, true);
+  assert.equal(context.self.noteAddSwitch.enabled, true);
+  assert.deepEqual(injected, ["retest-true-true", "practice-true-true"]);
   assert.equal(stored["cn.marginnote.daguanyuan-bridge.question-tools.add-note-visible"], true);
   methods.toggleNoteAddDisplay({ on: false });
   assert.equal(context.self.noteAddSwitch.on, false);
   assert.deepEqual(injected.slice(2), ["retest-true-false", "practice-true-false"]);
+  assert.equal(stored["cn.marginnote.daguanyuan-bridge.question-tools.add-note-visible"], false);
+  delete stored["cn.marginnote.daguanyuan-bridge.question-tools.add-note-visible"];
+  methods.toggleWebsiteLocateCards({ on: false });
+  assert.deepEqual(injected.slice(4), ["retest-false-true", "practice-false-true"]);
+  assert.match(panelSource, /noteAddSwitch\.addTargetActionForControlEvents\(controller, "toggleNoteAddDisplay:", 1 << 12\)/);
 });

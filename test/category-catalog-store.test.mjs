@@ -157,6 +157,28 @@ test("保存失败不会把尚未持久化的新数据设为当前数据", () =>
   assert.equal(files.has(store.storagePath()), false);
 });
 
+test('设置更新分类复用已登录数学网页，持久保存完整目录并在失败时保留旧数据', async () => {
+  const { context, files } = runtime();
+  const store = context.__DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__;
+  const controller = { webView: {} };
+  let fail = false, calls = 0;
+  context.__DAGUANYUAN_MATH_API_GLOBAL__ = { async categoryRecords(scope, subject, panel) {
+    calls++; assert.equal(scope, 'complete'); assert.equal(subject, 'all'); assert.equal(panel, controller);
+    if (fail) throw Error('大观园登录已过期');
+    return [[1, 0, '数学']].concat(remoteTree()[0].children.map(node => [node.id, 1, node.name]));
+  } };
+  context.NSURLConnection = { sendAsynchronousRequestQueueCompletionHandler() { throw Error('禁止绕过网页登录状态请求分类'); } };
+  const update = () => new Promise((resolve, reject) => store.fetchLatest((error, result) => error ? reject(error) : resolve(result), controller));
+  const result = await update();
+  assert.equal(calls, 1); assert.equal(result.catalog.records.length, 121);
+  const saved = files.get(store.storagePath()).text;
+  fail = true;
+  await assert.rejects(update(), /登录已过期/);
+  assert.equal(files.get(store.storagePath()).text, saved);
+  fail = false;
+  assert.equal((await update()).catalog.records.length, 121);
+});
+
 test("运行时使用系统网络 API 更新分类且入口加载顺序正确", () => {
   assert.doesNotMatch(mainSource, /JSB\.require\("DaguanyuanCategoryCatalog"\)/);
   assert.match(catalogStoreSource, /NSURLConnection\.sendAsynchronousRequestQueueCompletionHandler/);

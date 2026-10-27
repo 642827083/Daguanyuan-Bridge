@@ -3,8 +3,33 @@ var __DAGUANYUAN_408_NOTE_PASTE_GLOBAL__ = (function () {
 
   // 此函数只在 408 网站 WebView 中执行，通过已有编辑器粘贴并等待网站确认保存。
   function pageReceiver() {
-    if (window.__DAGUANYUAN_408_NOTE_PASTE__) return true;
+    if (window.__DAGUANYUAN_408_NOTE_PASTE__ && window.__DAGUANYUAN_408_NOTE_PASTE__.version === 2) return true;
     var current = null;
+    function findEditor(scope) {
+      return scope.querySelector('textarea.editor-overlay-textarea')
+        || scope.querySelector('.note-markdown-editor .cm-content[contenteditable="true"]');
+    }
+    function imageTokens(editor) {
+      var content = typeof editor.value === 'string' ? editor.value : String(editor.textContent || '');
+      var tokens = content.match(/\[图片\d+\]|【图片\d+】/g) || [];
+      // CodeMirror 将图片标记替换成控件，实际标记保存在控件属性中。
+      var images = typeof editor.querySelectorAll === 'function' ? editor.querySelectorAll('[data-image-token]') : [];
+      for (var i = 0; i < images.length; i += 1) {
+        var token = images[i].getAttribute('data-image-token');
+        if (token && tokens.indexOf(token) < 0) tokens.push(token);
+      }
+      return tokens;
+    }
+    function focusEditorEnd(editor) {
+      editor.focus();
+      if (typeof editor.value === 'string' && typeof editor.setSelectionRange === 'function') {
+        editor.setSelectionRange(editor.value.length, editor.value.length);
+      } else {
+        var range = document.createRange(), selection = window.getSelection();
+        range.selectNodeContents(editor); range.collapse(false);
+        selection.removeAllRanges(); selection.addRange(range);
+      }
+    }
     function questionRow(target) {
       if (window.location.hostname !== "www.408os.cn" || !/^\/exercise\/?$/.test(window.location.pathname)) return null;
       var expected = new URL(target.url), actual = new URL(window.location.href);
@@ -47,17 +72,17 @@ var __DAGUANYUAN_408_NOTE_PASTE_GLOBAL__ = (function () {
         file = new File([bytes], transfer.name, { type: transfer.type });
         transfer.chunks = [];
       } catch (error) { finish(token, 'decode'); return true; }
-      var noteOpened = false, pasted = false, before = '', imageCountBefore = 0, messagesBefore = [];
+      var noteOpened = false, pasted = false, imagesBefore = [], messagesBefore = [];
       function tick() {
         if (!current || current.token !== token) return;
         var row = questionRow(transfer.target);
         if (!row) { finish(token, 'changed'); return; }
         if (Date.now() - transfer.started > 45000) { finish(token, 'timeout'); return; }
-        var scope = row, editor = row.querySelector('textarea.editor-overlay-textarea');
+        var scope = row, editor = findEditor(row);
         if (!editor) {
           var modals = document.querySelectorAll('.modal.active, .n-modal');
           for (var m = 0; m < modals.length; m += 1) {
-            var candidate = modals[m].querySelector('textarea.editor-overlay-textarea');
+            var candidate = findEditor(modals[m]);
             var heading = modals[m].querySelector('.modal-header');
             if (heading && /笔记/.test(heading.textContent)) { scope = modals[m]; editor = candidate; noteOpened = true; break; }
           }
@@ -77,15 +102,16 @@ var __DAGUANYUAN_408_NOTE_PASTE_GLOBAL__ = (function () {
         }
         if (!pasted) {
           if (scope.querySelector('.note-loading, .loading')) { window.setTimeout(tick, 150); return; }
-          before = editor.value;
-          imageCountBefore = (before.match(/\[图片\d+\]/g) || []).length;
+          imagesBefore = imageTokens(editor);
           messagesBefore = Array.from(document.querySelectorAll('.n-message'));
-          editor.focus(); editor.setSelectionRange(before.length, before.length);
-          var event = new Event('paste', { bubbles: true, cancelable: true });
-          Object.defineProperty(event, 'clipboardData', { value: {
-            files: [file], items: [{ kind: 'file', type: file.type, getAsFile: function () { return file; } }], getData: function () { return ''; }
-          } });
-          editor.dispatchEvent(event); pasted = true;
+          try {
+            focusEditorEnd(editor);
+            var event = new Event('paste', { bubbles: true, cancelable: true });
+            Object.defineProperty(event, 'clipboardData', { value: {
+              files: [file], items: [{ kind: 'file', type: file.type, getAsFile: function () { return file; } }], getData: function () { return ''; }
+            } });
+            editor.dispatchEvent(event); pasted = true;
+          } catch (error) { finish(token, 'paste'); return; }
         } else {
           var messages = document.querySelectorAll('.n-message');
           for (var n = 0; n < messages.length; n += 1) {
@@ -97,10 +123,12 @@ var __DAGUANYUAN_408_NOTE_PASTE_GLOBAL__ = (function () {
           }
           var status = scope.querySelector('.inline-auto-save-status, .auto-save-status');
           if (status && /自动保存失败|保存失败/.test(status.textContent)) { finish(token, 'save'); return; }
-          // 网站上传图片后插入图片标记，只有新增图片并保存后才报告成功。
-          var imageAdded = (editor.value.match(/\[图片\d+\]/g) || []).length > imageCountBefore;
-          if (imageAdded && status && String(status.textContent).trim() === '已保存') { finish(token, 'saved'); return; }
-          if (imageAdded && !status) {
+          // 图片占位符可能早于上传完成出现，须同时确认上传结束与网站保存状态。
+          var imageAdded = imageTokens(editor).some(function (token) { return imagesBefore.indexOf(token) < 0; });
+          var uploading = (typeof editor.getAttribute === 'function' && editor.getAttribute('aria-busy') === 'true')
+            || scope.querySelector('.note-editor-image.is-uploading, .note-editor-image[aria-busy="true"]');
+          if (imageAdded && !uploading && status && String(status.textContent).trim() === '已保存') { finish(token, 'saved'); return; }
+          if (imageAdded && !uploading && !status) {
             var saves = scope.querySelectorAll('button');
             for (var s = 0; s < saves.length; s += 1) {
               if (/^(保存笔记|更新笔记)$/.test(String(saves[s].textContent).trim()) && !saves[s].disabled) { saves[s].click(); break; }
@@ -112,7 +140,7 @@ var __DAGUANYUAN_408_NOTE_PASTE_GLOBAL__ = (function () {
       tick(); return true;
     }
     window.__DAGUANYUAN_408_NOTE_PASTE__ = {
-      prepare: prepare, append: append, commit: commit,
+      version: 2, prepare: prepare, append: append, commit: commit,
       cancel: function (token) { if (!current || current.token !== token) return false; current = null; return true; }
     };
     return true;

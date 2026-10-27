@@ -150,6 +150,14 @@ var __DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__ = (function () {
     return { catalog, changes };
   }
 
+  function replaceWithRecords(records) {
+    const previous = currentCatalog();
+    const catalog = normalizeCatalog({ source: SOURCE_URL, records: records, updatedAt: new Date().toISOString().slice(0, 10) }, MIN_REMOTE_RECORD_COUNT);
+    const changes = compareCatalog(previous, catalog);
+    writeCatalog(catalog);
+    return { catalog, changes };
+  }
+
   function isNil(value) {
     return value === null || typeof value === "undefined" || (typeof NSNull !== "undefined" && value instanceof NSNull);
   }
@@ -172,13 +180,27 @@ var __DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__ = (function () {
     return Number(typeof value === "function" ? value.call(data) : value) || 0;
   }
 
-  function fetchLatest(completion) {
+  function fetchLatest(completion, controller) {
     const done = typeof completion === "function" ? completion : function () {};
     if (updating) {
       done(new Error("分类数据正在更新，请稍候"));
       return;
     }
     updating = true;
+    if (controller) {
+      // 在已登录的数学网页内读取，登录凭据留在网页，校验通过后才替换本地目录。
+      Promise.resolve().then(function () {
+        if (!controller.webView || typeof __DAGUANYUAN_MATH_API_GLOBAL__ === 'undefined') throw new Error('请先打开插件“数学”页并登录大观园后重试');
+        return __DAGUANYUAN_MATH_API_GLOBAL__.categoryRecords('complete', 'all', controller);
+      }).then(replaceWithRecords).then(function (result) {
+        updating = false; done(null, result);
+      }, function (error) {
+        updating = false;
+        if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.error('category.catalog.update', error, { stage: '更新数学分类' });
+        done(error);
+      });
+      return;
+    }
     try {
       const request = NSMutableURLRequest.requestWithURL(NSURL.URLWithString(SOURCE_URL));
       request.setHTTPMethod("GET");

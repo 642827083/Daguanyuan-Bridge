@@ -22,6 +22,24 @@ const mathRows = '<li data-learning-question-id="31"><article class="question-do
   + '<section hidden><article class="question-document" data-question-id="9">隐藏题</article></section>'
   + '<article class="question-document" data-question-id="22" style="margin-top:3000px">题干乙</article>'
   + '<li data-retest-question-id="45">复测题</li>';
+
+test('数学根分类页面保留完整分类上下文，不把已加载的 30 题当成全部 66 题', async () => {
+  const html = Array.from({ length: 30 }, (_, index) => '<li data-learning-question-id="' + (index + 1) + '">题目</li>').join('');
+  const run = page('https://www.cxyonly.fans/math/practice?rootCategoryId=566&scope=core&examSubject=math_2', html);
+  run.click();
+  const snapshot = run.snapshot();
+  assert.equal(snapshot.importContext?.categoryId, 566);
+  const native = mathNative();
+  const requested = [];
+  native.context.__DAGUANYUAN_MATH_API_GLOBAL__.practiceQuestionPage = async (context, number) => {
+    requested.push(number); assert.equal(context.categoryId, 566);
+    return { total: 66, pageSize: 20, questions: Array.from({ length: Math.min(20, 66 - (number - 1) * 20) }, (_, index) => ({ id: (number - 1) * 20 + index + 1 })) };
+  };
+  const confirm = async plan => { assert.equal(plan.questions.length, 66); return false; }; confirm.check = () => {};
+  const result = await native.api.importPage({}, snapshot, null, confirm);
+  assert.equal(result.total, 66); assert.deepEqual(requested, [1, 2, 3, 4]);
+  assert.equal(native.writes.length, 0);
+});
 for (const path of ['/math/paper', '/math/practice', '/math/retest']) test('当前网页题目按 DOM 顺序获取、去重、排除隐藏题，含滚动区域外题目：' + path, () => {
   const run = page('https://www.cxyonly.fans' + path, mathRows);
   assert.equal(run.button.disabled, false); run.click();

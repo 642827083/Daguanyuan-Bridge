@@ -289,7 +289,16 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
   function routeForQuestion(question, selectedCategoryId, categoryRoutes) {
     const routes = categoryRoutes || __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__;
     const primary = routes.resultForCategoryId(question.categoryId);
-    if (!selectedCategoryId) return primary;
+    if (!selectedCategoryId) {
+      if (primary.status === 'resolved') return primary;
+      // 网站可能保留已撤下的主分类，同时仍提供有效的其他归属分类。
+      const categoryIds = question.categoryIds || [];
+      for (const id of categoryIds) {
+        const candidate = routes.resultForCategoryId(id);
+        if (candidate.status === 'resolved') return candidate;
+      }
+      return primary;
+    }
     const selected = routes.resultForCategoryId(selectedCategoryId);
     if (selected.status !== "resolved") throw new Error("所选题目分类不存在，请先更新分类数据");
     const ids = (question.categoryIds || [question.categoryId]).map(Number);

@@ -6,6 +6,7 @@ JSB.require("Daguanyuan408Routes");
 JSB.require("Daguanyuan408Catalog");
 JSB.require("DaguanyuanQuestionResolver");
 JSB.require("DaguanyuanMathApi");
+JSB.require("DaguanyuanMathNavigation");
 JSB.require("web-dist/DaguanyuanMathCatalogPageScript");
 JSB.require("web-dist/DaguanyuanMathImagePageScript");
 JSB.require("DaguanyuanMathImages");

@@ -7,18 +7,32 @@ function runtime(options = {}) {
   const target = { id: 843, provider: '408', year: 2026, number: 44, url: 'https://www.408os.cn/exercise?year=2026' };
   const queue = [], frames = [], timers = [], scripts = [], warnings = [], late = [];
   let opened = false, editing = !options.preview, mine = !options.community, uploaded = false, error = false, switched = false;
-  const editor = { value: '已有笔记', focus() {}, setSelectionRange(start, end) { assert.equal(start, this.value.length); assert.equal(end, start); },
+  let imagePending = Boolean(options.uploadingPlaceholder);
+  const imageMarker = options.currentMarkers ? '【图片1】' : '[图片1]';
+  const editor = { value: '已有笔记', focus() {}, getAttribute(name) { return name === 'aria-busy' ? String(imagePending) : null; },
+    setSelectionRange(start, end) { assert.equal(start, this.value.length); assert.equal(end, start); },
     dispatchEvent(event) {
       assert.equal(event.clipboardData.items[0].kind, 'file');
       assert.equal(event.clipboardData.items[0].getAsFile().type, 'image/png');
       if (options.permission) { warnings.push({ textContent: '笔记图片功能暂未对当前账号开放' }); return; }
       uploaded = true;
-      if (!options.delayUpload) this.value += '\n\n[图片1]';
+      if (!options.delayUpload) this.value += '\n\n' + imageMarker;
     } };
+  const codeMirror = {
+    get textContent() { return editor.value.replace(/【图片\d+】/g, ''); },
+    focus() {}, getAttribute() { return null; },
+    querySelectorAll(selector) {
+      assert.equal(selector, '[data-image-token]');
+      return (editor.value.match(/【图片\d+】/g) || []).map(token => ({ getAttribute() { return token; } }));
+    },
+    dispatchEvent(event) { editor.dispatchEvent(event); },
+  };
   const scope = {
     querySelector(selector) {
       if (selector === '.modal-header') return { textContent: '题目笔记' };
-      if (selector.includes('textarea')) return opened && mine && editing ? editor : null;
+      if (selector.includes('textarea')) return !options.codeMirror && opened && mine && editing ? editor : null;
+      if (selector.includes('.cm-content')) return options.codeMirror && opened && mine && editing ? codeMirror : null;
+      if (selector.includes('is-uploading')) return imagePending ? {} : null;
       if (selector.includes('auto-save-status')) return { textContent: error ? '自动保存失败，将重试' : options.waitSaved ? '等待自动保存' : '已保存' };
       return null;
     },
@@ -43,10 +57,12 @@ function runtime(options = {}) {
   const browser = { URL, console, window: { location: { hostname: 'www.408os.cn', pathname: '/exercise', href: target.url }, setTimeout(fn) { queue.push(fn); },
     __DAGUANYUAN_QUESTION_TOOLS__: { finishNotePaste() {} } },
     document: { querySelectorAll(selector) { if (selector === '.question-card') return [row]; if (selector === '.n-message') return warnings; assert.equal(selector, '.modal.active, .n-modal'); return options.modal && opened ? [scope] : []; },
+      createRange() { return { selectNodeContents(node) { assert.equal(node, codeMirror); }, collapse(toStart) { assert.equal(toStart, false); } }; },
       createElement() { return { style: {} }; }, body: { appendChild(frame) { frames.push(frame); frame.parentNode = { removeChild() {} }; } } },
     File: class { constructor(parts, name, options) { this.parts = parts; this.name = name; this.type = options.type; } },
     Event: class {}, atob(value) { return Buffer.from(value, 'base64').toString('binary'); } };
   vm.createContext(browser);
+  browser.window.getSelection = () => ({ removeAllRanges() {}, addRange() {} });
   const image = { pngData() { return { length: 3, base64Encoding() { return 'AQID'; } }; } };
   const context = { console, UIPasteboard: { generalPasteboard() { return { image: options.noImage ? null : image }; } },
     NSTimer: { scheduledTimerWithTimeInterval(seconds, repeat, fn) { const timer = { seconds, active: true, invalidate() { this.active = false; }, fire() { if (this.active) fn(); } }; timers.push(timer); return timer; } },
@@ -62,7 +78,7 @@ function runtime(options = {}) {
   function finishTicks() { for (let i = 0; i < 100 && queue.length && !frames.length; i++) tick(); }
   return { target, controller, context, browser, editor, frames, timers, scripts, late, tick, finishTicks,
     paste: context.__DAGUANYUAN_408_NOTE_PASTE_GLOBAL__, result: context.__DAGUANYUAN_NOTE_PASTE_GLOBAL__.result,
-    upload() { editor.value += '\n\n[图片1]'; }, failSave() { error = true; }, switch() { switched = true; },
+    upload() { if (imagePending) imagePending = false; else editor.value += '\n\n' + imageMarker; }, failSave() { error = true; }, switch() { switched = true; },
     get uploaded() { return uploaded; } };
 }
 
@@ -74,6 +90,34 @@ test('408 图片粘贴使用网站文件项接口，保留原笔记并确认保�
     assert.match(run.frames[0].src, /status=saved/);
     assert.equal(run.result(run.controller, token, 'saved'), '图片已添加到题目笔记');
     assert.equal(run.controller.notePasteOperation, null);
+  }
+});
+
+test('408 当前网站的中文图片标记保存后能够确认成功', async () => {
+  const run = runtime({ currentMarkers: true });
+  await run.paste.start(run.controller, run.target); run.finishTicks();
+  assert.equal(run.uploaded, true);
+  assert.match(run.editor.value, /^已有笔记\n\n【图片1】/);
+  assert.ok(run.frames.some(frame => /status=saved/.test(frame.src)));
+});
+
+test('408 CodeMirror 弹窗编辑器通过粘贴事件添加图片，识别图片控件并确认保存', async () => {
+  const run = runtime({ modal: true, codeMirror: true, currentMarkers: true, preview: true, community: true });
+  await run.paste.start(run.controller, run.target); run.finishTicks();
+  assert.equal(run.uploaded, true);
+  assert.match(run.editor.value, /^已有笔记\n\n【图片1】/);
+  assert.ok(run.frames.some(frame => /status=saved/.test(frame.src)));
+});
+
+test('408 图片占位符出现而上传尚未完成时，即使保存文字仍为已保存也不能报告成功', async () => {
+  for (const codeMirror of [false, true]) {
+    const run = runtime({ modal: codeMirror, codeMirror, currentMarkers: true, uploadingPlaceholder: true });
+    await run.paste.start(run.controller, run.target); run.finishTicks();
+    assert.equal(run.uploaded, true);
+    assert.match(run.editor.value, /【图片1】/);
+    assert.equal(run.frames.length, 0);
+    run.upload(); run.finishTicks();
+    assert.ok(run.frames.some(frame => /status=saved/.test(frame.src)));
   }
 });
 
