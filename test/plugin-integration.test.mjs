@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { parseHTML } from 'linkedom';
 
 function runtime(stored = new Map()) {
   let methods;
@@ -47,6 +48,179 @@ function runtime(stored = new Map()) {
   methods.viewDidLoad();
   return {controller:context.self,methods,stored,context};
 }
+
+function locatorRuntime(options = {}) {
+  const run = runtime(), c = run.controller, messages = [], loaded = [], timers = [], requests = [];
+  const studyView = { bounds: { x: 0, y: 0, width: 1024, height: 768 }, subviews: [], addSubview(view) { this.subviews.push(view); view.superview = this; } };
+  run.context.Application = { sharedInstance: () => ({ studyController: () => ({ view: studyView, refreshAddonCommands() {} }), showHUD(message) { messages.push(message); } }) };
+  const { document } = parseHTML('<html><body></body></html>');
+  const browser = vm.createContext({ document, URL, URLSearchParams,
+    window: { location: new URL('https://cxyonly.fans/math/practice'), localStorage: { getItem: () => '{"id":27,"math_exam_subject":"math_2"}' } },
+  });
+  c.webView.evaluateJavaScript = (script, callback) => {
+    try { callback(vm.runInContext(script, browser), null); } catch (error) { callback(null, error); }
+  };
+  c.webView.loadRequest = url => { loaded.push(url); if (options.onLoad) options.onLoad(url); };
+  run.context.NSTimer = { scheduledTimerWithTimeInterval(seconds, repeat, callback) { timers.push(callback); return { invalidate() {} }; } };
+  for (const name of ['DaguanyuanCategoryRoutes', 'DaguanyuanWebsiteBridge', 'DaguanyuanMathNavigation']) {
+    vm.runInContext(readFileSync(new URL('../src/' + name + '.js', import.meta.url), 'utf8'), run.context);
+  }
+  run.context.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.replaceCatalog({ records: [[1, 0, '高等数学'], [2, 1, '导数'], [3, 2, '基本概念题'], [4, 2, '计算题']] });
+  Object.assign(run.context.__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__, {
+    navigationNote() { return {}; }, currentQuestionContext() { return options.questionContext ? options.questionContext() : { source: { sourcePath: ['高等数学', '导数', '基本概念题'] }, progress: { index: 1 } }; },
+    showMessage(owner, message) { messages.push(message); },
+  });
+  run.context.__DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__ = { binding408ForSource() {}, bindingForSource() {} };
+  run.context.__DAGUANYUAN_MATH_API_GLOBAL__ = {
+    async questionListDirectory(selection) {
+      requests.push({ ...selection });
+      return { definition_revision: 7, roots: [{ category_id: 1, label: '高等数学', children: [
+        { category_id: 2, label: '导数', children: [{ category_id: 3, label: '基本概念题', question_count: 1 }, { category_id: 4, label: '计算题', question_count: 1 }] },
+      ] }] };
+    },
+    async practiceQuestionPage(selection) { return { total: 1, pageSize: 20, questions: [{ id: selection.categoryId === 4 ? 339 : 338 }] }; },
+  };
+  let addonMethods;
+  run.context.JSB.defineClass = (name, methods) => { addonMethods = methods; return {}; };
+  vm.runInContext(readFileSync(new URL('../src/WebAddon.js', import.meta.url), 'utf8'), run.context);
+  run.context.createDaguanyuanBridgeAddon('/addon');
+  const addon = c.addon; addon.panelController = c; run.context.self = addon;
+  c.panelVisible = false; c.view.hidden = true;
+  return { ...run, browser, document, messages, loaded, timers, requests, click: () => addonMethods.locateQuestion(),
+    async drain() { for (let n = 0; n < 25; n++) { await new Promise(resolve => setImmediate(resolve)); if (timers.length) { if (options.onWait) options.onWait(n); timers.shift()(); } } },
+  };
+}
+
+test('面板关闭时点击实际定位按钮入口，应先唤起面板再等待题单，识别失败保留网页', async () => {
+  const run = locatorRuntime(), c = run.controller;
+  run.click();
+  await new Promise(resolve => setImmediate(resolve));
+  const visibleWhileWaiting = c.panelVisible === true && c.view.hidden === false && Boolean(c.view.superview);
+  await run.drain();
+  assert.equal(visibleWhileWaiting, true, '点击定位后等待题单期间，插件面板仍未唤起');
+  assert.equal(c.panelVisible, true);
+  assert.equal(c.activePage, 'math');
+  assert.deepEqual(run.loaded, [], '已打开数学页时不得为识别题单跳转市场或重载网页');
+  assert.match(run.messages.at(-1), /题单/);
+});
+
+test('从首页定位后停留在无侧栏的具体分类，再次定位另一分类仍沿用页面明确的范围', async () => {
+  let target = '基本概念题';
+  const run = locatorRuntime({ questionContext: () => ({ source: { sourcePath: ['高等数学', '导数', target] }, progress: { index: 1 } }) });
+  run.document.body.innerHTML = '<div class="learning-shell__scope-toggle" aria-label="题单，当前严选"></div>';
+  run.click(); await run.drain();
+  assert.equal(run.loaded.length, 1);
+  run.browser.window.location = new URL('https://cxyonly.fans/math/practice/categories/3?scope=core&examSubject=math_2');
+  run.document.body.innerHTML = '<header data-learning-question-practice-toolbar><a aria-label="返回学习首页" href="/math">返回</a><h1>基本概念题</h1></header>';
+  target = '计算题';
+  run.click(); await run.drain();
+  assert.equal(run.loaded.length, 2, run.messages.join('\n'));
+  const address = new URL(run.loaded[1]);
+  assert.equal(address.searchParams.get('categoryId'), '4');
+  assert.equal(address.searchParams.get('questionId'), '339');
+  assert.equal(address.searchParams.get('listId'), 'core-math-2');
+});
+
+test('上次定位生成的分类网址保留真实题单，连续跨分类定位不依赖首页控件', async () => {
+  let target = '基本概念题';
+  const run = locatorRuntime({
+    questionContext: () => ({ source: { sourcePath: ['高等数学', '导数', target] }, progress: { index: 1 } }),
+    onLoad(url) {
+      run.browser.window.location = new URL(url);
+      run.document.body.innerHTML = '<header data-learning-question-practice-toolbar><h1>' + target + '</h1></header>';
+    },
+  });
+  run.document.body.innerHTML = '<div class="learning-shell__scope-toggle" aria-label="题单，当前严选"></div>';
+  for (const name of ['基本概念题', '计算题', '基本概念题']) { target = name; run.click(); await run.drain(); }
+  assert.equal(run.loaded.length, 3, run.messages.join('\n'));
+  assert.deepEqual(run.loaded.map(url => new URL(url).searchParams.get('categoryId')), ['3', '4', '3']);
+  assert.deepEqual(run.loaded.map(url => new URL(url).searchParams.get('questionId')), ['338', '339', '338']);
+  assert.ok(run.loaded.every(url => new URL(url).searchParams.get('listId') === 'core-math-2'));
+  assert.equal(run.messages.filter(message => /暂未识别/.test(message)).length, 0);
+});
+
+test('已在具体分类且仅有返回题单入口时可以直接定位，不要求打开侧栏', async () => {
+  const run = locatorRuntime();
+  run.browser.window.location = new URL('https://cxyonly.fans/math/practice?categoryId=3');
+  run.document.body.innerHTML = '<header data-learning-question-practice-toolbar><a aria-label="返回题单" href="/math/lists/custom-a?revision=7&examSubject=math_3">返回</a><h1>基本概念题</h1></header>';
+  run.click(); await run.drain();
+  assert.equal(run.loaded.length, 1, run.messages.join('\n'));
+  const address = new URL(run.loaded[0]);
+  assert.equal(address.searchParams.get('listId'), 'custom-a');
+  assert.equal(address.searchParams.get('examSubject'), 'math_3');
+  assert.equal(address.searchParams.get('questionId'), '338');
+});
+
+for (const previous of ['', '408']) test('实际定位入口从' + (previous || '首次打开') + '进入数学页，页面就绪后继续定位', async () => {
+  const run = locatorRuntime({ onWait(index) {
+    if (index === 2) {
+      run.browser.window.location = new URL('https://cxyonly.fans/math/practice');
+      run.document.body.innerHTML = '<div class="learning-shell__scope-toggle" aria-label="题单，当前严选"></div>';
+    }
+  } });
+  const c = run.controller;
+  c.currentContentPage = previous; c.activePage = previous || 'settings';
+  run.browser.window.location = new URL(previous ? 'https://www.408os.cn/overview' : 'about:blank');
+  run.click();
+  await run.drain();
+  assert.equal(c.panelVisible, true);
+  assert.equal(c.activePage, 'math');
+  assert.equal(run.loaded[0], 'https://cxyonly.fans/math', run.messages.join('\n'));
+  assert.equal(run.requests[0]?.listId, 'core-math-2', run.messages.join('\n'));
+  assert.equal(new URL(run.loaded[1]).searchParams.get('questionId'), '338');
+});
+
+test('数学页正在加载时不读取旧文档的完整题单，等待后使用新文档的严选题单', async () => {
+  const run = locatorRuntime({ onWait(index) {
+    if (index === 2) {
+      run.controller.webView.loading = false;
+      run.document.body.innerHTML = '<div class="learning-shell__scope-toggle" aria-label="题单，当前严选"></div>';
+    }
+  } });
+  run.controller.webView.loading = true;
+  run.document.body.innerHTML = '<div class="learning-shell__scope-toggle" aria-label="题单，当前完整"></div>';
+  run.click();
+  await run.drain();
+  assert.equal(run.controller.panelVisible, true);
+  assert.equal(run.requests.length, 1);
+  assert.equal(run.requests[0].listId, 'core-math-2');
+  assert.equal(run.loaded.length, 1);
+  assert.equal(new URL(run.loaded[0]).searchParams.get('questionId'), '338');
+});
+
+test('首次加载时脚本暂时不可执行，有限等待后仍继续定位', async () => {
+  const run = locatorRuntime({ onWait() {
+    run.document.body.innerHTML = '<div class="learning-shell__scope-toggle" aria-label="题单，当前严选"></div>';
+  } });
+  const c = run.controller, evaluate = c.webView.evaluateJavaScript;
+  c.currentContentPage = '';
+  let first = true;
+  c.webView.evaluateJavaScript = (script, callback) => {
+    if (first) { first = false; callback(null, new Error('页面脚本尚未就绪')); }
+    else evaluate(script, callback);
+  };
+  run.click();
+  await run.drain();
+  assert.equal(c.panelVisible, true);
+  assert.equal(run.requests[0]?.listId, 'core-math-2', run.messages.join('\n'));
+  assert.equal(new URL(run.loaded[1]).searchParams.get('questionId'), '338');
+});
+
+test('实际入口等待题单时关闭面板，后续回调不重新唤起面板', async () => {
+  const run = locatorRuntime(), c = run.controller;
+  run.click();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(c.panelVisible, true);
+  run.context.__DAGUANYUAN_WEB_PANEL_GLOBAL__.hidePanel(c);
+  const messageCount = run.messages.length;
+  run.document.body.innerHTML = '<div class="learning-shell__scope-toggle" aria-label="题单，当前严选"></div>';
+  await run.drain();
+  assert.equal(c.panelVisible, false);
+  assert.equal(c.view.hidden, true);
+  assert.equal(run.requests.length, 0);
+  assert.deepEqual(run.loaded, []);
+  assert.equal(run.messages.length, messageCount);
+});
 
 test('主导航白底文字在窄宽窗口居中，下划线对齐选中文字，关闭按钮无圆底且保留点击范围', () => {
   const run = runtime(), c = run.controller;

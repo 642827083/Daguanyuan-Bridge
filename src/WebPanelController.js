@@ -61,6 +61,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   function performClosePanel(controller) {
     if (typeof __DAGUANYUAN_AI_GLOBAL__ !== "undefined") __DAGUANYUAN_AI_GLOBAL__.cancel(controller);
     if (!controller || !controller.view) return;
+    controller.categoryBindingRequestToken = Number(controller.categoryBindingRequestToken || 0) + 1;
     controller.questionLocatorRequestToken = Number(controller.questionLocatorRequestToken || 0) + 1;
     controller.pendingQuestionLocator = undefined;
     if (controller.mainNavigation) __DAGUANYUAN_PANEL_NAVIGATION_GLOBAL__.stop(controller);
@@ -795,41 +796,73 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   }
 
   function navigateDaguanyuanCategory(controller, route) {
+    // 面板显示不能依赖题单识别成功，否则页面未就绪时点击定位没有可见反馈。
+    showPanel(controller);
+    const openingMath = controller.currentContentPage !== 'math';
+    if (openingMath) loadURL(controller, DAGUANYUAN_HOME_URL, 'daguanyuan');
+    else if (controller.activePage && controller.activePage !== 'math') setActivePage(controller, 'math');
     const navigation = __DAGUANYUAN_MATH_NAVIGATION_GLOBAL__;
     const token = Number(controller.questionLocatorRequestToken || 0) + 1, view = controller.webView;
+    const contentPage = controller.currentContentPage;
+    let waitingForMathDocument = openingMath || Boolean(nativeValue(view, 'loading'));
+    let contextRetries = 0;
     controller.questionLocatorRequestToken = token;
     controller.pendingQuestionLocator = undefined;
     function check() {
-      if (controller.questionLocatorRequestToken !== token || controller.webView !== view) throw new Error('题目定位已取消');
+      if (controller.questionLocatorRequestToken !== token || controller.webView !== view || controller.currentContentPage !== contentPage) throw new Error('题目定位已取消');
     }
     function context() {
       return new Promise(function (resolve, reject) {
         if (!view || typeof view.evaluateJavaScript !== 'function') { reject(new Error('请先打开数学题库并选择题单')); return; }
+        // 首次加载或从其他题库切回时，旧文档不能作为当前数学题单的依据。
+        if (waitingForMathDocument && nativeValue(view, 'loading')) { resolve(null); return; }
         view.evaluateJavaScript(__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__.navigationContextScript(), function (raw, error) {
           try {
             check();
+            if (waitingForMathDocument && (error || !raw)) { resolve(null); return; }
             if (error) throw error;
             const current = JSON.parse(String(raw || ''));
             if (controller.currentContentPage !== 'math' || !/^https:\/\/(?:www\.)?cxyonly\.fans\//i.test(String(current.url || ''))) {
+              if (waitingForMathDocument) { resolve(null); return; }
               throw new Error('请先打开数学题库并选择题单');
             }
+            waitingForMathDocument = false;
             resolve(current);
           } catch (failure) { reject(failure); }
         });
       });
     }
-    return context().then(function (current) {
+    function readyContext(initial) {
+      return context().then(function (current) {
+        if (current && initial && (current.url !== initial.url || current.ownerKey !== initial.ownerKey)) {
+          throw new Error('数学网页或账号已变化，请重新点击定位');
+        }
+        // 查看原题使用卡片保存的来源题单，不等待当前页选择题单。
+        if (current && (route.imported || current.selection && current.selection.listId)) return current;
+        if (contextRetries >= 20 || typeof NSTimer === 'undefined' || typeof NSTimer.scheduledTimerWithTimeInterval !== 'function') {
+          throw new Error('暂未识别当前题单，请等待网页加载完成，或在左侧选择完整、严选、真题后重新定位');
+        }
+        if (!contextRetries) showMessage(controller, '正在等待网页加载并识别当前题单…');
+        contextRetries += 1;
+        return new Promise(function (resolve, reject) {
+          check();
+          NSTimer.scheduledTimerWithTimeInterval(0.25, false, function () {
+            try { check(); resolve(); } catch (error) { reject(error); }
+          });
+        }).then(function () { return readyContext(initial || current); });
+      });
+    }
+    return readyContext().then(function (current) {
       const key = navigation.contextKey(current);
       return navigation.prepare(controller, route, current, check).then(function (prepared) {
-        return context().then(function (latest) {
+        return readyContext().then(function (latest) {
           check();
           if (navigation.contextKey(latest) !== key) throw new Error('数学网页或题单已变化，请重新点击定位');
           startDaguanyuanQuestionLocator(controller, prepared);
         });
       });
     }).catch(function (error) {
-      if (controller.questionLocatorRequestToken !== token || controller.webView !== view) return;
-      if (error.chooseList) { showPanel(controller); loadURL(controller, 'https://cxyonly.fans/math/lists/market', 'daguanyuan'); }
+      if (controller.questionLocatorRequestToken !== token || controller.webView !== view || controller.currentContentPage !== contentPage) return;
       showMessage(controller, String(error && error.message || error));
     });
   }
@@ -953,6 +986,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     function report(result) { showImportReport(controller, result, selectionTask); }
     function progress(value) {
       if (selecting) __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__.progress(controller, value);
+      else if (value.phase === 'listing') showMessage(controller, `正在读取题目列表：${value.processed}/${value.total} 道`);
       else showMessage(controller, `已处理 ${value.processed}/${value.total} 道：新建 ${value.created}，补答案 ${value.answerAdded || 0}，跳过 ${value.skipped}，失败 ${value.failed}`);
     }
     if (selecting) {
@@ -992,50 +1026,53 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       });
       return;
     }
-    controller.webView.evaluateJavaScript(__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__.importContextScript(), function (contextJSON, error) {
-      let importContext;
-      try {
-        if (error) throw error;
-        importContext = JSON.parse(String(contextJSON || ""));
-      } catch (failure) {
-        report({ interrupted: "无法读取当前数学页面，请刷新后重试", failed: [] });
-        finishCategoryImport(controller);
-        return;
+    const webView = controller.webView, navigation = __DAGUANYUAN_MATH_NAVIGATION_GLOBAL__;
+    function check() {
+      if (controller.webView !== webView || controller.currentContentPage !== 'math') {
+        throw new Error('题库页面已切换，请重新导入');
       }
-      const categoryId = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.categoryIdFromURL(importContext.url);
-      if (!categoryId) {
-        report({ interrupted: "请先进入具体的数学题型分类", failed: [] });
-        finishCategoryImport(controller);
-        return;
-      }
-      let scope;
-      try {
-        scope = __DAGUANYUAN_MATH_API_GLOBAL__.questionScope(importContext.scope);
-      } catch (failure) {
-        report({ interrupted: String(failure && failure.message || failure), failed: [] });
-        finishCategoryImport(controller);
-        return;
-      }
-      const scopeName = { complete: "完整", core: "严选", exam: "真题" }[scope];
-      showMessage(controller, `正在读取“${scopeName}”范围的题目列表…`);
-      Promise.resolve().then(function () {
-        return __DAGUANYUAN_MATH_IMPORT_GLOBAL__.importCategory(controller.addon, categoryId, scope, function (value) {
-          if (value.phase === "importing" || selecting && value.phase === "fetching") {
-            progress(value);
-          }
-        }, beforeImport);
-      }).then(function (result) {
-        injectRetestButtons(controller);
-        if (result.failed.length) console.log(`[Daguanyuan Bridge] 分类导入失败详情：${__DAGUANYUAN_IMPORT_REPORT_GLOBAL__.textFor(result)}`);
-        showCategoryImportResult(controller, result, "当前分类没有直接归属的题目", selectionTask);
-      }).catch(function (failure) {
-        const result = failure.importResult || { failed: [] };
-        result.interrupted = String(failure && failure.message || failure);
-        report(result);
-      }).then(function () { finishCategoryImport(controller); }, function (failure) {
-        finishCategoryImport(controller);
-        console.log(`[Daguanyuan Bridge] 导入结束提示失败：${String(failure && failure.message || failure)}`);
+    }
+    function readContext() {
+      return new Promise(function (resolve, reject) {
+        webView.evaluateJavaScript(__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__.bindingContextScript(), function (raw, error) {
+          try {
+            check();
+            if (error) throw new Error(String(error.message || error.localizedDescription || '无法读取当前数学分类，请刷新后重试'));
+            resolve(JSON.parse(String(raw || '')));
+          } catch (failure) { reject(failure); }
+        });
       });
+    }
+    readContext().then(function (current) {
+      const categoryId = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.categoryIdFromURL(current.url);
+      // 无新版题单上下文的旧分类网址继续走原导入；新版必须携带真实题单节点与版本。
+      if (!(current.selection && current.selection.listId) && categoryId) {
+        const scope = __DAGUANYUAN_MATH_API_GLOBAL__.questionScope(current.scope);
+        return __DAGUANYUAN_MATH_IMPORT_GLOBAL__.importCategory(controller.addon, categoryId, scope, progress);
+      }
+      return navigation.currentCategoryRange(controller, current, check).then(function (resolved) {
+        function verify() {
+          return readContext().then(function (latest) {
+            if (navigation.bindingContextKey(current) !== navigation.bindingContextKey(latest)) {
+              throw new Error('当前题单或分类已变化，请重新点击“导入题目”');
+            }
+          });
+        }
+        return verify().then(function () {
+          return __DAGUANYUAN_MATH_SELECTION_GLOBAL__.importCategory(controller.addon, resolved.context, current.url, progress, verify, check);
+        });
+      });
+    }).then(function (result) {
+      injectRetestButtons(controller);
+      if (result.failed.length) console.log(`[Daguanyuan Bridge] 分类导入失败详情：${__DAGUANYUAN_IMPORT_REPORT_GLOBAL__.textFor(result)}`);
+      showCategoryImportResult(controller, result, "当前分类没有可导入的题目", selectionTask);
+    }).catch(function (failure) {
+      const result = failure.importResult || { failed: [] };
+      result.interrupted = String(failure && failure.message || failure);
+      report(result);
+    }).then(function () { finishCategoryImport(controller); }, function (failure) {
+      finishCategoryImport(controller);
+      console.log(`[Daguanyuan Bridge] 导入结束提示失败：${String(failure && failure.message || failure)}`);
     });
   }
 
@@ -1218,23 +1255,51 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       showMessage(controller, error && error.message ? error.message : String(error));
       return;
     }
-    controller.webView.evaluateJavaScript("String(window.location.href || '')", function (result) {
-      try {
-        if (controller.currentContentPage === "408") {
+    if (controller.currentContentPage === '408') {
+      controller.webView.evaluateJavaScript("String(window.location.href || '')", function (result) {
+        try {
           const binding = __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__.save408Binding(source, result);
           showMessage(controller, `已绑定：${source.parentTitle} → ${binding.targetURL}`);
-          return;
-        }
-        if (__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.size === 0) {
-          throw new Error("尚未下载数学分类数据，请前往“设置 → 题型分类管理”下载分类数据");
-        }
-        const categoryId = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.categoryIdFromURL(result);
-        if (!categoryId) throw new Error("请先进入一个具体的大观园题型分类");
-        const target = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.resultForCategoryId(categoryId);
-        if (target.status !== "resolved") throw new Error("当前大观园分类不在本地分类数据中");
-        __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__.saveBinding(source, categoryId);
-        showMessage(controller, `已绑定：${source.parentTitle} → ${target.name}`);
-      } catch (error) {
+        } catch (error) { showMessage(controller, error && error.message ? error.message : String(error)); }
+      });
+      return;
+    }
+    const webView = controller.webView, navigation = __DAGUANYUAN_MATH_NAVIGATION_GLOBAL__;
+    const token = Number(controller.categoryBindingRequestToken || 0) + 1;
+    controller.categoryBindingRequestToken = token;
+    function check() {
+      if (controller.categoryBindingRequestToken !== token || controller.webView !== webView || controller.currentContentPage !== 'math') {
+        throw new Error('题库页面已切换，请重新绑定分类');
+      }
+      const current = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.currentCategorySource(controller.addon);
+      if (current.notebookId !== source.notebookId || current.parentNoteId !== source.parentNoteId) {
+        throw new Error('当前学习集或题型父节点已变化，请重新绑定分类');
+      }
+    }
+    function readContext() {
+      return new Promise(function (resolve, reject) {
+        webView.evaluateJavaScript(__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__.bindingContextScript(), function (result, error) {
+          try {
+            check();
+            if (error) throw new Error(String(error.message || error.localizedDescription || '读取当前分类失败，请刷新页面后重试'));
+            resolve(JSON.parse(String(result || '')));
+          } catch (failure) { reject(failure); }
+        });
+      });
+    }
+    return readContext().then(function (current) {
+      return navigation.bindingTarget(controller, current, check).then(function (target) {
+        return readContext().then(function (latest) {
+          check();
+          if (navigation.bindingContextKey(current) !== navigation.bindingContextKey(latest)) {
+            throw new Error('当前题单或分类已变化，请重新点击“绑定分类”');
+          }
+          __DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__.saveBinding(source, target.categoryId);
+          showMessage(controller, `已绑定：${source.parentTitle} → ${target.name}`);
+        });
+      });
+    }).catch(function (error) {
+      if (controller.categoryBindingRequestToken === token) {
         showMessage(controller, error && error.message ? error.message : String(error));
       }
     });
@@ -1340,7 +1405,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     },
 
     bindCurrentCategory: function (sender) {
-      bindCurrentCategory(self);
+      return bindCurrentCategory(self);
     },
 
     openCategoryManager: function (sender) {

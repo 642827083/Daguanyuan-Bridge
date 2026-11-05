@@ -270,7 +270,7 @@ test('选题导入入口向原生发送勾选范围', async () => {
   assert.deepEqual(calls, ['selected']);
 });
 
-test('导入题目在选题上方调用同一选题流程，运行中防止重复提交，完成后恢复', async () => {
+test('导入题目直接走整类导入，不打开选题框，运行中防止重复提交且完成后恢复', async () => {
   for (const url of ['https://www.cxyonly.fans/math/practice/categories/345', 'https://www.408os.cn/exercise?year=2026']) {
     const run = runtime(url);
     run.document.body.innerHTML = url.includes('408os')
@@ -284,7 +284,9 @@ test('导入题目在选题上方调用同一选题流程，运行中防止重�
     assert.equal(direct.disabled, false);
     const scopes = []; run.bridgeContext.openCategory = scope => scopes.push(scope);
     run.click('[data-import-current]'); run.click('[data-import-current]'); await tick();
-    assert.deepEqual(scopes, ['selected']);
+    assert.deepEqual(scopes, ['all']);
+    assert.match(direct.title, /全部题目/);
+    assert.doesNotMatch(direct.title, /勾选/);
     assert.equal(run.messages.at(-1).command, 'importCurrentQuestions');
     assert.equal(run.document.getElementById('dgy-dialog').hidden, true);
     assert.equal(direct.disabled, true); assert.equal(direct.textContent, '导入中…');

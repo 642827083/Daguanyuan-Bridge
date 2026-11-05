@@ -159,7 +159,7 @@ test("失败详情控件抛错时仍结束导入、恢复网页按钮，并保�
   assert.ok(messages.some((text) => text.includes("图片保存失败")));
 });
 
-test('数学和408两个导入入口均打开同一网页选题确认流程', async () => {
+test('数学和408整类导入直接执行，只有选题导入打开网页确认框', async () => {
   for (const provider of ['math', '408']) for (const selected of [false, true]) {
     const { context, controller } = runtime();
     let methods, beforeImport, starts = 0, shown = 0;
@@ -177,7 +177,8 @@ test('数学和408两个导入入口均打开同一网页选题确认流程', as
     context.NSUserDefaults = { standardUserDefaults() { return { objectForKey() { return true; } }; } };
     context.Application = { sharedInstance() { return { showHUD(text) { messages.push(text); } }; } };
     context.__DAGUANYUAN_VIDEO_BROWSER_GLOBAL__ = { handles() { return false; } };
-    context.__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = { importContextScript() { return 'import-context'; } };
+    context.__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = { bindingContextScript() { return 'import-context'; } };
+    context.__DAGUANYUAN_MATH_NAVIGATION_GLOBAL__ = {};
     context.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = { categoryIdFromURL() { return 1; } };
     context.__DAGUANYUAN_MATH_API_GLOBAL__ = { questionScope() { return 'core'; } };
     const result = { total: 1, createdCount: 1, skippedCount: 0, failed: [] };
@@ -193,10 +194,10 @@ test('数学和408两个导入入口均打开同一网页选题确认流程', as
     const address = 'daguanyuanbridge://ui?payload=' + encodeURIComponent(JSON.stringify({ requestId: 'test', command: selected ? 'openQuestionImport' : 'importCurrentQuestions', payload: selected ? { scope: 'selected' } : null }));
     methods.webViewShouldStartLoadWithRequestNavigationType(controller.webView, { URL: { absoluteString: address } });
     await new Promise(resolve => setImmediate(resolve));
-    assert.equal(starts, 1); assert.equal(shown, 1);
-    assert.equal(typeof beforeImport, 'function');
+    assert.equal(starts, selected ? 1 : 0); assert.equal(shown, selected ? 1 : 0);
+    assert.equal(typeof beforeImport, selected ? 'function' : 'undefined');
     assert.equal(controller.categoryImportBusy, false);
-    assert.equal(messages.some(text => text.includes('导入完成：新建 1 道')), false);
+    assert.equal(messages.some(text => text.includes('导入完成：新建 1 道')), !selected);
   }
 });
 

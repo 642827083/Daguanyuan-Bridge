@@ -286,29 +286,36 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
     var address = new URL(window.location.href), query = address.searchParams;
     var route = window.__DAGUANYUAN_MATH_IMPORT_ROUTE__(address.href);
     var listId = route.listId || '', revision = route.listRevision || '', ambiguousLinks = false;
+    var linkedScope = '', linkedSubject = '';
     var detail = address.pathname.match(/^\/math\/lists\/([^/]+)\/?$/);
     if (!listId && detail && detail[1] !== 'market' && detail[1] !== 'new') {
       listId = decodeURIComponent(detail[1]); revision = query.get('revision') || '';
     }
-    // 仅接受页面明确标记为当前项的题单链接，不从题单菜单中猜测选择。
-    if (!listId) {
-      var links = document.querySelectorAll('a[aria-current="page"][href]'), candidates = [];
+    function readListLinks(selector) {
+      var links = document.querySelectorAll(selector), candidates = [];
       for (var index = 0; index < links.length; index += 1) {
         var link = new URL(links[index].getAttribute('href'), address.href);
         var match = link.pathname.match(/^\/math\/lists\/([^/]+)\/?$/);
         if (link.origin !== address.origin || !match || match[1] === 'market' || match[1] === 'new') continue;
-        var candidate = { id: decodeURIComponent(match[1]), revision: link.searchParams.get('revision') || '' };
-        if (!candidates.some(function (entry) { return entry.id === candidate.id && entry.revision === candidate.revision; })) candidates.push(candidate);
+        var candidate = { id: decodeURIComponent(match[1]), revision: link.searchParams.get('revision') || '',
+          scope: link.searchParams.get('scope') || '', subject: link.searchParams.get('examSubject') || link.searchParams.get('exam_subject') || '' };
+        if (!candidates.some(function (entry) { return JSON.stringify(entry) === JSON.stringify(candidate); })) candidates.push(candidate);
       }
-      if (candidates.length === 1) { listId = candidates[0].id; revision = candidates[0].revision; }
+      if (candidates.length === 1) {
+        listId = candidates[0].id; revision = candidates[0].revision;
+        linkedScope = candidates[0].scope; linkedSubject = candidates[0].subject;
+      }
       ambiguousLinks = candidates.length > 1;
     }
+    // 分类页可能没有侧栏；返回题单链接同样明确指向当前练习的来源，不读取菜单中其他题单。
+    if (!listId) readListLinks('a[aria-current="page"][href]');
+    if (!listId && !ambiguousLinks) readListLinks('[data-learning-question-practice-toolbar] a[aria-label="返回题单"][href]');
     var user = {};
     try { user = JSON.parse(window.localStorage.getItem('daguan_user') || '{}') || {}; } catch (ignored) {}
     var suffix = listId.match(/-math[-_]([123])$/);
-    var subject = query.get('examSubject') || query.get('exam_subject') || (suffix ? 'math_' + suffix[1] : '')
+    var subject = query.get('examSubject') || query.get('exam_subject') || linkedSubject || (suffix ? 'math_' + suffix[1] : '')
       || user.math_exam_subject || 'all';
-    var scope = query.get('scope') || 'complete';
+    var scope = query.get('scope') || linkedScope || 'complete';
     // 传统侧栏没有题单链接；网站按当前单选范围和备考科目确定官方题单。
     if (!listId && !ambiguousLinks) {
       var controls = document.querySelectorAll('.learning-shell__scope-toggle'), scopes = [];
@@ -331,6 +338,14 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
         listId = (scope === 'exam' ? 'exam-chapters' : scope)
           + (subject === 'all' ? '' : '-' + subject.replace('_', '-'));
       }
+      // 沉浸式分类页没有范围控件；网址的明确范围仍有效，旧分类路由未指定范围时按网站规则使用完整范围。
+      var legacyCategory = /^\/math\/practice\/(?:categories\/)?[1-9]\d*\/?$/.test(address.pathname);
+      var categoryPage = route.categoryId > 0 && (legacyCategory || /^\/math\/practice\/?$/.test(address.pathname));
+      if (!listId && !controls.length && categoryPage && (query.get('scope') || legacyCategory)
+        && ['complete', 'core', 'exam'].indexOf(scope) >= 0) {
+        listId = (scope === 'exam' ? 'exam-chapters' : scope)
+          + (subject === 'all' ? '' : '-' + subject.replace('_', '-'));
+      }
     }
     return JSON.stringify({ url: address.href, ownerKey: String(user.id || ''),
       scope: scope, examSubject: subject,
@@ -339,6 +354,38 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
 
   function navigationContextScript() {
     return mathContextScript() + '(' + readNavigationContext.toString() + ')();';
+  }
+
+  function readBindingContext() {
+    var current = JSON.parse(readNavigationContext());
+    var address = new URL(current.url);
+    if (!/^https:\/\/(?:www\.)?cxyonly\.fans\//i.test(current.url)
+      || !/^\/math\/practice(?:\/(?:categories\/)?[1-9]\d*|\/[^/\s?#]+\/(?:all|[1-9]\d*)\/[1-9]\d*)?\/?$/.test(address.pathname)) {
+      throw new Error('请先打开数学题型练习页面');
+    }
+    var route = window.__DAGUANYUAN_MATH_IMPORT_ROUTE__(current.url);
+    var selected = document.querySelectorAll('[data-chapter-id][aria-current="page"], [data-chapter-id][aria-pressed="true"]');
+    var ids = [];
+    for (var index = 0; index < selected.length; index += 1) {
+      var id = Number(selected[index].getAttribute('data-chapter-id'));
+      if (Number.isSafeInteger(id) && id > 0 && ids.indexOf(id) < 0) ids.push(id);
+    }
+    if (ids.length > 1 || ids.length === 1 && route.categoryId && ids[0] !== route.categoryId) {
+      throw new Error('页面分类正在切换或选中了多个分类，请重新打开目标分类后重试');
+    }
+    var toolbar = document.querySelector('[data-learning-question-practice-toolbar]');
+    var heading = toolbar && toolbar.querySelector('h1');
+    var trigger = heading && heading.querySelector('button[aria-label="选择题目分类"], button[aria-label^="切换章节："]');
+    var name = trigger ? String(trigger.getAttribute('title') || heading.getAttribute('aria-label') || '').trim() : '';
+    if (/^(?:全部|本次练习全部|章节练习|选择章节|已选)/.test(name) || /(?:等 \d+ 个分类| · 全部题目)$/.test(name)) name = '';
+    current.categoryId = ids[0] || route.categoryId || 0;
+    current.categoryPath = name ? name.split(' / ').map(function (part) { return part.trim(); }).filter(Boolean) : [];
+    return JSON.stringify(current);
+  }
+
+  function bindingContextScript() {
+    return mathContextScript() + '(function () { var readNavigationContext = ' + readNavigationContext.toString()
+      + '; return (' + readBindingContext.toString() + ')(); })();';
   }
 
   // 年份单题直接由网站按 ID 加载；这里只补齐标题和按需进入整卷的模式入口。
@@ -608,5 +655,5 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
     return "(function(){var direct=(" + directYearQuestionPageScript.toString() + ")();return direct||(" + exerciseQuestionPageScript.toString() + ")();})();";
   }
 
-  return { practiceScript, bindCategoryScript, singleImportScript, importContextScript, navigationContextScript, exerciseQuestionScript, questionDOMScript };
+  return { practiceScript, bindCategoryScript, singleImportScript, importContextScript, navigationContextScript, bindingContextScript, exerciseQuestionScript, questionDOMScript };
 })();

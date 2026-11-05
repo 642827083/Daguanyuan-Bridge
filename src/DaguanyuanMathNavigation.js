@@ -143,5 +143,61 @@ var __DAGUANYUAN_MATH_NAVIGATION_GLOBAL__ = (function () {
     });
   }
 
-  return { selection, contextKey, prepare };
+  function bindingContextKey(current) {
+    return JSON.stringify([contextKey(current), current.categoryId || 0, current.categoryPath || []]);
+  }
+
+  function bindingTarget(controller, current, check) {
+    const routes = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__;
+    const categoryId = Number(current.categoryId || 0);
+    if (!routes.size) return Promise.reject(new Error('尚未下载数学分类数据，请前往“设置 → 题型分类管理”下载分类数据'));
+    const legacy = routes.importContextFromURL(current.url);
+    if (!(current.selection && current.selection.listId) && legacy.categoryId && legacy.categoryId === categoryId) {
+      const target = routes.resultForCategoryId(categoryId);
+      return target.status === 'resolved' ? Promise.resolve(target)
+        : Promise.reject(new Error('当前大观园分类不在本地分类数据中，请先更新分类数据'));
+    }
+    return currentCategoryRange(controller, current, check).then(function (resolved) {
+      const target = resolved.target;
+      // 题单节点可能使用独立编号；按完整路径匹配本地目录，避免保存另一个分类的同号节点。
+      const canonical = routes.resolve(target.path);
+      if (canonical.status !== 'resolved' || canonical.matchedSegments < Math.min(2, target.path.length)) {
+        throw new Error('当前题单分类不在本地分类数据中或存在同名分类，请先更新分类数据');
+      }
+      return canonical;
+    });
+  }
+
+  function currentCategoryRange(controller, current, check) {
+    const routes = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__;
+    const categoryId = Number(current.categoryId || 0), path = current.categoryPath || [];
+    const legacy = routes.importContextFromURL(current.url);
+    if (!categoryId && !path.length) return Promise.reject(new Error('请先进入一个具体的数学题型分类'));
+    return Promise.resolve().then(function () {
+      if (check) check();
+      const selected = selection(current);
+      return __DAGUANYUAN_MATH_API_GLOBAL__.questionListDirectory(selected, controller, check).then(function (directory) {
+        if (check) check();
+        if (!Number.isSafeInteger(directory.definition_revision) || directory.definition_revision <= 0
+          || selected.listRevision && selected.listRevision !== directory.definition_revision) {
+          throw new Error('题单版本已变化，请刷新数学页面后重试');
+        }
+        const catalog = catalogFromDirectory(directory), local = routes.forCatalog(catalog);
+        const original = legacy.categoryId && !legacy.listId ? routes.resultForCategoryId(legacy.categoryId) : null;
+        let target = original && original.status === 'resolved' ? local.resolve(original.path) : local.resultForCategoryId(categoryId);
+        if (target.status !== 'resolved') {
+          target = local.resolve(original && original.status === 'resolved' ? original.path : path);
+        }
+        if (target.status !== 'resolved') throw new Error('无法唯一确定当前题型分类，请展开题目分类目录并选中目标分类后重试');
+        if (path.length && routes.normalizeSegment(path[path.length - 1]) !== routes.normalizeSegment(target.name)) {
+          throw new Error('页面分类与题单目录不一致，请刷新后重试');
+        }
+        return { target: target, context: Object.assign({}, selected, {
+          listRevision: directory.definition_revision, categoryId: target.categoryId,
+        }) };
+      });
+    });
+  }
+
+  return { selection, contextKey, prepare, bindingTarget, bindingContextKey, currentCategoryRange };
 })();

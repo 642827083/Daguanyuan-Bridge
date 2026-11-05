@@ -130,7 +130,7 @@ import MNBridge from './lib/mnBridge.js';
     if (directLabel.textContent !== directTitle) directLabel.textContent = directTitle;
     const hint = !page.questions.length ? '当前页面暂无可导入题目' : page.importContext || page.fullCategory
       ? '读取当前分类的完整题目列表，勾选后导入' : '从当前页面已加载的 ' + page.questions.length + ' 道题目中勾选导入';
-    direct.title = hint;
+    direct.title = page.questions.length ? '直接导入当前分类的全部题目' : '当前页面暂无可导入题目';
     if (button.title !== hint) { button.title = hint; button.setAttribute('aria-label', '选题导入：' + hint); }
     if (state.route !== location.href) { if (state.token) MNBridge.send('cancelQuestionImport', { token: state.token, dismiss: true }).catch(() => {}); hide(); state.snapshot = null; state.token = ''; state.route = location.href;
       MNBridge.send('getWebsiteNavigation').then(value => { window.__DAGUANYUAN_WEBSITE_NAVIGATION__ = value; refresh(); }).catch(() => {});
@@ -173,7 +173,6 @@ import MNBridge from './lib/mnBridge.js';
       refresh();
       if (direct.hidden || direct.disabled || state.busy || !dialog.hidden) return;
       const category = window.__DAGUANYUAN_BIND_CATEGORY_BUTTON__;
-      state.snapshot = currentPage();
       state.directBusy = true;
       if (category) category.importBusy = true;
       direct.disabled = true; direct.querySelector('.dgy-tool-label').textContent = '导入中…';
