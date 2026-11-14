@@ -1,6 +1,6 @@
 var __DAGUANYUAN_MATH_SELECTION_GLOBAL__ = (function () {
   function importQuestions(addon, page, progress, confirmation, categoryOnly) {
-    if (!page || page.provider !== 'math' || !/^https:\/\/(?:www\.)?cxyonly\.fans\//.test(page.url || '')
+    if (!page || page.provider !== 'math' || !/^https:\/\/(?:www\.|math\.)?cxyonly\.fans\//.test(page.url || '')
       || !Array.isArray(page.questions) || (!categoryOnly && !page.questions.length) || page.questions.length > 10000) throw new Error('当前页面题目列表无效，请重新打开选题导入');
     const seen = new Set();
     let questions = page.questions.map(function (question) {

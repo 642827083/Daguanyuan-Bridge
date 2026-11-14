@@ -32,20 +32,36 @@ function createDaguanyuanBridgeAddon(mainPath) {
       if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') { __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.info('plugin.disconnect'); __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.flush(); }
     },
 
-    notebookWillOpen: function () {
-      if (typeof __DAGUANYUAN_MASTERY_UI_GLOBAL__ !== 'undefined') { __DAGUANYUAN_MASTERY_UI_GLOBAL__.hide(self); __DAGUANYUAN_MASTERY_UI_GLOBAL__.register(self); }
-      if (typeof __DAGUANYUAN_SOURCE_LINK_GLOBAL__ !== 'undefined') __DAGUANYUAN_SOURCE_LINK_GLOBAL__.register(self);
-      self.panelController.addon = self;
-      self.panelController.addonWindow = self.window;
-      if (typeof __DAGUANYUAN_CARD_LOCATOR_GLOBAL__ !== "undefined") __DAGUANYUAN_CARD_LOCATOR_GLOBAL__.resume(self);
-      self.__daguanyuanFocusNextLastFocus = null;
-      __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.show(self);
-      __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.syncQuestionLocator(self);
-      if (typeof __DAGUANYUAN_WEB_PANEL_GLOBAL__.refreshRetestButtons === "function") {
-        __DAGUANYUAN_WEB_PANEL_GLOBAL__.refreshRetestButtons(self.panelController);
-      }
-      if (__DAGUANYUAN_WEB_PANEL_GLOBAL__.shouldRestorePanel()) {
-        __DAGUANYUAN_WEB_PANEL_GLOBAL__.showPanel(self.panelController);
+    notebookWillOpen: function (topicid) {
+      const navigation = __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__;
+      self.__daguanyuanFocusNextOpeningNotebookId = String(topicid || '');
+      if (typeof navigation.diagnose === 'function') navigation.diagnose(self, 'notebook_open_enter');
+      let stage = 'register_card_tools';
+      try {
+        if (typeof __DAGUANYUAN_MASTERY_UI_GLOBAL__ !== 'undefined') { __DAGUANYUAN_MASTERY_UI_GLOBAL__.hide(self); __DAGUANYUAN_MASTERY_UI_GLOBAL__.register(self); }
+        if (typeof __DAGUANYUAN_SOURCE_LINK_GLOBAL__ !== 'undefined') __DAGUANYUAN_SOURCE_LINK_GLOBAL__.register(self);
+        stage = 'prepare_panel';
+        self.panelController.addon = self;
+        self.panelController.addonWindow = self.window;
+        if (typeof __DAGUANYUAN_CARD_LOCATOR_GLOBAL__ !== "undefined") __DAGUANYUAN_CARD_LOCATOR_GLOBAL__.resume(self);
+        stage = 'start_navigation';
+        self.__daguanyuanFocusNextLastFocus = null;
+        __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.show(self);
+        __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.syncQuestionLocator(self);
+        if (typeof navigation.diagnose === 'function') navigation.diagnose(self, 'notebook_open_navigation_ready');
+        stage = 'restore_panel';
+        if (typeof __DAGUANYUAN_WEB_PANEL_GLOBAL__.refreshRetestButtons === "function") {
+          __DAGUANYUAN_WEB_PANEL_GLOBAL__.refreshRetestButtons(self.panelController);
+        }
+        if (__DAGUANYUAN_WEB_PANEL_GLOBAL__.shouldRestorePanel()) {
+          __DAGUANYUAN_WEB_PANEL_GLOBAL__.showPanel(self.panelController);
+        }
+        if (typeof navigation.diagnose === 'function') navigation.diagnose(self, 'notebook_open_complete');
+      } catch (error) {
+        try {
+          if (typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.error('focus.notebook.open.failure', error, { stage });
+        } catch (ignored) { /* 日志不可用时仍保留原来的初始化异常。 */ }
+        throw error;
       }
     },
 
@@ -55,6 +71,7 @@ function createDaguanyuanBridgeAddon(mainPath) {
     },
 
     notebookWillClose: function () {
+      if (typeof __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.diagnose === 'function') __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.diagnose(self, 'notebook_close_enter');
       if (typeof __DAGUANYUAN_SUPPORT_UI_GLOBAL__ !== 'undefined') __DAGUANYUAN_SUPPORT_UI_GLOBAL__.close(self.panelController);
       __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.hide(self);
       self.__daguanyuanFocusNextLastFocus = null;

@@ -63,6 +63,28 @@ test('只记录允许的技术字段，过滤登录凭据、正文、个人路�
   assert.match(entry.error.stack, /DaguanyuanMathImport.js:42:9/); assert.match(entry.error.stack, /main.js:20:3/);
 });
 
+test('分类诊断导出保留刷新状态和学习集归属关系，重启后也不包含卡片名称或真实 ID', () => {
+  const run = runtime(), view = {}, memory = { noteId: 'private-old-note', notebookId: 'private-old-book', parentNote: { noteTitle: '旧学习集私有分类' } };
+  const focus = { noteId: 'private-new-note', notebookId: 'private-new-book', parentNote: { noteTitle: '新学习集私有分类' } };
+  run.app.studyController = () => ({ view, notebookController: { notebookId: 'private-new-book', focusNote: focus, visibleFocusNote: focus } });
+  run.context.__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = { parentTitle: note => note.parentNote.noteTitle };
+  vm.runInContext(fs.readFileSync(new URL('../src/DaguanyuanFocusNextUI.js', import.meta.url), 'utf8'), run.context);
+  const addon = { window: {}, __daguanyuanFocusNextLastFocus: memory, __daguanyuanFocusNextOpeningNotebookId: 'private-new-book',
+    __daguanyuanFocusNextTickAt: Date.now() - 6000, __daguanyuanFocusNextTickCount: 12, __daguanyuanFocusNextRememberToken: 3,
+    __daguanyuanFocusCategoryButton: { hidden: false, superview: view, __daguanyuanDisplayedCategoryTitle: '旧学习集私有分类' } };
+  run.context.__DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.diagnose(addon, 'copy_logs');
+  // 主动导出时，未落盘的诊断记录也必须被包含。
+  const entry = run.snapshot().entries.find(row => row.event === 'focus.trace');
+  assert.equal(entry.details.tickCount, 12); assert.equal(entry.details.loopGeneration, 3);
+  assert.ok(entry.details.heartbeatAgeMs >= 6000);
+  assert.equal(entry.details.categoryState, 'attached'); assert.equal(entry.details.focusInNotebook, 'match');
+  assert.equal(entry.details.memoryInNotebook, 'mismatch'); assert.equal(entry.details.categoryMatchesFocus, 'mismatch');
+  assert.equal(entry.details.notebookMatchesOpening, 'match');
+  const restarted = runtime(run.files).snapshot().entries.find(row => row.event === 'focus.trace');
+  assert.deepEqual(restarted.details, entry.details);
+  assert.doesNotMatch(JSON.stringify([entry, restarted]), /private-|私有分类|noteId|notebookId/);
+});
+
 test('最近记录最多 2000 条，UTF-8 和原生序列化后的文件均不超过 1 MB', () => {
   const run = runtime();
   for (let index = 0; index < 2300; index++) run.logs.info('test.count', { processed: index });

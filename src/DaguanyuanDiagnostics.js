@@ -1,7 +1,7 @@
 var __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ = (function () {
   const DIRECTORY_NAME = 'DaguanyuanBridge';
   const MAX_ENTRIES = 2000, MAX_BYTES = 1024 * 1024;
-  const KEYS = 'taskId provider scope examSubject command action stage status mastery httpStatus questionId total createdCount answerAddedCount skippedCount failedCount processed elapsedMs mode pluginVersion mnVersion mnBuild osType'.split(' ');
+  const KEYS = 'taskId provider scope examSubject command action stage status mastery httpStatus questionId total createdCount answerAddedCount skippedCount failedCount processed elapsedMs mode pluginVersion mnVersion mnBuild osType notebookSequence notebookMatchesOpening viewAvailable categoryState locatorState focusInNotebook visibleFocusInNotebook memoryInNotebook focusMatchesMemory visibleFocusMatchesMemory categoryMatchesFocus categoryMatchesVisible categoryMatchesMemory loopGeneration tickCount heartbeatAgeMs'.split(' ');
   const session = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
   let entries = [], sizes = [], bytes = 0, loaded = false, dirty = false, timer = null, sequence = 0;
   let storageWarning = '', readBlocked = false;

@@ -28,14 +28,28 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
   }
 
   function pageReceiver() {
-    if (window.__DAGUANYUAN_NOTE_PASTE__ && window.__DAGUANYUAN_NOTE_PASTE__.version === 6) return true;
+    if (window.__DAGUANYUAN_NOTE_PASTE__ && window.__DAGUANYUAN_NOTE_PASTE__.version === 8) return true;
     var current = null;
-    function validPage() {
-      return /(^|\.)cxyonly\.fans$/i.test(window.location.hostname || "")
-        && (/^\/math\/(?:practice(?:\/(?:categories\/)?[1-9]\d*)?|questions\/[1-9]\d*|paper)\/?$/.test(window.location.pathname || "")
-          || /^\/math\/retest(?:\/|$)/.test(window.location.pathname || ""));
+    function previewRow(id, expectedRow) {
+      var helper = window.__DAGUANYUAN_QUESTION_DOM__;
+      return helper && typeof helper.previewRow === 'function' ? helper.previewRow(Number(id), expectedRow) : null;
+    }
+    function validPage(id) {
+      return /^(?:www\.|math\.)?cxyonly\.fans$/i.test(window.location.hostname || "")
+        && (/^\/(?:math\/)?(?:practice(?:\/(?:(?:categories|concepts)\/)?[1-9]\d*|\/[^/\s?#]+\/(?:all|[1-9]\d*)\/[1-9]\d*)?|questions\/[1-9]\d*|paper)\/?$/.test(window.location.pathname || "")
+          || /^\/(?:math\/)?retest(?:\/|$)/.test(window.location.pathname || "")
+          || !!previewRow(id || current && current.id, current && current.preview ? current.row : undefined));
     }
     function questionRow(id) {
+      if (current && current.preview) return previewRow(id, current.row);
+      var helper = window.__DAGUANYUAN_QUESTION_DOM__;
+      var snapshot = helper && helper.read();
+      if (snapshot && snapshot.page.preview) {
+        for (var item = 0; item < snapshot.questions.length; item += 1) {
+          if (String(snapshot.questions[item].id) === String(id)) return snapshot.questions[item].row;
+        }
+        return null;
+      }
       var rows = document.querySelectorAll("[data-learning-question-id], [data-retest-question-id], [data-retest-schedule-question-id]");
       for (var index = 0; index < rows.length; index += 1) {
         var row = rows[index];
@@ -97,11 +111,12 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
       sendResult(token, status);
     }
     function prepare(id, token, mimeType, fileName) {
-      if (!validPage() || !questionRow(id) || current) return false;
+      if (!validPage(id) || current) return false;
       var row = questionRow(id);
+      if (!row || !visible(row)) return false;
       var button = buttonFor(row);
       if (!button) return false;
-      current = { id: id, token: token, mimeType: mimeType, fileName: fileName, chunks: [], row: row, button: button, url: String(window.location.href || '') };
+      current = { id: id, token: token, mimeType: mimeType, fileName: fileName, chunks: [], row: row, button: button, url: String(window.location.href || ''), preview: previewRow(id) === row };
       button.disabled = true;
       button.textContent = "添加中…";
       return true;
@@ -228,7 +243,7 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
       current = null;
       return true;
     }
-    window.__DAGUANYUAN_NOTE_PASTE__ = { version: 6, prepare: prepare, append: append, commit: commit, cancel: cancel };
+    window.__DAGUANYUAN_NOTE_PASTE__ = { version: 8, prepare: prepare, append: append, commit: commit, cancel: cancel };
     return true;
   }
 
@@ -258,13 +273,20 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
     const prefix = "window.__DAGUANYUAN_NOTE_PASTE__";
     controller.notePasteOperation = { id, token };
     return evaluate(controller, "String(window.location.href || '')").then(function (url) {
-      if (!/^https:\/\/(?:www\.)?cxyonly\.fans\/math\/(?:practice(?:\/(?:categories\/)?[1-9]\d*)?|questions\/[1-9]\d*|retest|paper)\/?(?:[?#][^\s<>]*)?$/.test(String(url || ""))) {
-        throw new Error("请先打开大观园数学题目页或错题复测页");
+      if (!/^https:\/\/(?:www\.|math\.)?cxyonly\.fans\/(?:math\/)?(?:practice(?:\/(?:(?:categories|concepts)\/)?[1-9]\d*|\/[^/\s<>?#]+\/(?:all|[1-9]\d*)\/[1-9]\d*)?|questions\/[1-9]\d*|retest(?:\/(?:practice|plans))?|paper)\/?(?:[?#][^\s<>]*)?$/.test(String(url || ""))) {
+        // 首页搜索不改变网址，额外核对已加载预览中的题号后才读取剪贴板。
+        if (!/^https:\/\/(?:www\.|math\.)?cxyonly\.fans\/[^\s<>]*$/.test(String(url || ""))
+          || typeof __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ === 'undefined') throw new Error("请先打开大观园数学题目页或错题复测页");
+        return evaluate(controller, __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__.questionDOMScript()
+          + ";String(!!window.__DAGUANYUAN_QUESTION_DOM__.previewRow(" + id + "))").then(function (ready) {
+          if (!accepted(ready)) throw new Error("请先打开大观园数学题目页或错题复测页");
+        });
       }
+    }).then(function () {
       image = clipboardImage();
       return evaluate(controller, "(" + pageReceiver.toString() + ")();");
     }).then(function () {
-      return evaluate(controller, "String(!!(" + prefix + " && " + prefix + ".version === 6))");
+      return evaluate(controller, "String(!!(" + prefix + " && " + prefix + ".version === 8))");
     }).then(function (ready) {
       if (!accepted(ready)) throw new Error("无法连接题目笔记编辑器");
       return evaluate(controller, "String(" + prefix + ".prepare(" + [id, token, image.mimeType, image.fileName].map(JSON.stringify).join(",") + "))");

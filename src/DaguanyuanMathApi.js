@@ -1,5 +1,5 @@
 var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
-  const API_ROOT = "https://www.cxyonly.fans/api/questions";
+  const API_ROOT = "https://math.cxyonly.fans/api/questions";
   const PAGE_SIZE = 20;
   let nextRequestAt = 0;
 
@@ -63,7 +63,7 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
   }
 
   function requestJSON(url, check, controller) {
-    if (!/^https:\/\/www\.cxyonly\.fans\/api\/(?:questions(?:\/\d+|\?[\w.~=&%+-]+)|categories\?[\w=&%]+|question-lists\/[a-zA-Z0-9_-]{1,100}(?:\?revision=[1-9]\d*|\/(?:directory|position)\?[\w=&%]+)?)$/.test(url)) {
+    if (!/^https:\/\/(?:www\.|math\.)cxyonly\.fans\/api\/(?:questions(?:\/\d+|\?[\w.~=&%+-]+)|categories\?[\w=&%]+|question-lists\/[a-zA-Z0-9_-]{1,100}(?:\?revision=[1-9]\d*|\/(?:directory|position)\?[\w=&%]+)?)$/.test(url)) {
       return Promise.reject(new Error("题目接口地址无效"));
     }
     function attempt(number) {
@@ -170,7 +170,7 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
       return Promise.resolve().then(function () { return __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__.evaluate({ webView: view }, page + '&&' + page + '.release(' + JSON.stringify(token) + ')'); }).catch(function () {});
     }
     return Promise.resolve().then(function () {
-      return evaluate(__DAGUANYUAN_MATH_CATALOG_PAGE_SCRIPT__ + ';' + page + '.beginRead(' + JSON.stringify(token) + ',' + JSON.stringify(url.replace('https://www.cxyonly.fans', '')) + ')');
+      return evaluate(__DAGUANYUAN_MATH_CATALOG_PAGE_SCRIPT__ + ';' + page + '.beginRead(' + JSON.stringify(token) + ',' + JSON.stringify(url.replace(/^https:\/\/(?:www\.|math\.)cxyonly\.fans/, '')) + ')');
     }).then(function (result) {
       if (String(result) !== 'accepted') throw new Error('分类读取未启动，请先打开插件“数学”页并登录');
       return poll();
@@ -181,7 +181,7 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
 
   function categoryRecords(rawScope, rawSubject, controller, check) {
     const scope = questionScope(rawScope), subject = examSubject(rawSubject);
-    const reading = requestJSON('https://www.cxyonly.fans/api/categories?scope=' + scope + '&exam_subject=' + subject, check, controller);
+    const reading = requestJSON('https://math.cxyonly.fans/api/categories?scope=' + scope + '&exam_subject=' + subject, check, controller);
     return reading.then(function (tree) {
       const records = [], seen = new Set();
       function visit(nodes, parent, depth) {
@@ -203,7 +203,7 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
 
   function questionListDirectory(selection, controller, check) {
     if (!selection || !/^[a-zA-Z0-9_-]{1,100}$/.test(selection.listId)) throw new Error('题单标识无效');
-    const base = 'https://www.cxyonly.fans/api/question-lists/' + selection.listId;
+    const base = 'https://math.cxyonly.fans/api/question-lists/' + selection.listId;
     const revision = selection.listRevision ? positiveInteger(selection.listRevision, '题单版本') : 0;
     const query = 'exam_subject=' + examSubject(selection.examSubject) + '&scope=' + questionScope(selection.scope);
     // 先取得真实题单版本，再固定目录和取题请求，避免题单更新时混用两版数据。
@@ -257,7 +257,7 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
     const query = 'question_id=' + id + '&per_page=30&revision=' + revision
       + '&category_id=' + positiveInteger(context.categoryId, '分类 ID') + '&include_children=true'
       + '&exam_subject=' + examSubject(context.examSubject) + '&scope=' + questionScope(context.scope) + '&external_categories=all';
-    return requestJSON('https://www.cxyonly.fans/api/question-lists/' + context.listId + '/position?' + query, check, controller).then(function (payload) {
+    return requestJSON('https://math.cxyonly.fans/api/question-lists/' + context.listId + '/position?' + query, check, controller).then(function (payload) {
       const result = payload && payload.data && typeof payload.data === 'object' ? payload.data : payload;
       if (!result || result.available !== true) throw new Error('这道原题不在保存的题单分类中，请核对来源分类');
       if (Number(result.question_id) !== id || Number(result.definition_revision) !== revision) throw new Error('原题或题单版本已变化，请刷新数学页面后重试');
@@ -318,7 +318,7 @@ var __DAGUANYUAN_MATH_API_GLOBAL__ = (function () {
     if (!match) return Promise.reject(new Error("题目图片引用无效"));
     return new Promise(function (resolve, reject) {
       try {
-        const request = NSMutableURLRequest.requestWithURL(NSURL.URLWithString(`https://www.cxyonly.fans/api/v1/question-assets/${match[1]}`));
+        const request = NSMutableURLRequest.requestWithURL(NSURL.URLWithString(`https://math.cxyonly.fans/api/v1/question-assets/${match[1]}`));
         request.setHTTPMethod("GET");
         request.setTimeoutInterval(20);
         NSURLConnection.sendAsynchronousRequestQueueCompletionHandler(request, NSOperationQueue.mainQueue(), function (response, data, error) {

@@ -1,5 +1,5 @@
 var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
-  const DAGUANYUAN_HOME_URL = "https://cxyonly.fans/math";
+  const DAGUANYUAN_HOME_URL = "https://math.cxyonly.fans/";
   const OS408_HOME_URL = "https://www.408os.cn/overview";
   const FRAME_KEY = "cn.marginnote.daguanyuan-bridge.panel-frame";
   const PANEL_KEY = "cn.marginnote.daguanyuan-bridge.panel-visible";
@@ -601,7 +601,9 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
   function loadURL(controller, urlString, provider) {
     if (typeof __DAGUANYUAN_AI_GLOBAL__ !== "undefined") __DAGUANYUAN_AI_GLOBAL__.cancel(controller);
     if (controller.importTask) __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__.close(controller);
-    const url = NSURL.URLWithString(urlString);
+    // 旧题卡和历史绑定仍可进入新数学站，避免再次经过旧站跳转。
+    const address = String(urlString || '').replace(/^https:\/\/(?:www\.)?cxyonly\.fans\/math(?=\/|[?#]|$)/i, 'https://math.cxyonly.fans');
+    const url = NSURL.URLWithString(address);
     if (!url) throw new Error("题库地址无效");
     const normalizedProvider = String(provider || "daguanyuan");
     controller.currentContentPage = normalizedProvider === "408os" ? "408" : "math";
@@ -660,6 +662,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
         if (expectedList) {
           var query = new URLSearchParams(window.location.search || '');
           var parts = String(window.location.pathname || '').split('/').filter(Boolean);
+          if (window.location.hostname === 'math.cxyonly.fans' && parts[0] !== 'math') parts.unshift('math');
           var grouped = parts.length === 5 && parts[0] === 'math' && parts[1] === 'practice';
           var activeList = query.get('listId') || (grouped ? decodeURIComponent(parts[2]) : '');
           var activeCategory = Number(query.get('categoryId') || (grouped ? parts[4] : 0));
@@ -786,7 +789,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       try {
         if (error) throw error;
         const current = JSON.parse(String(contextJSON || ""));
-        if (controller.currentContentPage !== "math" || !/^https:\/\/(?:www\.)?cxyonly\.fans\//i.test(String(current.url || ""))) {
+        if (controller.currentContentPage !== "math" || !/^https:\/\/(?:www\.|math\.)?cxyonly\.fans\//i.test(String(current.url || ""))) {
           throw new Error("请先在数学题库选择完整、严选或真题范围");
         }
         const list = current.selection && current.selection.listId;
@@ -822,7 +825,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
             if (waitingForMathDocument && (error || !raw)) { resolve(null); return; }
             if (error) throw error;
             const current = JSON.parse(String(raw || ''));
-            if (controller.currentContentPage !== 'math' || !/^https:\/\/(?:www\.)?cxyonly\.fans\//i.test(String(current.url || ''))) {
+            if (controller.currentContentPage !== 'math' || !/^https:\/\/(?:www\.|math\.)?cxyonly\.fans\//i.test(String(current.url || ''))) {
               if (waitingForMathDocument) { resolve(null); return; }
               throw new Error('请先打开数学题库并选择题单');
             }
@@ -887,7 +890,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       controller.pendingQuestionLocator = undefined;
       controller.questionLocatorRequestToken = Number(controller.questionLocatorRequestToken || 0) + 1;
       showPanel(controller);
-      loadURL(controller, "https://www.cxyonly.fans/math/questions/" + route.questionId + "?assistant=1", "daguanyuan");
+      loadURL(controller, "https://math.cxyonly.fans/questions/" + route.questionId + "?assistant=1", "daguanyuan");
       return;
     }
     return navigateDaguanyuanCategory(controller, route);

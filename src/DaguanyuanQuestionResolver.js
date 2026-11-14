@@ -1,5 +1,5 @@
 var __DAGUANYUAN_QUESTION_RESOLVER_GLOBAL__ = (function () {
-  const API_URL = "https://www.cxyonly.fans/api/questions";
+  const API_URL = "https://math.cxyonly.fans/api/questions";
 
   function isNil(value) {
     return value === null || typeof value === "undefined" || (typeof NSNull !== "undefined" && value instanceof NSNull);

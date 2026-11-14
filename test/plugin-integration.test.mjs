@@ -151,6 +151,22 @@ test('已在具体分类且仅有返回题单入口时可以直接定位，不�
   assert.equal(address.searchParams.get('questionId'), '338');
 });
 
+test('实际定位按钮在新数学站首页和迁移后的题单路径连续工作', async () => {
+  const run = locatorRuntime();
+  run.browser.window.location = new URL('https://math.cxyonly.fans/');
+  run.document.body.innerHTML = '<div class="learning-shell__scope-toggle" aria-label="题单，当前严选"></div>';
+  run.click(); await run.drain();
+  assert.equal(run.loaded.length, 1, run.messages.join('\n'));
+  assert.equal(new URL(run.loaded[0]).origin, 'https://math.cxyonly.fans');
+  run.browser.window.location = new URL('https://math.cxyonly.fans/practice/core-math-2/all/3?listRevision=7&scope=core&examSubject=math_2&questionId=338');
+  run.document.body.innerHTML = '<header data-learning-question-practice-toolbar><h1>基本概念题</h1></header>';
+  run.click(); await run.drain();
+  assert.equal(run.loaded.length, 2, run.messages.join('\n'));
+  assert.equal(new URL(run.loaded[1]).origin, 'https://math.cxyonly.fans');
+  assert.equal(new URL(run.loaded[1]).searchParams.get('questionId'), '338');
+  assert.equal(run.controller.panelVisible, true);
+});
+
 for (const previous of ['', '408']) test('实际定位入口从' + (previous || '首次打开') + '进入数学页，页面就绪后继续定位', async () => {
   const run = locatorRuntime({ onWait(index) {
     if (index === 2) {
@@ -165,7 +181,7 @@ for (const previous of ['', '408']) test('实际定位入口从' + (previous || 
   await run.drain();
   assert.equal(c.panelVisible, true);
   assert.equal(c.activePage, 'math');
-  assert.equal(run.loaded[0], 'https://cxyonly.fans/math', run.messages.join('\n'));
+  assert.equal(run.loaded[0], 'https://math.cxyonly.fans/', run.messages.join('\n'));
   assert.equal(run.requests[0]?.listId, 'core-math-2', run.messages.join('\n'));
   assert.equal(new URL(run.loaded[1]).searchParams.get('questionId'), '338');
 });
@@ -291,6 +307,22 @@ test('拖动和双击只绑定两侧空白区，导航与关闭按钮不包含�
   const removed = []; c.mainNavigationIndicator.layer.removeAnimationForKey = key => removed.push(key);
   run.context.NSTimer = { scheduledTimerWithTimeInterval() {} }; run.methods.closePanel();
   assert.deepEqual(removed, ['daguanyuan.panel.navigation']);
+});
+
+test('复制和导出日志前采集当前分类状态，采样异常也不会阻止日志导出', () => {
+  for (const action of ['copy', 'export']) for (const fail of [false, true]) {
+    const run = runtime(), c = run.controller, calls = [];
+    run.context.Application = { sharedInstance: () => ({ showHUD() {} }) };
+    run.context.__DAGUANYUAN_DIAGNOSTICS_GLOBAL__ = { copy() { calls.push('copy'); }, exportFile() { calls.push('export'); } };
+    run.context.__DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = { diagnose(addon, stage) {
+      assert.equal(addon, c.addon); calls.push(stage);
+      if (fail) throw Error('采样接口暂时不可用');
+    } };
+    run.methods.openSettings(); run.methods.selectSettingsSection(c.settingsNavigationButtons[3]);
+    run.methods.openDiagnosticLogs(); const menu = c.cardLocationModeChoice;
+    run.methods.selectDiagnosticLogAction(menu.buttons[action === 'copy' ? 1 : 0]);
+    assert.deepEqual(calls, [action + '_logs', action]);
+  }
 });
 
 test('诊断日志入口只在关于插件可用，导出复制分发正确，清空二次确认且拒绝旧按钮', () => {

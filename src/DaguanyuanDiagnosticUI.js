@@ -7,6 +7,12 @@ var __DAGUANYUAN_DIAGNOSTIC_UI_GLOBAL__ = (function () {
     function hud(message) { Application.sharedInstance().showHUD(message, controller.addon.window, 3); }
     menu.chooseOption(controller, '诊断日志（仅保存在本机）', ['export', 'copy', 'clear'], ['导出日志', '复制日志', '清空日志'], null, 'selectDiagnosticLogAction:', function (action) {
       try {
+        try {
+          if ((action === 'export' || action === 'copy') && typeof __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ !== 'undefined'
+            && typeof __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.diagnose === 'function') {
+            __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__.diagnose(controller.addon, action === 'copy' ? 'copy_logs' : 'export_logs');
+          }
+        } catch (ignored) { /* 采样失败不能阻止用户取得已有日志。 */ }
         if (action === 'export') logs.exportFile();
         else if (action === 'copy') { logs.copy(); hud('诊断日志已复制'); }
         else if (action === 'clear') menu.chooseOption(controller, '确定清空全部诊断日志？', ['confirm'], ['清空日志'], null, 'selectDiagnosticLogAction:', function () {

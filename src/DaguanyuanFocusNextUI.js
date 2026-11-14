@@ -34,7 +34,8 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
   function viewFor(addon) {
     const application = Application.sharedInstance();
     const focusWindow = application && application.focusWindow;
-    const candidates = [addon && addon.window, focusWindow, undefined];
+    // 已知所属窗口时只等待该窗口，避免脑图切换期间把按钮移到另一窗口。
+    const candidates = addon && addon.window ? [addon.window] : [focusWindow, undefined];
     for (const window of candidates) {
       try {
         const controller = window === undefined ? application.studyController() : application.studyController(window);
@@ -42,6 +43,16 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
       } catch (ignored) {}
     }
     return undefined;
+  }
+
+  function isAttachedToView(button, view) {
+    if (!button || !view) return false;
+    try {
+      // 原生对象的 JS 包装可能不同，优先用原生子视图集合判断归属。
+      const children = typeof view.subviews === 'function' ? view.subviews() : view.subviews;
+      if (children && typeof children.containsObject === 'function') return Boolean(children.containsObject(button));
+    } catch (ignored) { /* 旧环境没有集合接口时保留原来的引用比较。 */ }
+    return button.superview === view;
   }
 
   function buttonWidth(button) {
@@ -198,37 +209,130 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     const focusNote = note || (addon && addon.__daguanyuanFocusNextLastFocus);
     const title = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.parentTitle(focusNote);
     const widthChanged = setAdaptiveTitle(button, title);
+    button.__daguanyuanDisplayedCategoryTitle = title;
     if (widthChanged || Number(button.frame && button.frame.width) !== buttonWidth(button)) place(addon);
     return title;
   }
 
-  function hasVisibleNavigation(addon) {
-    return [addon && addon.__daguanyuanFocusCategoryButton, addon && addon.__daguanyuanQuestionLocatorButton]
-      .some(function (button) { return button && button.superview && !button.hidden; });
+  function diagnosticValue(object, key) {
+    try {
+      const value = object && object[key];
+      return typeof value === 'function' ? value.call(object) : value;
+    } catch (ignored) { return undefined; }
+  }
+
+  function diagnose(addon, stage) {
+    // 只记录计数和相等关系，不记录学习集 ID、卡片 ID、标题或正文，也不重启刷新。
+    if (!addon || typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ === 'undefined') return;
+    try {
+      const app = Application.sharedInstance(), study = app.studyController(addon.window);
+      const notebook = diagnosticValue(study, 'notebookController');
+      const bookId = String(diagnosticValue(notebook, 'notebookId') || '');
+      if (bookId && addon.__daguanyuanFocusNextTraceNotebookId !== bookId) {
+        addon.__daguanyuanFocusNextTraceNotebookId = bookId;
+        addon.__daguanyuanFocusNextTraceNotebookSequence = Number(addon.__daguanyuanFocusNextTraceNotebookSequence || 0) + 1;
+      }
+      const focus = diagnosticValue(notebook, 'focusNote'), visible = diagnosticValue(notebook, 'visibleFocusNote');
+      const memory = addon.__daguanyuanFocusNextLastFocus, view = diagnosticValue(study, 'view');
+      const category = addon.__daguanyuanFocusCategoryButton, locator = addon.__daguanyuanQuestionLocatorButton;
+      function relation(left, right) { return !left || !right ? 'unknown' : String(left) === String(right) ? 'match' : 'mismatch'; }
+      function membership(note) { return relation(diagnosticValue(note, 'notebookId'), bookId); }
+      function sameNote(note) { return relation(diagnosticValue(note, 'noteId'), diagnosticValue(memory, 'noteId')); }
+      function buttonState(button) {
+        if (!button) return 'missing';
+        if (diagnosticValue(button, 'hidden')) return 'hidden';
+        const parent = diagnosticValue(button, 'superview');
+        return isAttachedToView(button, view) ? 'attached' : parent ? 'other_view' : 'detached';
+      }
+      function titleMatches(note) {
+        return note && category ? relation(category.__daguanyuanDisplayedCategoryTitle, __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.parentTitle(note)) : 'unknown';
+      }
+      const state = {
+        notebookSequence: Number(addon.__daguanyuanFocusNextTraceNotebookSequence || 0),
+        notebookMatchesOpening: relation(bookId, addon.__daguanyuanFocusNextOpeningNotebookId),
+        viewAvailable: view ? 1 : 0, categoryState: buttonState(category), locatorState: buttonState(locator),
+        focusInNotebook: membership(focus), visibleFocusInNotebook: membership(visible), memoryInNotebook: membership(memory),
+        focusMatchesMemory: sameNote(focus), visibleFocusMatchesMemory: sameNote(visible),
+        categoryMatchesFocus: titleMatches(focus), categoryMatchesVisible: titleMatches(visible), categoryMatchesMemory: titleMatches(memory),
+      };
+      const key = JSON.stringify(state), now = Date.now();
+      if (stage === 'loop_sample' && addon.__daguanyuanFocusNextTraceKey === key
+        && now - Number(addon.__daguanyuanFocusNextTraceAt || 0) < 5000) return;
+      addon.__daguanyuanFocusNextTraceKey = key;
+      addon.__daguanyuanFocusNextTraceAt = now;
+      state.stage = stage;
+      state.loopGeneration = Number(addon.__daguanyuanFocusNextRememberToken || 0);
+      state.tickCount = Number(addon.__daguanyuanFocusNextTickCount || 0);
+      state.heartbeatAgeMs = addon.__daguanyuanFocusNextTickAt === undefined ? -1 : Math.max(0, now - addon.__daguanyuanFocusNextTickAt);
+      __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.info('focus.trace', state);
+    } catch (ignored) { /* 诊断采样不能影响选卡和原来的刷新任务。 */ }
+  }
+
+  function activeButtons(addon) {
+    if (!addon) return [];
+    const core = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__;
+    // 原生 hidden 在学习集切换期间会暂时为真，不能把它当作用户关闭跟随。
+    return [addon.__daguanyuanFocusCategoryRequested === true && core.categoryEnabled() && addon.__daguanyuanFocusCategoryButton,
+      addon.__daguanyuanQuestionLocatorRequested === true && core.questionLocatorEnabled() && addon.__daguanyuanQuestionLocatorButton]
+      .filter(Boolean);
+  }
+
+  function restoreNavigationViews(addon) {
+    const view = viewFor(addon);
+    if (!view) return false;
+    let changed = false;
+    for (const button of activeButtons(addon)) {
+      if (button.hidden) button.hidden = false;
+      if (isAttachedToView(button, view)) continue;
+      if (button.superview) button.removeFromSuperview();
+      view.addSubview(button);
+      changed = true;
+    }
+    if (changed) place(addon);
+    return true;
   }
 
   function rememberLoop(addon, token) {
-    if (!addon || addon.__daguanyuanFocusNextRememberToken !== token || !hasVisibleNavigation(addon)) return;
-    const note = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.rememberFocus(addon);
-    refreshCategory(addon, note);
-    if (typeof NSTimer !== "undefined" && NSTimer.scheduledTimerWithTimeInterval) NSTimer.scheduledTimerWithTimeInterval(0.15, false, function () { rememberLoop(addon, token); });
+    if (!addon || addon.__daguanyuanFocusNextRememberToken !== token) return;
+    if (!activeButtons(addon).length) { diagnose(addon, 'loop_inactive'); return; }
+    addon.__daguanyuanFocusNextTickCount = Number(addon.__daguanyuanFocusNextTickCount || 0) + 1;
+    addon.__daguanyuanFocusNextTickAt = Date.now();
+    try {
+      // 切换脑图时学习界面可能暂时消失或被替换，不能据此结束选卡跟随。
+      if (restoreNavigationViews(addon)) {
+        const note = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.rememberFocus(addon);
+        refreshCategory(addon, note);
+        addon.__daguanyuanFocusNextRefreshFailed = false;
+      }
+    } catch (error) {
+      if (!addon.__daguanyuanFocusNextRefreshFailed) console.log(`[Daguanyuan Bridge Focus Next] 刷新暂时失败，将自动重试：${error && error.message || error}`);
+      if (!addon.__daguanyuanFocusNextRefreshFailed && typeof __DAGUANYUAN_DIAGNOSTICS_GLOBAL__ !== 'undefined') {
+        try { __DAGUANYUAN_DIAGNOSTICS_GLOBAL__.error('focus.refresh.failure', error, { stage: 'refresh_category' }); }
+        catch (ignored) { /* 日志异常不能中断下一轮刷新。 */ }
+      }
+      addon.__daguanyuanFocusNextRefreshFailed = true;
+    } finally {
+      diagnose(addon, 'loop_sample');
+      if (addon.__daguanyuanFocusNextRememberToken === token && activeButtons(addon).length
+        && typeof NSTimer !== "undefined" && NSTimer.scheduledTimerWithTimeInterval) {
+        NSTimer.scheduledTimerWithTimeInterval(0.15, false, function () { rememberLoop(addon, token); });
+      }
+    }
   }
 
   function startRemembering(addon) {
     if (!addon) return;
     const token = Number(addon.__daguanyuanFocusNextRememberToken || 0) + 1;
     addon.__daguanyuanFocusNextRememberToken = token;
-    if (!hasVisibleNavigation(addon)) return;
-    const note = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.rememberFocus(addon);
-    refreshCategory(addon, note);
-    if (typeof NSTimer === "undefined" || !NSTimer.scheduledTimerWithTimeInterval) return;
-    NSTimer.scheduledTimerWithTimeInterval(0.15, false, function () { rememberLoop(addon, token); });
+    diagnose(addon, 'loop_start');
+    rememberLoop(addon, token);
   }
 
   function show(addon) {
+    if (!addon) return false;
     const view = viewFor(addon);
-    if (!view) return false;
     const showCategory = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.categoryEnabled();
+    addon.__daguanyuanFocusCategoryRequested = Boolean(showCategory);
     const buttonDefinitions = [
       { property: "__daguanyuanFocusCategoryButton", title: "无题型分类", action: "openFocusCategory:", panAction: "handleFocusCategoryButtonPan:", visible: showCategory },
     ];
@@ -255,7 +359,7 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
         button.addGestureRecognizer(new UIPanGestureRecognizer(addon, definition.panAction));
         addon[definition.property] = button;
       }
-      if (button.superview !== view) {
+      if (view && !isAttachedToView(button, view)) {
         if (button.superview) button.removeFromSuperview();
         view.addSubview(button);
       }
@@ -264,14 +368,15 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     place(addon);
     schedulePlace(addon);
     startRemembering(addon);
-    return true;
+    return Boolean(view);
   }
 
   function syncQuestionLocator(addon) {
+    if (!addon) return false;
     const view = viewFor(addon);
-    if (!addon || !view) return false;
     let button = addon.__daguanyuanQuestionLocatorButton;
-    if (!__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.questionLocatorEnabled()) {
+    addon.__daguanyuanQuestionLocatorRequested = Boolean(__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.questionLocatorEnabled());
+    if (!addon.__daguanyuanQuestionLocatorRequested) {
       if (button) {
         button.hidden = true;
         if (button.superview) button.removeFromSuperview();
@@ -294,7 +399,7 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
       addon.__daguanyuanQuestionLocatorButton = button;
     }
     button.__daguanyuanContentWidth = BUTTON_WIDTH;
-    if (button.superview !== view) {
+    if (view && !isAttachedToView(button, view)) {
       if (button.superview) button.removeFromSuperview();
       view.addSubview(button);
     }
@@ -302,11 +407,13 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     place(addon);
     schedulePlace(addon);
     startRemembering(addon);
-    return true;
+    return Boolean(view);
   }
 
   function hide(addon) {
     if (addon) {
+      addon.__daguanyuanFocusCategoryRequested = false;
+      addon.__daguanyuanQuestionLocatorRequested = false;
       addon.__daguanyuanFocusNextRememberToken = Number(addon.__daguanyuanFocusNextRememberToken || 0) + 1;
       addon.__daguanyuanFocusNextPlaceToken = Number(addon.__daguanyuanFocusNextPlaceToken || 0) + 1;
     }
@@ -316,6 +423,7 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
       button.hidden = true;
       if (button.superview) button.removeFromSuperview();
     }
+    diagnose(addon, 'navigation_hidden');
   }
 
   function remove(addon) {
@@ -343,5 +451,6 @@ var __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__ = (function () {
     refreshCategory,
     syncQuestionLocator,
     handleQuestionLocatorPan,
+    diagnose,
   };
 })();

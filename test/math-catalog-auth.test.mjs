@@ -6,7 +6,7 @@ const source = file => fs.readFileSync(new URL('../' + file, import.meta.url), '
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function browser(options = {}) {
   const requests = [], storage = new Map([['daguan_token', 'fixture-login-secret']]);
-  const context = { URL, URLSearchParams, location: new URL('https://www.cxyonly.fans/math/practice'),
+  const context = { URL, URLSearchParams, location: new URL(options.address || 'https://www.cxyonly.fans/math/practice'),
     localStorage: { getItem: key => storage.get(key) }, AbortController, setTimeout, clearTimeout,
     fetch: async (url, init) => { requests.push({ url, init }); return options.fetch ? options.fetch(url, init)
       : { ok: true, json: async () => [{ id: 1, parent_id: null, name: '高等数学', children: [] }] }; } };
@@ -44,8 +44,9 @@ test('网页只接受数学分类及题目 GET 地址，拒绝外站及写入接
   assert.equal(run.requests.length, 0);
 });
 
-for (const path of ['/math/practice/core-math-2/326/566', '/math/practice/concepts/42?scope=core&examSubject=math_2']) test('真实网页登录分页读取未加载题目并仅下载勾选详情：' + path, async () => {
-  const run = browser({ fetch: async address => {
+for (const path of ['/math/practice/core-math-2/326/566', '/math/practice/concepts/42?scope=core&examSubject=math_2', '/practice/core-math-2/326/566', '/practice/concepts/42?scope=core&examSubject=math_2']) test('真实网页登录分页读取未加载题目并仅下载勾选详情：' + path, async () => {
+  const address = (path.startsWith('/math/') ? 'https://cxyonly.fans' : 'https://math.cxyonly.fans') + path;
+  const run = browser({ address, fetch: async address => {
     const url = new URL(address, 'https://www.cxyonly.fans');
     let payload;
     if (url.pathname === '/api/questions') {
@@ -78,7 +79,6 @@ for (const path of ['/math/practice/core-math-2/326/566', '/math/practice/concep
       return { createdCount: ids.length, failed: [] };
     } }; },
   };
-  const address = 'https://cxyonly.fans' + path;
   const confirm = async plan => { assert.equal(plan.questions.length, 21); assert.equal(run.requests.length, 2); return [21]; };
   confirm.check = () => {};
   const result = await native.__DAGUANYUAN_MATH_SELECTION_GLOBAL__.importPage({ panelController: controller }, {
@@ -174,7 +174,7 @@ test('未登录和外站不请求；换账号或换页拒绝旧目录，新筛�
   const anonymous = browser(); anonymous.storage.clear();
   assert.throws(() => anonymous.page.begin('task', 'complete', 'all'), /登录/); assert.equal(anonymous.requests.length, 0);
   const foreign = browser(); foreign.context.location = new URL('https://www.408os.cn/exercise');
-  assert.throws(() => foreign.page.begin('task', 'complete', 'all'), /登录/); assert.equal(foreign.requests.length, 0);
+  assert.throws(() => foreign.page.begin('task', 'complete', 'all'), /不是大观园数学站/); assert.equal(foreign.requests.length, 0);
   for (const change of ['account', 'route']) {
     const run = browser(); run.page.begin('task', 'complete', 'all'); await tick();
     if (change === 'account') run.storage.set('daguan_token', 'different-account'); else run.context.location = new URL('https://www.cxyonly.fans/math/paper');

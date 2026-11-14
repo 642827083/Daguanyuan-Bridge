@@ -1,9 +1,9 @@
 (function () {
-  if (window.__DAGUANYUAN_MATH_CATALOG_PAGE__ && window.__DAGUANYUAN_MATH_CATALOG_PAGE__.version === 5) return;
+  if (window.__DAGUANYUAN_MATH_CATALOG_PAGE__ && window.__DAGUANYUAN_MATH_CATALOG_PAGE__.version === 6) return;
   const entries = new Map();
   const login = '请先打开插件“数学”页并登录大观园，再返回导入页重试';
   function identity() {
-    if (!/^https:\/\/(?:www\.)?cxyonly\.fans$/.test(window.location.origin)) throw Error(login);
+    if (!/^https:\/\/(?:www\.|math\.)?cxyonly\.fans$/.test(window.location.origin)) throw Error('当前网页不是大观园数学站，请先打开插件“数学”页后重试');
     return String(window.localStorage.getItem('daguan_token') || window.localStorage.getItem('token') || '');
   }
   function release(token) {
@@ -89,5 +89,5 @@
     if (!item || item.status !== 'ready' || !Number.isSafeInteger(offset) || offset < 0) throw Error('分类传输已失效');
     item.check(); return item.data.slice(offset, offset + 65536);
   }
-  window.__DAGUANYUAN_MATH_CATALOG_PAGE__ = { version: 5, begin, beginRead, read, chunk, release };
+  window.__DAGUANYUAN_MATH_CATALOG_PAGE__ = { version: 6, begin, beginRead, read, chunk, release };
 })();

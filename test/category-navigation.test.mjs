@@ -49,7 +49,7 @@ test("完整路径忽略额外根节点和章节编号并生成分类直达地�
   assert.equal(result.status, "resolved");
   assert.equal(result.categoryId, 346);
   assert.equal(result.routeCategoryId, 321);
-  assert.equal(routes.urlFor(result), "https://www.cxyonly.fans/math/practice/321?resumeCategoryId=346");
+  assert.equal(routes.urlFor(result), "https://math.cxyonly.fans/practice/categories/346");
 });
 
 test("路径不足以区分同名分类时拒绝猜测", () => {
@@ -64,7 +64,7 @@ test("题目定位根据同级序号生成分页地址和页内位置", () => {
   const routes = categoryRoutes();
   const result = routes.resultForCategoryId(346);
   const route = routes.questionRouteFor(result, 24);
-  assert.equal(route.url, "https://www.cxyonly.fans/math/practice/321?resumeCategoryId=346");
+  assert.equal(route.url, "https://math.cxyonly.fans/practice/categories/346");
   assert.equal(route.categoryId, 346);
   assert.equal(route.page, 2);
   assert.equal(route.indexOnPage, 4);

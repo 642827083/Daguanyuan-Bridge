@@ -52,7 +52,8 @@ test('定位题目保留真实题单和备考科目，旧分类链接不再触�
   await tick();
   assert.equal(run.opened.length, 1);
   const url = new URL(run.opened[0]);
-  assert.equal(url.pathname, '/math/practice');
+  assert.equal(url.origin, 'https://math.cxyonly.fans');
+  assert.equal(url.pathname, '/practice');
   assert.equal(url.searchParams.get('listId'), 'core-math-1');
   assert.equal(url.searchParams.get('listRevision'), '7');
   assert.equal(url.searchParams.get('examSubject'), 'math_1');
@@ -191,7 +192,8 @@ test('从截图对应的数二严选首页执行定位，不再打开题单选�
   await run.context.openDaguanyuanQuestion(run.controller, run.route);
   assert.equal(run.requests[0].listId, 'core-math-2');
   const address = new URL(run.opened[0]);
-  assert.equal(address.pathname, '/math/practice');
+  assert.equal(address.origin, 'https://math.cxyonly.fans');
+  assert.equal(address.pathname, '/practice');
   assert.equal(address.searchParams.get('listId'), 'core-math-2');
   assert.equal(address.searchParams.get('scope'), 'core');
   assert.equal(address.searchParams.get('examSubject'), 'math_2');
@@ -369,7 +371,8 @@ test('查看原题在保存的分类中按真实 ID 打开，不退到独立详�
   const run = runtime();
   await run.context.openDaguanyuanQuestion(run.controller, { ...run.route, imported: true, questionNumber: 0, questionId: 2801 });
   const address = new URL(run.opened[0]);
-  assert.equal(address.pathname, '/math/practice');
+  assert.equal(address.origin, 'https://math.cxyonly.fans');
+  assert.equal(address.pathname, '/practice');
   assert.equal(address.searchParams.get('categoryId'), '704');
   assert.equal(address.searchParams.get('questionId'), '2801');
   assert.equal(address.searchParams.get('listId'), 'complete');
@@ -444,7 +447,8 @@ for (const detailOnly of [false, true]) test('查看原题完整网页桥按来�
     ? { url: 'https://cxyonly.fans/math/questions/2801', imported: true, questionId: 2801 }
     : { ...run.route, imported: true, questionId: 2801 });
   assert.equal(run.messages.length, 1);
-  assert.equal(new URL(run.opened[0]).pathname, '/math/practice');
+  assert.equal(new URL(run.opened[0]).origin, 'https://math.cxyonly.fans');
+  assert.equal(new URL(run.opened[0]).pathname, '/practice');
   const path = requests.find(path => path.includes('/position?')), query = new URL(path, browser.context.location).searchParams;
   assert.match(path, /question-lists\/complete\/position/);
   assert.equal(query.get('question_id'), '2801');

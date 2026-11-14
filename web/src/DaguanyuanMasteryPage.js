@@ -26,7 +26,7 @@
   function begin(token, id, mastery, provider = 'math') {
     const loginMessage = provider === '408' ? '请先在插件 408 面板登录 408 网站' : '请先在插件数学面板登录大观园';
     if (location.protocol !== 'https:' || (provider === '408' ? location.hostname !== 'www.408os.cn'
-      : provider !== 'math' || !/^(www\.)?cxyonly\.fans$/.test(location.hostname))) throw Error(loginMessage);
+      : provider !== 'math' || !/^(?:www\.|math\.)?cxyonly\.fans$/.test(location.hostname))) throw Error(loginMessage);
     if (!/^[\w-]{1,100}$/.test(token) || !Number.isSafeInteger(id) || id < 1
       || !['needs_practice', 'not_known', 'mastered'].includes(mastery)) throw Error('掌握标记参数无效');
     if (task) throw Error('正在同步掌握状态，请稍后再试');

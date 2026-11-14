@@ -522,7 +522,7 @@ var __DAGUANYUAN_MATH_IMPORT_GLOBAL__ = (function () {
         if (existing) return false;
         if (provider === "408" && (!category || !/^https:\/\/www\.408os\.cn\/exercise\?/.test(category.url))) throw new Error("408 题目页面信息无效");
         const url = provider === "408" ? `${category.url}&questionId=${id}`
-          : category && /^https:\/\/(?:www\.)?cxyonly\.fans\/math\/practice\/(?:categories\/)?\d+\/?$/.test(category.url)
+          : category && /^https:\/\/(?:www\.|math\.)?cxyonly\.fans\/(?:math\/)?practice\/(?:categories\/)?\d+\/?$/.test(category.url)
             ? `${category.url}?questionId=${id}` : questionURL(question.categoryId, id);
         const markdown = questionMarkdown(question);
         let note;

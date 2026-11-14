@@ -115,7 +115,7 @@ test("复测页笔记藏在更多操作时先展开，再粘贴到当前题目�
   vm.createContext(context);
   assert.equal(vm.runInContext(receiver, context), true);
   const page = context.window.__DAGUANYUAN_NOTE_PASTE__;
-  assert.equal(page.version, 6);
+  assert.equal(page.version, 8);
   assert.equal(page.prepare(4042, "token", "image/png", "note.png"), true);
   assert.equal(page.append("token", "AQID"), true);
   assert.equal(page.commit("token"), true);
@@ -127,10 +127,11 @@ test("复测页笔记藏在更多操作时先展开，再粘贴到当前题目�
   assert.equal(plugin.disabled, false);
 });
 
-for (const mode of ['retest', 'category', 'focus', 'paper']) test('卡片外的题目笔记编辑器仍能添加图片：' + mode, async () => {
+for (const modern of [false, true]) for (const mode of ['retest', 'category', 'focus', 'paper']) test('卡片外的题目笔记编辑器仍能添加图片：' + mode + (modern ? ' 新数学站' : ' 旧数学站'), async () => {
   const image = { pngData() { return { length: 3, base64Encoding() { return "AQID"; } }; } };
-  const path = mode === 'retest' ? '/math/retest' : mode === 'category' ? '/math/practice/categories/345' : mode === 'paper' ? '/math/paper' : '/math/practice';
-  const { controller, scripts, paste } = runtime(image, 'https://cxyonly.fans' + path);
+  const oldPath = mode === 'retest' ? '/math/retest' : mode === 'category' ? '/math/practice/categories/345' : mode === 'paper' ? '/math/paper' : '/math/practice';
+  const path = modern ? oldPath.slice(5) : oldPath, hostname = modern ? 'math.cxyonly.fans' : 'cxyonly.fans';
+  const { controller, scripts, paste } = runtime(image, 'https://' + hostname + path);
   await paste.start(controller, 4042);
   const receiver = scripts.find((script) => script.includes("function pageReceiver()"));
   const queued = [];
@@ -160,7 +161,7 @@ for (const mode of ['retest', 'category', 'focus', 'paper']) test('卡片外的�
   };
   const context = {
     window: {
-      location: { hostname: "cxyonly.fans", pathname: path },
+      location: { hostname: hostname, pathname: path },
       setTimeout(callback) { queued.push(callback); },
       getSelection() { return { removeAllRanges() {}, addRange() {} }; },
     },

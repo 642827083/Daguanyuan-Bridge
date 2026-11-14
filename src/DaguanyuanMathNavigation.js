@@ -92,7 +92,7 @@ var __DAGUANYUAN_MATH_NAVIGATION_GLOBAL__ = (function () {
             ['practiceOrigin', 'list'], ['page', page]];
           if (question) parameters.push(['questionId', question.id]);
           const query = parameters.map(function (pair) { return pair[0] + '=' + encodeURIComponent(String(pair[1])); }).join('&');
-          return Object.assign({}, route, selected, { url: 'https://cxyonly.fans/math/practice?' + query,
+          return Object.assign({}, route, selected, { url: 'https://math.cxyonly.fans/practice?' + query,
             questionId: question ? question.id : 0, listRevision: revision, categoryId: target.categoryId, modern: true, page, pageSize: 30 });
         });
       });
@@ -135,7 +135,7 @@ var __DAGUANYUAN_MATH_NAVIGATION_GLOBAL__ = (function () {
               ['categoryId', target.categoryId], ['scope', selected.scope], ['examSubject', selected.examSubject],
               ['practiceOrigin', 'list'], ['page', position.page], ['questionId', questionId]]
               .map(function (pair) { return pair[0] + '=' + encodeURIComponent(String(pair[1])); }).join('&');
-            return Object.assign({}, route, range, { url: 'https://cxyonly.fans/math/practice?' + query,
+            return Object.assign({}, route, range, { url: 'https://math.cxyonly.fans/practice?' + query,
               questionId, questionNumber: 0, imported: true, modern: true, page: position.page, pageSize: 30 });
           });
         });

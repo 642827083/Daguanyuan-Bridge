@@ -66,7 +66,7 @@ test('大观园数学直接打开本题 AI，408 问 AI 从分类改用单题入
   const panel = source('WebPanelController'), start = panel.indexOf('function openDaguanyuanQuestion(controller, route)');
   vm.runInContext(panel.slice(start, panel.indexOf('function open408Question', start)), context);
   context.openDaguanyuanQuestion(c, { askAi: true, imported: true, provider: 'math', questionId: 42, url: 'https://www.cxyonly.fans/math/practice/categories/8' });
-  assert.equal(calls[0], 'https://www.cxyonly.fans/math/questions/42?assistant=1');
+  assert.equal(calls[0], 'https://math.cxyonly.fans/questions/42?assistant=1');
   context.openDaguanyuanQuestion(c, { askAi: true, imported: true, provider: '408', questionId: 42, year: 0, url: 'https://www.408os.cn/exercise?knowledgeId=53' });
   assert.equal(calls[1], 'https://www.408os.cn/exercise?questionId=42'); assert.equal(calls[2][1], 42);
 });

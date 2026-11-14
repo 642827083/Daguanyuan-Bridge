@@ -2,7 +2,7 @@
   if (window.__DAGUANYUAN_MATH_IMAGE_PAGE__) return;
   const entries = new Map();
   function origin() {
-    if (!/^https:\/\/(?:www\.)?cxyonly\.fans$/.test(window.location.origin)) throw new Error('请先在数学题库网页打开并登录大观园');
+    if (!/^https:\/\/(?:www\.|math\.)?cxyonly\.fans$/.test(window.location.origin)) throw new Error('请先在数学题库网页打开并登录大观园');
   }
   function authToken() {
     // 只沿用大观园网站已有的登录信息，不传入原生侧，也不另行保存。

@@ -1,7 +1,7 @@
 var __DAGUANYUAN_CATEGORY_CATALOG_STORE_GLOBAL__ = (function () {
   const DIRECTORY_NAME = "DaguanyuanBridge";
   const FILE_NAME = "category-catalog.json";
-  const SOURCE_URL = "https://www.cxyonly.fans/api/categories";
+  const SOURCE_URL = "https://math.cxyonly.fans/api/categories";
   const SCHEMA_VERSION = 1;
   const MIN_REMOTE_RECORD_COUNT = 100;
   let cachedCatalog;
