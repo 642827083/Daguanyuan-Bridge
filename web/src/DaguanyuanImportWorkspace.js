@@ -145,7 +145,7 @@ import MNBridge from './lib/mnBridge.js';
       .concat((q.previewImages || []).filter(function (url) { return /^https:\/\//.test(url); }));
     Array.from(new Set(refs)).forEach(function (ref) {
       const img = document.createElement('img'); img.className = 'question-image'; img.loading = 'lazy'; img.alt = '题目图片';
-      img.src = ref.indexOf('asset://') === 0 ? 'https://math.cxyonly.fans/api/v1/question-assets/' + ref.split('/').pop()
+      img.src = ref.indexOf('asset://') === 0 ? __DAGUANYUAN_MATH_SITE_GLOBAL__.url('/api/v1/question-assets/' + ref.split('/').pop())
         : ref.indexOf('https://') === 0 ? ref : ref.slice(ref.indexOf('](') + 2, -1);
       card.appendChild(img);
     });

@@ -34,6 +34,7 @@ function createDaguanyuanBridgeAddon(mainPath) {
 
     notebookWillOpen: function (topicid) {
       const navigation = __DAGUANYUAN_FOCUS_NEXT_UI_GLOBAL__;
+      if (typeof navigation.finishDrag === 'function') navigation.finishDrag(self);
       self.__daguanyuanFocusNextOpeningNotebookId = String(topicid || '');
       if (typeof navigation.diagnose === 'function') navigation.diagnose(self, 'notebook_open_enter');
       let stage = 'register_card_tools';
@@ -108,10 +109,6 @@ function createDaguanyuanBridgeAddon(mainPath) {
     },
 
     openFocusCategory: function (sender) {
-      if (self.__daguanyuanFocusCategorySuppressTap) {
-        self.__daguanyuanFocusCategorySuppressTap = false;
-        return;
-      }
       if (!__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.categoryJumpEnabled()) return;
       try {
         const source = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.currentCategorySource(self);
@@ -149,10 +146,6 @@ function createDaguanyuanBridgeAddon(mainPath) {
     },
 
     locateQuestion: function (sender) {
-      if (self.__daguanyuanQuestionLocatorSuppressTap) {
-        self.__daguanyuanQuestionLocatorSuppressTap = false;
-        return;
-      }
       try {
         const focused = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.navigationNote(self);
         const context = __DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__.currentQuestionContext(self, focused);

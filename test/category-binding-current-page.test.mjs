@@ -1,3 +1,4 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -61,7 +62,7 @@ function runtime(options = {}) {
     } },
   });
   for (const name of ['DaguanyuanCategoryRoutes', 'DaguanyuanWebsiteBridge', 'DaguanyuanMathNavigation', 'DaguanyuanMathSelection', 'WebBridgeCommands', 'WebPanelController']) {
-    vm.runInContext(readFileSync(new URL(`../src/${name}.js`, import.meta.url), 'utf8'), native);
+    vm.runInContext(withMathSite(readFileSync(new URL(`../src/${name}.js`, import.meta.url), 'utf8')), native);
   }
   native.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.replaceCatalog({ records });
   controller.addon.panelController = controller;

@@ -1,3 +1,4 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -44,11 +45,11 @@ function runtime(options = {}) {
     __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__: { resultForCategoryId() { return { status: 'resolved', categoryId: 1, path: ['数学', '分类'] }; }, urlFor() { return 'https://www.cxyonly.fans/math/practice/1'; } },
   };
   vm.createContext(context);
-  vm.runInContext(readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8'), context);
-  vm.runInContext(readFileSync(new URL('../src/DaguanyuanCardComments.js', import.meta.url), 'utf8'), context);
-  vm.runInContext(readFileSync(new URL('../src/DaguanyuanCommentFold.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(withMathSite(readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8')), context);
+  vm.runInContext(withMathSite(readFileSync(new URL('../src/DaguanyuanCardComments.js', import.meta.url), 'utf8')), context);
+  vm.runInContext(withMathSite(readFileSync(new URL('../src/DaguanyuanCommentFold.js', import.meta.url), 'utf8')), context);
   context.__DAGUANYUAN_COMMENT_FOLD_GLOBAL__.setEnabled(Boolean(options.fold));
-  vm.runInContext(readFileSync(new URL('../src/DaguanyuanMathImport.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(withMathSite(readFileSync(new URL('../src/DaguanyuanMathImport.js', import.meta.url), 'utf8')), context);
   return { context, notebook, selection, notes, creations, refreshes, question, database, foldWrites,
     writer: context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__, addon: { window: {} }, get requests() { return requests; } };
 }
@@ -100,8 +101,8 @@ test('数学主分类未收录但其他真实归属分类有效时仍可建卡�
 
 test('66 题跨页选题与分类修复贯通真实建卡，重复导入全部跳过且保留原有评论', async () => {
   const run = runtime();
-  vm.runInContext(readFileSync(new URL('../src/DaguanyuanCategoryRoutes.js', import.meta.url), 'utf8'), run.context);
-  vm.runInContext(readFileSync(new URL('../src/DaguanyuanMathSelection.js', import.meta.url), 'utf8'), run.context);
+  vm.runInContext(withMathSite(readFileSync(new URL('../src/DaguanyuanCategoryRoutes.js', import.meta.url), 'utf8')), run.context);
+  vm.runInContext(withMathSite(readFileSync(new URL('../src/DaguanyuanMathSelection.js', import.meta.url), 'utf8')), run.context);
   const records = [[1, 0, '数学'], [2, 1, '积分计算']];
   const pages = [], details = [];
   const api = run.context.__DAGUANYUAN_MATH_API_GLOBAL__;

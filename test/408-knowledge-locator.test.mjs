@@ -1,12 +1,13 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const bridgeSource = fs.readFileSync(new URL('../src/DaguanyuanWebsiteBridge.js', import.meta.url), 'utf8');
-const routeSource = fs.readFileSync(new URL('../src/Daguanyuan408Routes.js', import.meta.url), 'utf8');
-const nextSource = fs.readFileSync(new URL('./browser/fixtures/408-next-question.js', import.meta.url), 'utf8');
-const headerSource = fs.readFileSync(new URL('./browser/fixtures/408-year-header.js', import.meta.url), 'utf8');
+const bridgeSource = withMathSite(fs.readFileSync(new URL('../src/DaguanyuanWebsiteBridge.js', import.meta.url), 'utf8'));
+const routeSource = withMathSite(fs.readFileSync(new URL('../src/Daguanyuan408Routes.js', import.meta.url), 'utf8'));
+const nextSource = withMathSite(fs.readFileSync(new URL('./browser/fixtures/408-next-question.js', import.meta.url), 'utf8'));
+const headerSource = withMathSite(fs.readFileSync(new URL('./browser/fixtures/408-year-header.js', import.meta.url), 'utf8'));
 const questions = [
   { id: 12, year: 2009, questionIndex: 12 },
   { id: 419, year: 2017, questionIndex: 43 },

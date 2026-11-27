@@ -1,3 +1,4 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -42,7 +43,7 @@ function runtime(options = {}) {
     } },
   };
   vm.createContext(context);
-  for (const name of ['DaguanyuanSingleImport', 'WebPanelController']) vm.runInContext(fs.readFileSync(new URL(`../src/${name}.js`, import.meta.url), 'utf8'), context);
+  for (const name of ['DaguanyuanSingleImport', 'WebPanelController']) vm.runInContext(withMathSite(fs.readFileSync(new URL(`../src/${name}.js`, import.meta.url), 'utf8')), context);
   const panel = { currentContentPage: '408', activePage: '408', panelVisible: true, addon: { window: {} },
     view: { hidden: false, superview: study.view, removeFromSuperview() { this.superview = null; calls.push(['hide']); } },
     settingsPage: {}, categoryManagerPage: {},

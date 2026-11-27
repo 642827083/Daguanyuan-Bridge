@@ -18,7 +18,7 @@ var __DAGUANYUAN_MATH_NAVIGATION_GLOBAL__ = (function () {
   }
 
   function contextKey(current) {
-    return JSON.stringify([current.url, current.ownerKey || '', current.selection || {}, current.scope, current.examSubject]);
+    return JSON.stringify([current.url, current.ownerKey || '', current.selection || {}, current.homeListName || '', current.scope, current.examSubject]);
   }
 
   function catalogFromDirectory(directory) {
@@ -60,11 +60,16 @@ var __DAGUANYUAN_MATH_NAVIGATION_GLOBAL__ = (function () {
   }
 
   function prepare(controller, route, current, check) {
-    if (route.imported) return prepareSource(controller, route, check);
+    if (route.imported) return prepareSource(controller, route, check, current);
     return Promise.resolve().then(function () {
       if (check) check();
-      const selected = selection(current);
-      return __DAGUANYUAN_MATH_API_GLOBAL__.questionListDirectory(selected, controller, check).then(function (directory) {
+      return current.homeListName
+        ? __DAGUANYUAN_MATH_API_GLOBAL__.homeListSelection(current, controller, check)
+        : selection(current);
+    }).then(function (selected) {
+      if (check) check();
+      return __DAGUANYUAN_MATH_API_GLOBAL__.questionListDirectory(selected, controller, check, current.ownerKey,
+        current.homeListName ? selected.listRevision : 0).then(function (directory) {
         if (check) check();
         const revision = Number(directory.definition_revision);
         if (!Number.isSafeInteger(revision) || revision <= 0 || selected.listRevision && selected.listRevision !== revision) {
@@ -92,14 +97,14 @@ var __DAGUANYUAN_MATH_NAVIGATION_GLOBAL__ = (function () {
             ['practiceOrigin', 'list'], ['page', page]];
           if (question) parameters.push(['questionId', question.id]);
           const query = parameters.map(function (pair) { return pair[0] + '=' + encodeURIComponent(String(pair[1])); }).join('&');
-          return Object.assign({}, route, selected, { url: 'https://math.cxyonly.fans/practice?' + query,
+          return Object.assign({}, route, selected, { url: __DAGUANYUAN_MATH_SITE_GLOBAL__.url('/practice?' + query),
             questionId: question ? question.id : 0, listRevision: revision, categoryId: target.categoryId, modern: true, page, pageSize: 30 });
         });
       });
     });
   }
 
-  function prepareSource(controller, route, check) {
+  function prepareSource(controller, route, check, current) {
     return Promise.resolve().then(function () {
       if (check) check();
       const api = __DAGUANYUAN_MATH_API_GLOBAL__, routes = __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__;
@@ -110,7 +115,7 @@ var __DAGUANYUAN_MATH_NAVIGATION_GLOBAL__ = (function () {
       const selected = selection({ scope: source.listId ? source.scope || 'complete' : 'complete',
         examSubject: source.listId ? source.examSubject : 'all',
         selection: { listId: source.listId || 'complete', listRevision: source.listRevision || 0 } });
-      return api.questionListDirectory(selected, controller, check).then(function (directory) {
+      return api.questionListDirectory(selected, controller, check, current.ownerKey).then(function (directory) {
         if (check) check();
         const revision = Number(directory.definition_revision);
         if (!Number.isSafeInteger(revision) || revision <= 0 || selected.listRevision && selected.listRevision !== revision) {
@@ -135,7 +140,7 @@ var __DAGUANYUAN_MATH_NAVIGATION_GLOBAL__ = (function () {
               ['categoryId', target.categoryId], ['scope', selected.scope], ['examSubject', selected.examSubject],
               ['practiceOrigin', 'list'], ['page', position.page], ['questionId', questionId]]
               .map(function (pair) { return pair[0] + '=' + encodeURIComponent(String(pair[1])); }).join('&');
-            return Object.assign({}, route, range, { url: 'https://math.cxyonly.fans/practice?' + query,
+            return Object.assign({}, route, range, { url: __DAGUANYUAN_MATH_SITE_GLOBAL__.url('/practice?' + query),
               questionId, questionNumber: 0, imported: true, modern: true, page: position.page, pageSize: 30 });
           });
         });
@@ -176,7 +181,7 @@ var __DAGUANYUAN_MATH_NAVIGATION_GLOBAL__ = (function () {
     return Promise.resolve().then(function () {
       if (check) check();
       const selected = selection(current);
-      return __DAGUANYUAN_MATH_API_GLOBAL__.questionListDirectory(selected, controller, check).then(function (directory) {
+      return __DAGUANYUAN_MATH_API_GLOBAL__.questionListDirectory(selected, controller, check, current.ownerKey).then(function (directory) {
         if (check) check();
         if (!Number.isSafeInteger(directory.definition_revision) || directory.definition_revision <= 0
           || selected.listRevision && selected.listRevision !== directory.definition_revision) {

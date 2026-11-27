@@ -1,9 +1,10 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const source = readFileSync(new URL("../src/DaguanyuanWebsiteBridge.js", import.meta.url), "utf8");
+const source = withMathSite(readFileSync(new URL("../src/DaguanyuanWebsiteBridge.js", import.meta.url), "utf8"));
 
 test('数学单题按钮默认隐藏，开启后位于题目元数据末尾，关闭立即移除', () => {
   const page = browser('www.cxyonly.fans', '/math/practice/1');
@@ -189,7 +190,7 @@ function browser(hostname, pathname, search = "") {
     Number, String, encodeURIComponent,
   };
   vm.createContext(context);
-  vm.runInContext(readFileSync(new URL('../src/Daguanyuan408Routes.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(withMathSite(readFileSync(new URL('../src/Daguanyuan408Routes.js', import.meta.url), 'utf8')), context);
   vm.runInContext(source, context);
   function runSync() {
     const index = timers.findIndex((item) => item.delay === 80);

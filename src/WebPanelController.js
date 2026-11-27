@@ -1,5 +1,5 @@
 var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
-  const DAGUANYUAN_HOME_URL = "https://math.cxyonly.fans/";
+  const DAGUANYUAN_HOME_URL = __DAGUANYUAN_MATH_SITE_GLOBAL__.url('/');
   const OS408_HOME_URL = "https://www.408os.cn/overview";
   const FRAME_KEY = "cn.marginnote.daguanyuan-bridge.panel-frame";
   const PANEL_KEY = "cn.marginnote.daguanyuan-bridge.panel-visible";
@@ -602,7 +602,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     if (typeof __DAGUANYUAN_AI_GLOBAL__ !== "undefined") __DAGUANYUAN_AI_GLOBAL__.cancel(controller);
     if (controller.importTask) __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__.close(controller);
     // 旧题卡和历史绑定仍可进入新数学站，避免再次经过旧站跳转。
-    const address = String(urlString || '').replace(/^https:\/\/(?:www\.)?cxyonly\.fans\/math(?=\/|[?#]|$)/i, 'https://math.cxyonly.fans');
+    const address = __DAGUANYUAN_MATH_SITE_GLOBAL__.navigationURL(urlString);
     const url = NSURL.URLWithString(address);
     if (!url) throw new Error("题库地址无效");
     const normalizedProvider = String(provider || "daguanyuan");
@@ -631,7 +631,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     const listId = JSON.stringify(String(route && route.listId || ''));
     const categoryId = Number(route && route.categoryId) || 0;
     const listRevision = Number(route && route.listRevision) || 0;
-    return `(function () {
+    return __DAGUANYUAN_MATH_SITE_GLOBAL__.pageScript() + `(function () {
       var questionId = ${questionId};
       var questionNumber = ${questionNumber};
       var imported = ${imported};
@@ -661,8 +661,8 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
         attempts += 1;
         if (expectedList) {
           var query = new URLSearchParams(window.location.search || '');
-          var parts = String(window.location.pathname || '').split('/').filter(Boolean);
-          if (window.location.hostname === 'math.cxyonly.fans' && parts[0] !== 'math') parts.unshift('math');
+          var address = __DAGUANYUAN_MATH_SITE_GLOBAL__.page(window.location);
+          var parts = String(address && address.path || '').split('/').filter(Boolean);
           var grouped = parts.length === 5 && parts[0] === 'math' && parts[1] === 'practice';
           var activeList = query.get('listId') || (grouped ? decodeURIComponent(parts[2]) : '');
           var activeCategory = Number(query.get('categoryId') || (grouped ? parts[4] : 0));
@@ -789,8 +789,8 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       try {
         if (error) throw error;
         const current = JSON.parse(String(contextJSON || ""));
-        if (controller.currentContentPage !== "math" || !/^https:\/\/(?:www\.|math\.)?cxyonly\.fans\//i.test(String(current.url || ""))) {
-          throw new Error("请先在数学题库选择完整、严选或真题范围");
+        if (controller.currentContentPage !== "math" || !__DAGUANYUAN_MATH_SITE_GLOBAL__.page(current.url)) {
+          throw new Error("请先在数学题库选择完整、臻选或真题范围");
         }
         const list = current.selection && current.selection.listId;
         completion(null, __DAGUANYUAN_MATH_API_GLOBAL__.questionScope(list === 'core' || list === 'exam' ? list : current.scope));
@@ -825,7 +825,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
             if (waitingForMathDocument && (error || !raw)) { resolve(null); return; }
             if (error) throw error;
             const current = JSON.parse(String(raw || ''));
-            if (controller.currentContentPage !== 'math' || !/^https:\/\/(?:www\.|math\.)?cxyonly\.fans\//i.test(String(current.url || ''))) {
+            if (controller.currentContentPage !== 'math' || !__DAGUANYUAN_MATH_SITE_GLOBAL__.page(current.url)) {
               if (waitingForMathDocument) { resolve(null); return; }
               throw new Error('请先打开数学题库并选择题单');
             }
@@ -841,9 +841,9 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
           throw new Error('数学网页或账号已变化，请重新点击定位');
         }
         // 查看原题使用卡片保存的来源题单，不等待当前页选择题单。
-        if (current && (route.imported || current.selection && current.selection.listId)) return current;
+        if (current && (route.imported || current.homeListName || current.selection && current.selection.listId)) return current;
         if (contextRetries >= 20 || typeof NSTimer === 'undefined' || typeof NSTimer.scheduledTimerWithTimeInterval !== 'function') {
-          throw new Error('暂未识别当前题单，请等待网页加载完成，或在左侧选择完整、严选、真题后重新定位');
+          throw new Error('暂未识别当前题单，请等待网页加载完成，或在左侧选择题单后重新定位');
         }
         if (!contextRetries) showMessage(controller, '正在等待网页加载并识别当前题单…');
         contextRetries += 1;
@@ -856,6 +856,9 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       });
     }
     return readyContext().then(function (current) {
+      if (current.homeListName && !route.imported) {
+        showMessage(controller, route.categoryOnly ? '正在打开题型分类…' : '正在定位第 ' + route.questionNumber + ' 题…');
+      }
       const key = navigation.contextKey(current);
       return navigation.prepare(controller, route, current, check).then(function (prepared) {
         return readyContext().then(function (latest) {
@@ -890,7 +893,7 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
       controller.pendingQuestionLocator = undefined;
       controller.questionLocatorRequestToken = Number(controller.questionLocatorRequestToken || 0) + 1;
       showPanel(controller);
-      loadURL(controller, "https://math.cxyonly.fans/questions/" + route.questionId + "?assistant=1", "daguanyuan");
+      loadURL(controller, __DAGUANYUAN_MATH_SITE_GLOBAL__.questionURL(route.questionId) + "?assistant=1", "daguanyuan");
       return;
     }
     return navigateDaguanyuanCategory(controller, route);
@@ -1717,6 +1720,12 @@ var __DAGUANYUAN_WEB_PANEL_GLOBAL__ = (function () {
     refreshCategoryJumpSetting(controller);
     refreshQuestionLocatorSetting(controller);
     refreshWebsiteLocateSetting(controller);
+    // 原生面板恢复不会产生网页 DOM 变化，主动恢复三个题目工具，沿用原网页及各自开关。
+    if ((controller.activePage === 'math' || controller.activePage === '408')
+      && typeof __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ !== 'undefined') {
+      injectWebsiteLocateButtons(controller);
+      injectSingleImportButtons(controller);
+    }
   }
 
   function hidePanel(controller) {

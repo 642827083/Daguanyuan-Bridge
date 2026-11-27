@@ -1,13 +1,14 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const coreSource = readFileSync(new URL("../src/DaguanyuanFocusNextCore.js", import.meta.url), "utf8");
-const uiSource = readFileSync(new URL("../src/DaguanyuanFocusNextUI.js", import.meta.url), "utf8");
-const addonSource = readFileSync(new URL("../src/WebAddon.js", import.meta.url), "utf8");
-const panelSource = readFileSync(new URL("../src/WebPanelController.js", import.meta.url), "utf8");
-const mainSource = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
+const coreSource = withMathSite(readFileSync(new URL("../src/DaguanyuanFocusNextCore.js", import.meta.url), "utf8"));
+const uiSource = withMathSite(readFileSync(new URL("../src/DaguanyuanFocusNextUI.js", import.meta.url), "utf8"));
+const addonSource = withMathSite(readFileSync(new URL("../src/WebAddon.js", import.meta.url), "utf8"));
+const panelSource = withMathSite(readFileSync(new URL("../src/WebPanelController.js", import.meta.url), "utf8"));
+const mainSource = withMathSite(readFileSync(new URL("../src/main.js", import.meta.url), "utf8"));
 const icon = readFileSync(new URL("../src/icon.png", import.meta.url));
 
 function runtime(studyController, defaults = {}) {
@@ -59,7 +60,7 @@ function navigationRuntime(initialCategoryEnabled = false, initialQuestionLocato
     this.setTitleForState = function (title) { this.title = title; };
     this.setTitleColorForState = function () {};
     this.addTargetActionForControlEvents = function (target, action) { this.action = action; };
-    this.addGestureRecognizer = function (recognizer) { this.panAction = recognizer.action; };
+    this.addGestureRecognizer = function (recognizer) { this.panAction = recognizer.action; this.pan = recognizer; };
     this.removeFromSuperview = function () { this.superview = null; };
   }
   const studyController = { get view() { return view; }, notebookController: { notebookId: 'book-1', focusNote: focusedNote } };
@@ -206,7 +207,9 @@ test("题型分类按钮默认关闭，开启后显示直属父节点并保存�
   recognizer.state = 3;
   runtime.ui.handleCategoryPan(runtime.addon, recognizer);
   assert.match(runtime.defaults["cn.marginnote.daguanyuan-bridge.focus-next.category-button-position"], /xRatio/);
-  assert.equal(runtime.addon.__daguanyuanFocusNextSuppressTap, undefined);
+  assert.equal(button.pan.cancelsTouchesInView, true);
+  assert.equal(button.pan.delaysTouchesEnded, false);
+  assert.ok(!runtime.addon.__daguanyuanFocusCategorySuppressTap);
 
   runtime.setCategoryEnabled(false);
   runtime.ui.show(runtime.addon);
@@ -238,12 +241,52 @@ test("定位题目按钮由独立开关控制并保存位置", () => {
   recognizer.state = 3;
   runtime.ui.handleQuestionLocatorPan(runtime.addon, recognizer);
   assert.match(runtime.defaults["cn.marginnote.daguanyuan-bridge.question-navigation.locator-button-position"], /xRatio/);
-  assert.equal(runtime.addon.__daguanyuanQuestionLocatorSuppressTap, true);
+  assert.equal(button.pan.cancelsTouchesInView, true);
+  assert.equal(button.pan.delaysTouchesEnded, false);
+  assert.ok(!runtime.addon.__daguanyuanQuestionLocatorSuppressTap);
 
   runtime.setQuestionLocatorEnabled(false);
   runtime.ui.syncQuestionLocator(runtime.addon);
   assert.equal(button.hidden, true);
   assert.equal(button.superview, null);
+});
+
+test('分类名称不变时连续刷新不重复测量或设置标题，选卡记录仍持续更新', () => {
+  const run = navigationRuntime(true, false, 56);
+  run.ui.show(run.addon);
+  const button = run.addon.__daguanyuanFocusCategoryButton;
+  let measurements = 0, writes = 0;
+  const measure = button.titleLabel.sizeThatFits, setTitle = button.setTitleForState;
+  button.titleLabel.sizeThatFits = function (size) { measurements++; return measure.call(this, size); };
+  button.setTitleForState = function (title, state) { writes++; return setTitle.call(this, title, state); };
+  const tick = () => run.timers.splice(0).forEach(callback => callback());
+  for (let index = 0; index < 100; index++) { run.setFocusedNote(index % 2 ? run.notes.first : run.notes.third); tick(); }
+  assert.equal(measurements, 0);
+  assert.equal(writes, 0);
+  assert.equal(run.addon.__daguanyuanFocusNextLastFocus, run.notes.first);
+  assert.equal(run.timers.length, 1);
+  run.notes.first.parentNote.noteTitle = '新的分类';
+  tick();
+  assert.equal(button.title, '新的分类');
+  assert.equal(measurements, 1);
+  assert.equal(writes, 1);
+  tick(); assert.equal(measurements, 1); assert.equal(writes, 1);
+});
+
+test('文字测量临时失败后恢复真实宽度，同名分类重新挂载仍保留标题并修正布局', () => {
+  const run = navigationRuntime(true, false, 56);
+  run.ui.show(run.addon);
+  const button = run.addon.__daguanyuanFocusCategoryButton;
+  let unavailable = true;
+  button.titleLabel.sizeThatFits = () => { if (unavailable) throw Error('测量暂不可用'); return { width: 160 }; };
+  run.notes.first.parentNote.noteTitle = '较长的新分类';
+  run.setFocusedNote(run.notes.first);
+  const tick = () => run.timers.splice(0).forEach(callback => callback());
+  tick(); assert.equal(button.title, '较长的新分类');
+  unavailable = false; tick(); assert.equal(button.frame.width, 188);
+  const view = { bounds: { width: 800, height: 600 }, addSubview(node) { node.superview = this; } };
+  button.removeFromSuperview(); run.setView(view); button.frame.width = 76;
+  tick(); assert.equal(button.superview, view); assert.equal(button.title, '较长的新分类'); assert.equal(button.frame.width, 188);
 });
 
 test("插件完整移除打开题目按钮和选题流程", () => {
@@ -335,6 +378,64 @@ function switchingRuntime(category = true, locator = false) {
   vm.runInContext(addonSource, run.context);
   run.lifecycle = run.context.createDaguanyuanBridgeAddon('');
   return run;
+}
+
+test('两个按钮拖动后首次轻点立即进入各自的跳转动作', () => {
+  const run = switchingRuntime(true, true), opened = [];
+  run.lifecycle.notebookWillOpen();
+  run.core.categoryJumpEnabled = () => true;
+  run.context.__DAGUANYUAN_CATEGORY_MAPPING_STORE_GLOBAL__ = { binding408ForSource: () => ({ targetURL: 'test' }) };
+  run.context.__DAGUANYUAN_WEB_PANEL_GLOBAL__.open408Page = () => opened.push('分类');
+  run.context.__DAGUANYUAN_WEB_PANEL_GLOBAL__.open408Question = () => opened.push('定位');
+  for (const [button, label] of [[run.addon.__daguanyuanFocusCategoryButton, '分类'], [run.addon.__daguanyuanQuestionLocatorButton, '定位']]) {
+    const previous = opened.length, startX = button.frame.x;
+    let delta = { x: -12, y: 0 };
+    const pan = { state: 1, translationInView: () => delta, setTranslationInView: value => { delta = value; } };
+    const drag = () => run.lifecycle[button.panAction.slice(0, -1)](pan);
+    drag();
+    assert.equal(button.frame.x, startX - 12);
+    run.tick();
+    assert.equal(button.frame.x, startX - 12);
+    pan.state = 3;
+    drag();
+    assert.equal(opened.length, previous);
+    run.lifecycle[button.action.slice(0, -1)](button);
+    assert.deepEqual(opened.slice(previous), [label]);
+  }
+});
+
+for (const locator of [false, true]) {
+  test('连续拖动期间暂停选卡刷新与视图挂载，结束后恢复，定位按钮=' + locator, () => {
+    const run = switchingRuntime(true, true);
+    run.lifecycle.notebookWillOpen();
+    const category = run.addon.__daguanyuanFocusCategoryButton, locate = run.addon.__daguanyuanQuestionLocatorButton;
+    const button = locator ? locate : category, other = locator ? category : locate;
+    const startX = button.frame.x, otherX = other.frame.x;
+    let delta = { x: 0, y: 0 };
+    const pan = { state: 1, translationInView: () => delta, setTranslationInView(value) { delta = value; } };
+    const move = target => run.lifecycle[target.panAction.slice(0, -1)](pan);
+    move(button);
+    const app = run.context.Application, getApp = app.sharedInstance;
+    let hostReads = 0;
+    app.sharedInstance = () => { hostReads++; return getApp(); };
+    run.select('new-focus', '新题型');
+    for (let n = 1; n <= 3; n++) {
+      pan.state = 2; delta = { x: -9, y: 2 };
+      move(button); run.tick();
+      assert.equal(button.frame.x, startX - n * 9);
+      assert.equal(category.title, '函数性质');
+    }
+    assert.equal(hostReads, 0);
+    pan.state = 4; move(other);
+    pan.state = 2; delta = { x: -10, y: 0 }; move(other);
+    assert.equal(other.frame.x, otherX);
+    pan.state = 5; move(button);
+    run.tick();
+    assert.equal(category.title, '新题型');
+    const stoppedX = button.frame.x;
+    pan.state = 2; delta = { x: -20, y: 0 }; move(button);
+    assert.equal(button.frame.x, stoppedX);
+  });
 }
 
 for (const locator of [false, true]) {

@@ -1,14 +1,15 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const apiSource = readFileSync(new URL("../src/DaguanyuanMathApi.js", import.meta.url), "utf8");
-const importSource = readFileSync(new URL("../src/DaguanyuanCardComments.js", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../src/DaguanyuanMathImport.js", import.meta.url), "utf8");
-const locatorSource = readFileSync(new URL("../src/DaguanyuanCardLocator.js", import.meta.url), "utf8");
-const addonSource = readFileSync(new URL("../src/WebAddon.js", import.meta.url), "utf8");
-const panelSource = readFileSync(new URL("../src/WebPanelController.js", import.meta.url), "utf8");
-const videoSource = readFileSync(new URL("../src/DaguanyuanVideoBrowser.js", import.meta.url), "utf8");
+const apiSource = withMathSite(readFileSync(new URL("../src/DaguanyuanMathApi.js", import.meta.url), "utf8"));
+const importSource = withMathSite(readFileSync(new URL("../src/DaguanyuanCardComments.js", import.meta.url), "utf8")) + "\n" + withMathSite(readFileSync(new URL("../src/DaguanyuanMathImport.js", import.meta.url), "utf8"));
+const locatorSource = withMathSite(readFileSync(new URL("../src/DaguanyuanCardLocator.js", import.meta.url), "utf8"));
+const addonSource = withMathSite(readFileSync(new URL("../src/WebAddon.js", import.meta.url), "utf8"));
+const panelSource = withMathSite(readFileSync(new URL("../src/WebPanelController.js", import.meta.url), "utf8"));
+const videoSource = withMathSite(readFileSync(new URL("../src/DaguanyuanVideoBrowser.js", import.meta.url), "utf8"));
 
 test("数学接口只保留题目内容，不导入答案", () => {
   let api;
@@ -229,7 +230,7 @@ test("按直接分类跨页导入完整层级，失败可重试且重复题目�
     },
   };
   vm.createContext(context);
-  vm.runInContext(readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(withMathSite(readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8')), context);
   vm.runInContext(importSource, context);
   vm.runInContext(locatorSource, context);
   const importer = context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__;
@@ -277,7 +278,7 @@ test("按直接分类跨页导入完整层级，失败可重试且重复题目�
 test("新导入题卡使用默认字号", () => {
   const context = {};
   vm.createContext(context);
-  vm.runInContext(readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(withMathSite(readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8')), context);
   vm.runInContext(importSource, context);
   const markdown = context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown(
     { id: 3356, stem: "题干", options: ["选项一", "选项二"] },
@@ -289,7 +290,7 @@ test("新导入题卡使用默认字号", () => {
 test("408 建卡整理格式时保留代码块缩进、连续空行和美元符号", () => {
   const context = {};
   vm.createContext(context);
-  vm.runInContext(readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(withMathSite(readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8')), context);
   vm.runInContext(importSource, context);
   const code = '```\nwhile (x) {\n  x--;\n\n\n  price = "$ value $";  \n}\n```';
   const markdown = context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown({
@@ -304,7 +305,7 @@ test("408 建卡整理格式时保留代码块缩进、连续空行和美元符�
 test("新题卡规范网站公式边界空格并保留公式内部内容", () => {
   const context = {};
   vm.createContext(context);
-  vm.runInContext(readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(withMathSite(readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8')), context);
   vm.runInContext(importSource, context);
   const markdown = context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown({
     id: 3382,
@@ -322,7 +323,7 @@ test("新题卡规范网站公式边界空格并保留公式内部内容", () =>
 test("分段公式选项让双美元符号独占行，避免显示 cases 原文", () => {
   const context = {};
   vm.createContext(context);
-  vm.runInContext(readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(withMathSite(readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8')), context);
   vm.runInContext(importSource, context);
   const markdown = context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__.questionMarkdown({
     id: 3359,

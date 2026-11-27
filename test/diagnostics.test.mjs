@@ -1,9 +1,10 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const source = fs.readFileSync(new URL('../src/DaguanyuanDiagnostics.js', import.meta.url), 'utf8');
+const source = withMathSite(fs.readFileSync(new URL('../src/DaguanyuanDiagnostics.js', import.meta.url), 'utf8'));
 const persisted = '/documents/DaguanyuanBridge/logs/diagnostics.json';
 const legacy = '/documents/cn.marginnote.daguanyuan-bridge/logs/diagnostics.json';
 const legacyExport = '/temp/cn.marginnote.daguanyuan-bridge/diagnostic-export/Daguanyuan-Bridge-Diagnostics.txt';
@@ -68,7 +69,7 @@ test('分类诊断导出保留刷新状态和学习集归属关系，重启后�
   const focus = { noteId: 'private-new-note', notebookId: 'private-new-book', parentNote: { noteTitle: '新学习集私有分类' } };
   run.app.studyController = () => ({ view, notebookController: { notebookId: 'private-new-book', focusNote: focus, visibleFocusNote: focus } });
   run.context.__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__ = { parentTitle: note => note.parentNote.noteTitle };
-  vm.runInContext(fs.readFileSync(new URL('../src/DaguanyuanFocusNextUI.js', import.meta.url), 'utf8'), run.context);
+  vm.runInContext(withMathSite(fs.readFileSync(new URL('../src/DaguanyuanFocusNextUI.js', import.meta.url), 'utf8')), run.context);
   const addon = { window: {}, __daguanyuanFocusNextLastFocus: memory, __daguanyuanFocusNextOpeningNotebookId: 'private-new-book',
     __daguanyuanFocusNextTickAt: Date.now() - 6000, __daguanyuanFocusNextTickCount: 12, __daguanyuanFocusNextRememberToken: 3,
     __daguanyuanFocusCategoryButton: { hidden: false, superview: view, __daguanyuanDisplayedCategoryTitle: '旧学习集私有分类' } };

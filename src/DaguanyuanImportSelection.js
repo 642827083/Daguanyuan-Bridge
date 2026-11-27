@@ -33,8 +33,14 @@ var __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__ = (function () {
       const error = new Error('已停止导入，已完成的题卡保留'); error.stopImport = true; throw error;
     }
   }
+  function clearProgress(task) {
+    if (!task) return;
+    if (task.progressTimer && typeof task.progressTimer.invalidate === 'function') task.progressTimer.invalidate();
+    task.progressTimer = null; task.pendingProgress = null;
+  }
   function begin(controller, scope) {
     if (controller.importTask && ['loading', 'confirm', 'running'].indexOf(controller.importTask.status) >= 0 && !controller.importTask.cancelled) throw new Error('请先完成当前导入');
+    clearProgress(controller.importTask);
     const task = { token: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2), scope: scope || 'all', status: 'loading', cancelled: false, dismissed: false };
     controller.importTask = task;
     if (controller.importReportView) controller.importReportView.hidden = true;
@@ -105,6 +111,7 @@ var __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__ = (function () {
   function cancel(controller, payload) {
     const task = taskFor(controller, payload);
     task.cancelled = true; task.dismissed = Boolean(payload.dismiss);
+    clearProgress(task);
     if (task.resolve) { const resolve = task.resolve; task.resolve = null; resolve(false); }
     return { cancelled: true };
   }
@@ -115,12 +122,31 @@ var __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__ = (function () {
   }
   function progress(controller, value) {
     const task = controller.importTask;
-    if (!task || task.dismissed || task.status !== 'running') return;
-    call(controller, 'progress', [task.token, value]).catch(function () { task.cancelled = true; });
+    if (!task || task.cancelled || task.dismissed || task.status !== 'running') return;
+    // 只保留最新进度，慢网页最多一条在途调用；结束与取消会丢弃待发进度。
+    task.pendingProgress = Object.assign({}, value);
+    if (!task.progressSending && !task.progressTimer) sendProgress(controller, task);
+  }
+  function sendProgress(controller, task) {
+    if (task !== controller.importTask || task.cancelled || task.dismissed || task.status !== 'running') { clearProgress(task); return; }
+    const value = task.pendingProgress;
+    if (!value || task.progressSending) return;
+    task.pendingProgress = null; task.progressSending = true;
+    call(controller, 'progress', [task.token, value]).then(function () {
+      task.progressSending = false;
+      if (task !== controller.importTask || task.cancelled || task.dismissed || task.status !== 'running') { clearProgress(task); return; }
+      task.progressTimer = NSTimer.scheduledTimerWithTimeInterval(0.2, false, function () {
+        task.progressTimer = null; sendProgress(controller, task);
+      });
+    }, function () {
+      task.progressSending = false; clearProgress(task);
+      if (task === controller.importTask && task.status === 'running') task.cancelled = true;
+    });
   }
   function show(controller, result) {
     const task = controller.importTask;
     if (!task || task.dismissed || result.cancelled) return Promise.resolve();
+    clearProgress(task);
     task.status = 'result';
     controller.lastCategoryImportReportText = (task.plan ? '来源：' + task.plan.source + '\n目标：' + task.plan.target + '\n\n' : '') + __DAGUANYUAN_IMPORT_REPORT_GLOBAL__.textFor(result);
     return task.ready.catch(function () {}).then(function () { return call(controller, 'result', [task.token, { text: controller.lastCategoryImportReportText, interrupted: result.interrupted || '' }]); });

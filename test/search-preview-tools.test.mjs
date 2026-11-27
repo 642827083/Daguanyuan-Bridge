@@ -1,10 +1,11 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { parseHTML } from 'linkedom';
 
-const read = name => fs.readFileSync(new URL('../src/' + name, import.meta.url), 'utf8');
+const read = name => withMathSite(fs.readFileSync(new URL('../src/' + name, import.meta.url), 'utf8'));
 // 依据网站公开的搜索预览组件保留结构，题干与来源使用测试内容。
 const card = id => `<div data-question-preview-loaded><article data-learning-question-card data-question-surface>
   <header><div><strong>第 ${id} 题</strong><button data-question-source>测试来源</button><span>相关知识点</span></div></header>

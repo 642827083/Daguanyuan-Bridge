@@ -1,9 +1,10 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const read = file => fs.readFileSync(new URL('../' + file, import.meta.url), 'utf8');
+const read = file => withMathSite(fs.readFileSync(new URL('../' + file, import.meta.url), 'utf8'));
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function browser(options = {}) {
   const storage = new Map([['token', '408-test-token'], ['token_expire', String(Date.now() + 60000)]]);

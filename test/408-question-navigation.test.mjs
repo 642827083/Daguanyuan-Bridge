@@ -1,10 +1,11 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const panel = fs.readFileSync(new URL('../src/WebPanelController.js', import.meta.url), 'utf8');
-const routes = fs.readFileSync(new URL('../src/Daguanyuan408Routes.js', import.meta.url), 'utf8');
+const panel = withMathSite(fs.readFileSync(new URL('../src/WebPanelController.js', import.meta.url), 'utf8'));
+const routes = withMathSite(fs.readFileSync(new URL('../src/Daguanyuan408Routes.js', import.meta.url), 'utf8'));
 function open(route) {
   let address;
   const context = { showPanel() {}, loadURL(controller, url) { address = url; }, showMessage() {} };

@@ -1,10 +1,11 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { parseHTML } from 'linkedom';
 
-const read = name => fs.readFileSync(new URL('../' + name, import.meta.url), 'utf8');
+const read = name => withMathSite(fs.readFileSync(new URL('../' + name, import.meta.url), 'utf8'));
 const plain = value => JSON.parse(JSON.stringify(value));
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const directory = () => ({ definition_revision: 7, total: 62, roots: [
@@ -28,7 +29,7 @@ function runtime(options = {}) {
     showPanel() {}, loadURL(c, url) { opened.push(url); }, showMessage(c, message) { messages.push(message); },
     __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__: { importContextScript: () => 'context', navigationContextScript: () => 'context' },
     __DAGUANYUAN_MATH_API_GLOBAL__: { questionScope: value => value,
-      async questionListDirectory(selection, c, check) { requests.push(plain(selection)); if (check) check(); return options.directory ? options.directory() : directory(); },
+      async questionListDirectory(selection, c, check, ownerKey) { requests.push(plain(selection)); if (options.onDirectory) options.onDirectory(ownerKey); if (check) check(); return options.directory ? options.directory() : directory(); },
       async practiceQuestionPage(selection, page, c, check) { if (check) check(); if (options.questions) return options.questions(selection, page); return { total: 39,
         questions: Array.from({ length: 20 }, (_, i) => ({ id: 301 + (page - 1) * 20 + i })) }; },
       async questionListPosition(selection, id, c, check) { if (check) check(); return options.position ? options.position(selection, id) : { questionId: id, position: 38, page: 2 }; },
@@ -64,6 +65,16 @@ test('定位题目保留真实题单和备考科目，旧分类链接不再触�
   assert.equal(run.requests.length, 1);
 });
 
+test('分类定位、查看原题和当前分类识别都将当前账号传给目录缓存', async () => {
+  const owners = [], run = runtime({ onDirectory: owner => owners.push(owner) });
+  run.current = { ...run.current, ownerKey: 'account-a', categoryId: 704, categoryPath: ['二重积分', '计算', '直角坐标'] };
+  const navigation = run.context.__DAGUANYUAN_MATH_NAVIGATION_GLOBAL__;
+  await navigation.prepare(run.controller, run.route, run.current);
+  await navigation.prepare(run.controller, { ...run.route, imported: true, questionId: 338 }, run.current);
+  await navigation.currentCategoryRange(run.controller, run.current);
+  assert.deepEqual(owners, ['account-a', 'account-a', 'account-a']);
+});
+
 function page(address, html = '', storage = {}) {
   const { document } = parseHTML('<html><body>' + html + '</body></html>');
   const context = { document, URL, URLSearchParams, location: new URL(address), localStorage: { getItem: key => storage[key] || null } };
@@ -72,6 +83,47 @@ function page(address, html = '', storage = {}) {
   for (const name of ['DaguanyuanCategoryRoutes', 'DaguanyuanWebsiteBridge']) vm.runInContext(read('src/' + name + '.js'), context);
   return { context, document, read() { return JSON.parse(vm.runInContext(context.__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__.navigationContextScript(), context)); } };
 }
+
+test('首页直接定位当前下拉框里的数二题目，切换同名题单后按新编号打开分类', async () => {
+  const browser = page('https://math.cxyonly.fans/', '<div class="learning-shell__chapter-header"><h2>题单</h2><button role="combobox">臻选大观·数二</button></div><h1>另一份题单</h1>',
+    { daguan_token: 'test', daguan_user: JSON.stringify({ id: 27, math_exam_subject: 'math_1' }) });
+  const run = runtime(), paths = [];
+  const lists = [{ id: 'official-id', slug: 'core-math-2', name: '臻选大观·数二', revision: 7, is_official: true }];
+  Object.assign(browser.context, { setTimeout, clearTimeout, AbortController, fetch: async path => {
+    paths.push(path);
+    const address = new URL(path, browser.context.location);
+    const data = address.pathname === '/api/question-lists' ? { lists }
+      : address.pathname.endsWith('/directory') ? directory()
+      : address.pathname === '/api/questions' ? { data: { total: 39, items: Array.from({ length: 19 }, (_, i) => ({ id: 321 + i, category_id: 704 })) } }
+      : { revision: 7 };
+    return { ok: true, status: 200, json: async () => data };
+  } });
+  run.context.__DAGUANYUAN_MATH_CATALOG_PAGE_SCRIPT__ = read('web/src/DaguanyuanMathCatalogPage.js');
+  run.context.NSTimer = { scheduledTimerWithTimeInterval(seconds, repeat, fn) { const timer = setTimeout(fn, 1); return { invalidate() { clearTimeout(timer); } }; } };
+  for (const name of ['DaguanyuanWebsiteBridge', 'DaguanyuanImportSelection', 'DaguanyuanMathApi']) vm.runInContext(read('src/' + name + '.js'), run.context);
+  run.controller.webView.evaluateJavaScript = (script, callback) => {
+    try { callback(vm.runInContext(script, browser.context), null); } catch (error) { callback(null, error); }
+  };
+  await run.context.openDaguanyuanQuestion(run.controller, run.route);
+  assert.equal(run.opened.length, 1, run.messages.join(' / '));
+  const first = new URL(run.opened[0]).searchParams;
+  assert.equal(first.get('listId'), 'core-math-2');
+  assert.equal(first.get('examSubject'), 'math_2');
+  assert.equal(first.get('questionId'), '338');
+
+  lists.push({ id: 'my-list', name: '臻选大观·数二', revision: 7, is_official: false });
+  await run.context.openDaguanyuanQuestion(run.controller, run.route);
+  assert.equal(run.opened.length, 1);
+  assert.match(run.messages.at(-1), /同名/);
+  browser.context.location = new URL('https://math.cxyonly.fans/?filterListId=my-list');
+  await run.context.navigateDaguanyuanCategory(run.controller, { ...run.route, categoryOnly: true });
+  assert.equal(run.opened.length, 2, run.messages.join(' / '));
+  const second = new URL(run.opened[1]).searchParams;
+  assert.equal(second.get('listId'), 'my-list');
+  assert.equal(second.get('categoryId'), '704');
+  assert.equal(second.has('questionId'), false);
+  assert.equal(paths.filter(path => path.startsWith('/api/questions?')).length, 1);
+});
 
 test('网页读取路径中的题单与版本，不依赖旧范围缓存', () => {
   const run = page('https://cxyonly.fans/math/practice/core-math-1/all/704?listRevision=7', '', { 'daguan:question-bank-scope': 'exam' });
@@ -107,7 +159,7 @@ test('传统侧栏题单通过单选控件表达当前范围，没有题单链�
   assert.equal(value.scope, 'core');
 });
 
-for (const [label, scope, list] of [['完整', 'complete', 'complete'], ['严选', 'core', 'core'], ['真题', 'exam', 'exam-chapters']]) {
+for (const [label, scope, list] of [['完整', 'complete', 'complete'], ['严选', 'core', 'core'], ['臻选', 'core', 'core'], ['真题', 'exam', 'exam-chapters']]) {
   test('传统侧栏按网站规则选择官方题单：' + label, () => {
     for (const subject of ['all', 'math_1', 'math_2', 'math_3']) {
       for (const mark of ['role="radio" aria-checked="true"', 'aria-pressed="true"']) {
@@ -179,10 +231,10 @@ test('分类页不会把外站、菜单、市场链接或互相冲突的题单�
   assert.equal(conflict.read().selection.listId, '');
 });
 
-test('从截图对应的数二严选首页执行定位，不再打开题单选择页', async () => {
-  const browser = page('https://cxyonly.fans/math',
-    '<nav><a aria-current="page" href="/math">首页</a></nav><div class="learning-shell__scope-toggle" aria-label="题单，当前严选">'
-      + '<button role="radio" aria-checked="false">完整</button><button role="radio" aria-checked="true">严选</button><button role="radio" aria-checked="false">真题</button></div>',
+test('从数二臻选首页执行定位，保留题单、分类与题目', async () => {
+  const browser = page('https://math.cxyonly.fans/',
+    '<nav><a aria-current="page" href="/">首页</a></nav><div class="learning-shell__scope-toggle" aria-label="题单，当前臻选">'
+      + '<button role="radio" aria-checked="false">完整</button><button role="radio" aria-checked="true">臻选</button><button role="radio" aria-checked="false">真题</button></div>',
     { daguan_user: JSON.stringify({ id: 27, math_exam_subject: 'math_2' }) });
   const run = runtime();
   vm.runInContext(read('src/DaguanyuanWebsiteBridge.js'), run.context);
@@ -190,7 +242,7 @@ test('从截图对应的数二严选首页执行定位，不再打开题单选�
     try { callback(vm.runInContext(script, browser.context), null); } catch (error) { callback(null, error); }
   };
   await run.context.openDaguanyuanQuestion(run.controller, run.route);
-  assert.equal(run.requests[0].listId, 'core-math-2');
+  assert.equal(run.requests[0]?.listId, 'core-math-2', run.messages.join(' / '));
   const address = new URL(run.opened[0]);
   assert.equal(address.origin, 'https://math.cxyonly.fans');
   assert.equal(address.pathname, '/practice');
@@ -235,12 +287,12 @@ test('一直无法识别题单时有限重试并保留页面，不自动跳转�
   assert.equal(run.controller.pendingQuestionLocator, undefined);
 });
 
-test('侧栏延后加载时重新读取真实严选控件，识别成功后继续原定位', async () => {
+test('侧栏延后加载时重新读取臻选控件，识别成功后继续原定位', async () => {
   const browser = page('https://cxyonly.fans/math/practice', '', { daguan_user: '{"id":27,"math_exam_subject":"math_1"}' });
   const run = runtime();
   run.controller.webView.evaluateJavaScript = (script, callback) => callback(JSON.stringify(browser.read()), null);
   const waits = retryTimers(run, index => {
-    if (index === 3) browser.document.body.innerHTML = '<div class="learning-shell__scope-toggle" aria-label="题单，当前严选"></div>';
+    if (index === 3) browser.document.body.innerHTML = '<div class="learning-shell__scope-toggle" aria-label="题单，当前臻选"></div>';
   });
   await run.context.openDaguanyuanQuestion(run.controller, run.route);
   assert.equal(waits.length, 3);
@@ -267,7 +319,7 @@ test('没有原生延迟接口时保留网页并提示选择题单', async () =>
   await run.context.openDaguanyuanQuestion(run.controller, run.route);
   assert.equal(run.opened.length, 0);
   assert.equal(run.requests.length, 0);
-  assert.match(run.messages.at(-1), /选择.*完整.*严选.*真题/);
+  assert.match(run.messages.at(-1), /左侧选择题单/);
 });
 
 test('等待期间切换到 408 后停止旧数学定位，不弹出过期错误', async () => {

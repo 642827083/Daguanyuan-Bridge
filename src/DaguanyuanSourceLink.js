@@ -10,7 +10,7 @@ var __DAGUANYUAN_SOURCE_LINK_GLOBAL__ = (function () {
       || sourceYear !== 0 && (sourceYear < 2009 || sourceYear > 2100)) return null;
     const address = String(url || '');
     if (address.length > 8192 || /[\s<>]/.test(address)) return null;
-    if (provider === 'math' ? !/^https:\/\/(?:www\.|math\.)?cxyonly\.fans\/(?:math\/)?(?:practice\/(?:categories\/)?[1-9]\d*|questions\/[1-9]\d*)\/?(?:\?[^#]*)?$/.test(address)
+    if (provider === 'math' ? !__DAGUANYUAN_MATH_SITE_GLOBAL__.supports(address, 'source')
       : provider !== '408' || !/^https:\/\/www\.408os\.cn\/exercise\?[^#]+$/.test(address)) return null;
     return { provider: provider, questionId: id, url: address, year: sourceYear, imported: true, questionNumber: 0 };
   }

@@ -1,10 +1,11 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { parseHTML } from 'linkedom';
 
-const source = readFileSync(new URL("../src/DaguanyuanNotePaste.js", import.meta.url), "utf8");
+const source = withMathSite(readFileSync(new URL("../src/DaguanyuanNotePaste.js", import.meta.url), "utf8"));
 
 function runtime(image, address = "https://cxyonly.fans/math/practice/360") {
   const scripts = [];
@@ -115,7 +116,7 @@ test("复测页笔记藏在更多操作时先展开，再粘贴到当前题目�
   vm.createContext(context);
   assert.equal(vm.runInContext(receiver, context), true);
   const page = context.window.__DAGUANYUAN_NOTE_PASTE__;
-  assert.equal(page.version, 8);
+  assert.equal(page.version, 9);
   assert.equal(page.prepare(4042, "token", "image/png", "note.png"), true);
   assert.equal(page.append("token", "AQID"), true);
   assert.equal(page.commit("token"), true);

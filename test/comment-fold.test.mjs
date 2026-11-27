@@ -1,3 +1,4 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -17,7 +18,7 @@ function runtime() {
   };
   vm.createContext(context);
   for (const name of ['DaguanyuanSourceLink', 'DaguanyuanCardComments', 'DaguanyuanCommentFold']) {
-    vm.runInContext(readFileSync(new URL('../src/' + name + '.js', import.meta.url), 'utf8'), context);
+    vm.runInContext(withMathSite(readFileSync(new URL('../src/' + name + '.js', import.meta.url), 'utf8')), context);
   }
   const api = context.__DAGUANYUAN_COMMENT_FOLD_GLOBAL__;
   function create(options = {}) {

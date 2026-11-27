@@ -1,3 +1,4 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -21,7 +22,7 @@ function runtime() {
     UIColor: { whiteColor() { return {}; }, lightGrayColor() { return { colorWithAlphaComponent() { return {}; } }; }, darkGrayColor() { return { colorWithAlphaComponent() { return {}; } }; }, grayColor() { return {}; }, colorWithRedGreenBlueAlpha() { return {}; }, colorWithWhiteAlpha() { return {}; } },
     UIFont: { systemFontOfSize() { return {}; }, boldSystemFontOfSize() { return {}; } },
   };
-  vm.createContext(context); vm.runInContext(fs.readFileSync(new URL('../src/DaguanyuanCardLocatorUI.js', import.meta.url), 'utf8'), context);
+  vm.createContext(context); vm.runInContext(withMathSite(fs.readFileSync(new URL('../src/DaguanyuanCardLocatorUI.js', import.meta.url), 'utf8')), context);
   return { context, View, controller: { containerView: new View({ width: 800, height: 620 }) }, ui: context.__DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__ };
 }
 const candidates = Array.from({ length: 12 }, (_, i) => ({ noteId: 'card-' + i, notebookId: 'book-' + i, studySetTitle: '学习集 ' + i, title: '2026年 第44题', path: '408 / 2026 / 章节' }));
@@ -81,7 +82,7 @@ test('设置入口位于定位开关下方，保存后即时显示，切页和�
   context.__DAGUANYUAN_CATEGORY_MANAGER_UI_GLOBAL__ = { setup(controller) { controller.categoryManagerPage = new View({ width: 800, height: 600 }); }, layout() {} };
   context.__DAGUANYUAN_IMPORT_REPORT_GLOBAL__ = { layout() {} };
   for (const name of ['DaguanyuanFocusNextCore', 'DaguanyuanCardLocator', 'DaguanyuanSingleImport', 'DaguanyuanPanelNavigation', 'WebPanelController']) {
-    vm.runInContext(fs.readFileSync(new URL(`../src/${name}.js`, import.meta.url), 'utf8'), context);
+    vm.runInContext(withMathSite(fs.readFileSync(new URL(`../src/${name}.js`, import.meta.url), 'utf8')), context);
   }
   const panel = { addon: { window: {} } }; context.self = panel; methods.viewDidLoad(); methods.openSettings();
   assert.equal(panel.cardLocationModeValue.text, '定位并聚焦');

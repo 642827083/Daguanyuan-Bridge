@@ -1,3 +1,4 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -26,7 +27,7 @@ function runtime(width = 560, height = 420) {
     __DAGUANYUAN_CARD_LOCATOR_UI_GLOBAL__: { cancelMode(target) { cancelled.push(target); } },
     __DAGUANYUAN_CARD_REPAIR_GLOBAL__: { preview() { return prepared; }, apply(addon, input) { applied.push(input); return { repairedCount: 3, skippedCount: 0, failed: [] }; } },
   };
-  vm.createContext(context); vm.runInContext(readFileSync(new URL('../src/DaguanyuanCardRepairUI.js', import.meta.url), 'utf8'), context);
+  vm.createContext(context); vm.runInContext(withMathSite(readFileSync(new URL('../src/DaguanyuanCardRepairUI.js', import.meta.url), 'utf8')), context);
   const ui = context.__DAGUANYUAN_CARD_REPAIR_UI_GLOBAL__; ui.layout(controller);
   return { controller, context, prepared, messages, applied, cancelled, ui };
 }
@@ -79,7 +80,7 @@ test('不同面板尺寸中修复确认内容可滚动，按钮和设置行在�
 });
 
 test('入口模块及面板接通修复设置、确认、取消、关闭和布局', () => {
-  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8'), panel = readFileSync(new URL('../src/WebPanelController.js', import.meta.url), 'utf8');
+  const main = withMathSite(readFileSync(new URL('../src/main.js', import.meta.url), 'utf8')), panel = withMathSite(readFileSync(new URL('../src/WebPanelController.js', import.meta.url), 'utf8'));
   for (const name of ['DaguanyuanCardComments', 'DaguanyuanCardRepair', 'DaguanyuanCardRepairUI']) assert.ok(main.includes('JSB.require("' + name + '")'));
   for (const selector of ['repairImportedCards:', 'openImportedCardManagement:', 'selectImportedCardManagement:', 'confirmCardRepair:', 'cancelCardRepair:']) assert.ok(panel.includes(selector));
   assert.match(panel, /__DAGUANYUAN_CARD_TOOLS_SETTINGS_GLOBAL__\.openManagement\(self\)/);

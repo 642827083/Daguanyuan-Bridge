@@ -1,3 +1,4 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -41,10 +42,10 @@ function runtime(stored = new Map()) {
     __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__:{bindCategoryScript(...values){return JSON.stringify(values);}},
     __DAGUANYUAN_MASTERY_UI_GLOBAL__:{enabled(){return true;}},self:{addon:{window:{},__daguanyuanAddonPath:'/addon'}}
   };
-  context.__DAGUANYUAN_PLUGIN_INFO__ = JSON.parse(readFileSync(new URL('../src/mnaddon.json', import.meta.url), 'utf8'));
+  context.__DAGUANYUAN_PLUGIN_INFO__ = JSON.parse(withMathSite(readFileSync(new URL('../src/mnaddon.json', import.meta.url), 'utf8')));
   vm.createContext(context);
   for(const name of ['DaguanyuanSourceLink','DaguanyuanCardComments','DaguanyuanCommentFold','DaguanyuanCardLocatorUI','DaguanyuanVideoBrowser','DaguanyuanCardToolsSettings','DaguanyuanPluginIntegrationSettings','DaguanyuanAboutSettings','DaguanyuanSupportUI','DaguanyuanDiagnosticUI','DaguanyuanSettingsNavigation','DaguanyuanPanelNavigation','WebPanelController'])
-    vm.runInContext(readFileSync(new URL('../src/'+name+'.js',import.meta.url),'utf8'),context);
+    vm.runInContext(withMathSite(readFileSync(new URL('../src/'+name+'.js',import.meta.url),'utf8')),context);
   methods.viewDidLoad();
   return {controller:context.self,methods,stored,context};
 }
@@ -63,7 +64,7 @@ function locatorRuntime(options = {}) {
   c.webView.loadRequest = url => { loaded.push(url); if (options.onLoad) options.onLoad(url); };
   run.context.NSTimer = { scheduledTimerWithTimeInterval(seconds, repeat, callback) { timers.push(callback); return { invalidate() {} }; } };
   for (const name of ['DaguanyuanCategoryRoutes', 'DaguanyuanWebsiteBridge', 'DaguanyuanMathNavigation']) {
-    vm.runInContext(readFileSync(new URL('../src/' + name + '.js', import.meta.url), 'utf8'), run.context);
+    vm.runInContext(withMathSite(readFileSync(new URL('../src/' + name + '.js', import.meta.url), 'utf8')), run.context);
   }
   run.context.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.replaceCatalog({ records: [[1, 0, '高等数学'], [2, 1, '导数'], [3, 2, '基本概念题'], [4, 2, '计算题']] });
   Object.assign(run.context.__DAGUANYUAN_FOCUS_NEXT_CORE_GLOBAL__, {
@@ -82,7 +83,7 @@ function locatorRuntime(options = {}) {
   };
   let addonMethods;
   run.context.JSB.defineClass = (name, methods) => { addonMethods = methods; return {}; };
-  vm.runInContext(readFileSync(new URL('../src/WebAddon.js', import.meta.url), 'utf8'), run.context);
+  vm.runInContext(withMathSite(readFileSync(new URL('../src/WebAddon.js', import.meta.url), 'utf8')), run.context);
   run.context.createDaguanyuanBridgeAddon('/addon');
   const addon = c.addon; addon.panelController = c; run.context.self = addon;
   c.panelVisible = false; c.view.hidden = true;
@@ -755,7 +756,7 @@ test('入口将宿主提供的插件根路径保存到对应实例，供支持�
   const addon = { window: {} }, context = { console, self: addon, JSB: { require() {}, defineClass(name, methods) { return methods; } },
     __DAGUANYUAN_WEB_PANEL_GLOBAL__: { createController(owner) { assert.equal(owner, addon); return { addon: owner }; } } };
   vm.createContext(context);
-  for (const name of ['WebAddon', 'main']) vm.runInContext(readFileSync(new URL('../src/' + name + '.js', import.meta.url), 'utf8'), context);
+  for (const name of ['WebAddon', 'main']) vm.runInContext(withMathSite(readFileSync(new URL('../src/' + name + '.js', import.meta.url), 'utf8')), context);
   const methods = context.JSB.newAddon('/installed/DaguanyuanBridge'); methods.sceneWillConnect();
   assert.equal(addon.__daguanyuanAddonPath, '/installed/DaguanyuanBridge');
 });

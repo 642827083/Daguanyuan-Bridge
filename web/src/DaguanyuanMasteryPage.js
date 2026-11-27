@@ -1,5 +1,5 @@
 (function () {
-  if (window.__DAGUANYUAN_MASTERY_PAGE__) return;
+  if (window.__DAGUANYUAN_MASTERY_PAGE__ && window.__DAGUANYUAN_MASTERY_PAGE__.version === 1) return;
   let task = null;
   let session408 = null;
   function auth(provider) {
@@ -26,7 +26,7 @@
   function begin(token, id, mastery, provider = 'math') {
     const loginMessage = provider === '408' ? '请先在插件 408 面板登录 408 网站' : '请先在插件数学面板登录大观园';
     if (location.protocol !== 'https:' || (provider === '408' ? location.hostname !== 'www.408os.cn'
-      : provider !== 'math' || !/^(?:www\.|math\.)?cxyonly\.fans$/.test(location.hostname))) throw Error(loginMessage);
+      : provider !== 'math' || !__DAGUANYUAN_MATH_SITE_GLOBAL__.page(location))) throw Error(loginMessage);
     if (!/^[\w-]{1,100}$/.test(token) || !Number.isSafeInteger(id) || id < 1
       || !['needs_practice', 'not_known', 'mastered'].includes(mastery)) throw Error('掌握标记参数无效');
     if (task) throw Error('正在同步掌握状态，请稍后再试');
@@ -152,5 +152,5 @@
     task.check();
     return JSON.stringify({ status: task.status, error: task.error, errorName: task.errorName, stage: task.stage, id: task.id, mastery: task.mastery, mode: task.mode, provider: task.provider });
   }
-  window.__DAGUANYUAN_MASTERY_PAGE__ = { begin, read, release };
+  window.__DAGUANYUAN_MASTERY_PAGE__ = { version: 1, begin, read, release };
 })();

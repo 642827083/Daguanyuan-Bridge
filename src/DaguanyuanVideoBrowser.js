@@ -161,8 +161,8 @@ var __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__ = (function () {
 
   function pageScript() {
     return "(" + function () {
-      if (window.__DAGUANYUAN_VIDEO_BROWSER_READY__) return true;
-      window.__DAGUANYUAN_VIDEO_BROWSER_READY__ = true;
+      if (window.__DAGUANYUAN_VIDEO_BROWSER_READY__ && window.__DAGUANYUAN_VIDEO_BROWSER_READY__.version === 2) return true;
+      window.__DAGUANYUAN_VIDEO_BROWSER_READY__ = { version: 2 };
       var videoClick = false;
       function isBilibiliVideo(url) {
         return /^https:\/\/(?:[a-z0-9-]+\.)*bilibili\.com\/video\/BV[0-9A-Za-z]+/i.test(String(url || "")) ||
@@ -202,14 +202,15 @@ var __DAGUANYUAN_VIDEO_BROWSER_GLOBAL__ = (function () {
         }
         node = target;
         while (node && String(node.tagName || "").toUpperCase() !== "A") node = node.parentNode;
-        if (!node || String(node.getAttribute("target") || "").toLowerCase() !== "_blank") return;
+        if (!node) return;
         var url = node.href || node.getAttribute("href");
+        // iPad 的视频标题使用同窗口移动链接，两个入口均交给原生侧按联动开关处理。
         if (isBilibiliVideo(url) && sendVideo(url)) {
           event.preventDefault();
           event.stopImmediatePropagation();
           return;
         }
-        if (openHere(url)) event.preventDefault();
+        if (String(node.getAttribute("target") || "").toLowerCase() === "_blank" && openHere(url)) event.preventDefault();
       }, true);
       return true;
     }.toString() + ")()";

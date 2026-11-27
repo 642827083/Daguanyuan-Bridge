@@ -1,3 +1,4 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -34,7 +35,7 @@ function runtime() {
   };
   vm.createContext(context);
   for (const name of ['DaguanyuanSourceLink', 'DaguanyuanCardComments', 'DaguanyuanCommentFold', 'DaguanyuanMathImport', 'DaguanyuanCardRepair']) {
-    vm.runInContext(readFileSync(new URL('../src/' + name + '.js', import.meta.url), 'utf8'), context);
+    vm.runInContext(withMathSite(readFileSync(new URL('../src/' + name + '.js', import.meta.url), 'utf8')), context);
   }
   const C = context.__DAGUANYUAN_CARD_COMMENTS_GLOBAL__, repair = context.__DAGUANYUAN_CARD_REPAIR_GLOBAL__, addon = { window: {} };
   function legacy(provider = 'math', role, withLink = true, id = 123) {

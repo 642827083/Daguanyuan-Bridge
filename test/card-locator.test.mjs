@@ -1,9 +1,10 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const importerSource = fs.readFileSync(new URL('../src/DaguanyuanMathImport.js', import.meta.url), 'utf8');
+const importerSource = withMathSite(fs.readFileSync(new URL('../src/DaguanyuanMathImport.js', import.meta.url), 'utf8'));
 const locatorURL = new URL('../src/DaguanyuanCardLocator.js', import.meta.url);
 function runtime(options = {}) {
   const stored = new Map(options.mode === undefined ? [] : [['cn.marginnote.daguanyuan-bridge.question-tools.card-location-mode', options.mode]]);

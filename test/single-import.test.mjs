@@ -1,3 +1,4 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -62,7 +63,7 @@ function runtime() {
   context.window = { __DAGUANYUAN_408_IMPORT_PAGE__: page };
   vm.createContext(context);
   for (const file of ['DaguanyuanSourceLink', 'DaguanyuanCardComments', 'DaguanyuanMathImport', 'Daguanyuan408Page', 'Daguanyuan408Import', 'DaguanyuanSingleImport']) {
-    vm.runInContext(readFileSync(new URL(`../src/${file}.js`, import.meta.url), 'utf8'), context);
+    vm.runInContext(withMathSite(readFileSync(new URL(`../src/${file}.js`, import.meta.url), 'utf8')), context);
   }
   const panel = { addon: { window: {} }, webView: { evaluateJavaScript(script, callback) {
     if (script.startsWith('String((function pageReceiver')) {
@@ -371,8 +372,8 @@ function panelRuntime() {
     begin() {}, confirm() { return Promise.resolve(true); }, progress() {},
     textFor(result) { return `新建 ${result.createdCount || 0} 道 ${result.interrupted || ""} ${(result.failed || []).map(f => f.reason).join("；")}`; }, show() { throw Error('报告控件失败'); },
   };
-  vm.runInContext(readFileSync(new URL('../src/DaguanyuanWebsiteBridge.js', import.meta.url), 'utf8'), run.context);
-  vm.runInContext(readFileSync(new URL('../src/WebPanelController.js', import.meta.url), 'utf8'), run.context);
+  vm.runInContext(withMathSite(readFileSync(new URL('../src/DaguanyuanWebsiteBridge.js', import.meta.url), 'utf8')), run.context);
+  vm.runInContext(withMathSite(readFileSync(new URL('../src/WebPanelController.js', import.meta.url), 'utf8')), run.context);
   const evaluate = run.panel.webView.evaluateJavaScript;
   run.panel.webView.evaluateJavaScript = (script, callback) => {
     if (script.includes('.finishImport()')) { finishes.push(script); callback(true); }

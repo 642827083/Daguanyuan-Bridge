@@ -1,3 +1,4 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -14,9 +15,9 @@ function runtime(provider, records) {
   const sandbox = { console, MNUtil: { getNoteById: id => notes.get(id) },
     __DAGUANYUAN_408_CATALOG_DATA__: { records, years: [2026, 2025] } };
   vm.createContext(sandbox);
-  vm.runInContext(readFileSync(new URL('../src/DaguanyuanCategoryRoutes.js', import.meta.url), 'utf8'), sandbox);
+  vm.runInContext(withMathSite(readFileSync(new URL('../src/DaguanyuanCategoryRoutes.js', import.meta.url), 'utf8')), sandbox);
   sandbox.__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.replaceCatalog({ records });
-  const source = readFileSync(new URL('../src/DaguanyuanMathImport.js', import.meta.url), 'utf8');
+  const source = withMathSite(readFileSync(new URL('../src/DaguanyuanMathImport.js', import.meta.url), 'utf8'));
   vm.runInContext(source.replace('return { importedQuestionIds,', 'return { orderingProbe: findOrCreatePath, importedQuestionIds,'), sandbox);
   const context = { topicId: 'study', database: { createNoteWithTitleTopicid: create } };
   const root = create('Daguanyuan Bridge');

@@ -1,9 +1,10 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const read = path => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
+const read = path => withMathSite(fs.readFileSync(new URL(path, import.meta.url), 'utf8'));
 const bridgeSource = read('../src/DaguanyuanWebsiteBridge.js');
 const nextSource = read('./browser/fixtures/408-next-question.js');
 const headerSource = read('./browser/fixtures/408-year-header.js');

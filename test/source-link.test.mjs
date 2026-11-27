@@ -1,3 +1,4 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -24,7 +25,7 @@ function runtime(options = {}) {
   };
   if (options.utils === false) delete context.MNUtil;
   vm.createContext(context);
-  for (const file of ['DaguanyuanSourceLink', 'WebAddon']) vm.runInContext(fs.readFileSync(new URL('../src/' + file + '.js', import.meta.url), 'utf8'), context);
+  for (const file of ['DaguanyuanSourceLink', 'WebAddon']) vm.runInContext(withMathSite(fs.readFileSync(new URL('../src/' + file + '.js', import.meta.url), 'utf8')), context);
   function broadcast(methods, message) {
     for (const [addon, entry] of observers) {
       if (entry.event !== 'AddonBroadcast') continue;

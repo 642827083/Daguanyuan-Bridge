@@ -26,15 +26,19 @@ import MNBridge from './lib/mnBridge.js';
       && (/^[1-9]\d*$/.test(url.searchParams.get('knowledgeId') || '') || /^\d{4}$/.test(url.searchParams.get('year') || ''));
     return { math, route, supported: category || collection, category, paper: os && !url.searchParams.has('knowledgeId') && !collection };
   }
-  function currentPage() {
+  function currentPage(includeSummary = true) {
     const snapshot = window.__DAGUANYUAN_QUESTION_DOM__.read(), provider = snapshot.page.provider;
     const seen = new Set(), questions = [];
     snapshot.questions.forEach(({ row, id, title }) => {
       if (!Number.isSafeInteger(id) || id <= 0 || seen.has(id)) return;
       seen.add(id);
-      const excerpt = (row.querySelector('article.question-document') || row).cloneNode(true);
-      excerpt.querySelectorAll('button, nav, script, style, [data-question-source], [data-note-workspace]').forEach(node => node.remove());
-      questions.push({ id, title: (title || '题目 ' + id).slice(0, 200), summary: excerpt.textContent.replace(/\s+/g, ' ').trim().slice(0, 180) });
+      let summary = '';
+      if (includeSummary) {
+        const excerpt = (row.querySelector('article.question-document') || row).cloneNode(true);
+        excerpt.querySelectorAll('button, nav, script, style, [data-question-source], [data-note-workspace]').forEach(node => node.remove());
+        summary = excerpt.textContent.replace(/\s+/g, ' ').trim().slice(0, 180);
+      }
+      questions.push({ id, title: (title || '题目 ' + id).slice(0, 200), summary });
     });
     const current = source();
     const importContext = provider === 'math' && current.math ? current.route : null;
@@ -90,7 +94,7 @@ import MNBridge from './lib/mnBridge.js';
   function progress(token, value) {
     if (token !== state.token) return 'stale';
     if (state.done) return 'ok';
-    state.busy = true; count();
+    if (!state.busy) { state.busy = true; count(); }
     status((value.phase === 'fetching' ? '读取图文 ' : '已处理 ') + (value.processed || 0) + '/' + (value.total || state.selected.size) + ' 题');
     return 'ok';
   }
@@ -106,7 +110,7 @@ import MNBridge from './lib/mnBridge.js';
     return 'ok';
   }
   function refresh() {
-    const page = currentPage(), button = el('toolbar').querySelector('[data-scope="selected"]');
+    const page = currentPage(false), button = el('toolbar').querySelector('[data-scope="selected"]');
     el('toolbar').hidden = !page.provider;
     button.disabled = !page.questions.length;
     const bind = el('toolbar').querySelector('[data-bind-category]');
@@ -229,7 +233,7 @@ import MNBridge from './lib/mnBridge.js';
     hide: function (token) { if (token === state.token) hide(); return 'ok'; },
     selectionChunk: function (token, offset) { if (state.route !== location.href || token !== state.token || !state.selection) throw Error('选择已失效，请重新打开导入'); return JSON.stringify(state.selection.slice(offset, offset + 250)); } };
   let scheduled = false;
-  new MutationObserver(function () { if (!scheduled) { scheduled = true; setTimeout(function () { scheduled = false; refresh(); }, 100); } }).observe(document.documentElement, { childList: true, subtree: true });
+  window.__DAGUANYUAN_QUESTION_DOM__.observeChanges(function () { if (!scheduled) { scheduled = true; setTimeout(function () { scheduled = false; refresh(); }, 100); } });
   window.addEventListener('popstate', refresh); window.addEventListener('resize', viewport);
   if (window.visualViewport) window.visualViewport.addEventListener('resize', viewport);
   refresh();

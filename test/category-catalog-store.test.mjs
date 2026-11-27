@@ -1,11 +1,12 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const catalogStoreSource = readFileSync(new URL("../src/DaguanyuanCategoryCatalogStore.js", import.meta.url), "utf8");
-const routesSource = readFileSync(new URL("../src/DaguanyuanCategoryRoutes.js", import.meta.url), "utf8");
-const mainSource = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
+const catalogStoreSource = withMathSite(readFileSync(new URL("../src/DaguanyuanCategoryCatalogStore.js", import.meta.url), "utf8"));
+const routesSource = withMathSite(readFileSync(new URL("../src/DaguanyuanCategoryRoutes.js", import.meta.url), "utf8"));
+const mainSource = withMathSite(readFileSync(new URL("../src/main.js", import.meta.url), "utf8"));
 
 function runtime(initialFiles = []) {
   const files = new Map(initialFiles);

@@ -1,3 +1,4 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -8,7 +9,7 @@ import build from '../scripts/build-web.js';
 function native(...names) {
   const context = { console, JSB: { defineClass() { return {}; } } };
   vm.createContext(context);
-  for (const name of names) vm.runInContext(readFileSync(new URL('../src/' + name + '.js', import.meta.url), 'utf8'), context);
+  for (const name of names) vm.runInContext(withMathSite(readFileSync(new URL('../src/' + name + '.js', import.meta.url), 'utf8')), context);
   return context;
 }
 function page(address, focus = false) {
@@ -117,7 +118,7 @@ test('旧卡查看原题和新版单题链接均可读取，外站仍拒绝', ()
 
 test('新版分类网址和题单分类可以解析', () => {
   const routes = native('DaguanyuanCategoryRoutes').__DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__;
-  routes.replaceCatalog(JSON.parse(readFileSync(new URL('./fixtures/math-category-catalog.json', import.meta.url), 'utf8')));
+  routes.replaceCatalog(JSON.parse(withMathSite(readFileSync(new URL('./fixtures/math-category-catalog.json', import.meta.url), 'utf8'))));
   assert.equal(routes.categoryIdFromURL('https://www.cxyonly.fans/math/practice/categories/345'), 345);
   assert.equal(routes.categoryIdFromURL('https://www.cxyonly.fans/math/practice?listId=core&categoryId=345'), 345);
   assert.equal(routes.categoryIdFromURL('https://www.cxyonly.fans/math/practice/concepts/345'), 0);

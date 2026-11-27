@@ -1,10 +1,11 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { parseHTML } from 'linkedom';
 
-const source = name => fs.readFileSync(new URL('../src/' + name + '.js', import.meta.url), 'utf8');
+const source = name => withMathSite(fs.readFileSync(new URL('../src/' + name + '.js', import.meta.url), 'utf8'));
 function host() {
   const { document } = parseHTML('<html><body><div class="question-card"><button class="action-btn-ai">AI辅导</button></div></body></html>');
   const messages = [], timers = []; let now = 0, clicks = 0;
@@ -64,7 +65,7 @@ test('大观园数学直接打开本题 AI，408 问 AI 从分类改用单题入
     __DAGUANYUAN_AI_GLOBAL__: { open408(controller, url, id) { calls.push([url, id]); } } });
   vm.runInContext(source('Daguanyuan408Routes'), context);
   const panel = source('WebPanelController'), start = panel.indexOf('function openDaguanyuanQuestion(controller, route)');
-  vm.runInContext(panel.slice(start, panel.indexOf('function open408Question', start)), context);
+  vm.runInContext(withMathSite(panel.slice(start, panel.indexOf('function open408Question', start))), context);
   context.openDaguanyuanQuestion(c, { askAi: true, imported: true, provider: 'math', questionId: 42, url: 'https://www.cxyonly.fans/math/practice/categories/8' });
   assert.equal(calls[0], 'https://math.cxyonly.fans/questions/42?assistant=1');
   context.openDaguanyuanQuestion(c, { askAi: true, imported: true, provider: '408', questionId: 42, year: 0, url: 'https://www.408os.cn/exercise?knowledgeId=53' });

@@ -10,7 +10,7 @@ http.createServer((request, response) => {
   if (url.pathname === '/bridge.js' || url.pathname === '/note-paste.js') {
     let source;
     if (url.pathname === '/bridge.js') {
-      source = fs.readFileSync(path.join(root, 'src/DaguanyuanWebsiteBridge.js'), 'utf8')
+      source = fs.readFileSync(path.join(root, 'src/DaguanyuanMathSite.js'), 'utf8') + '\n' + fs.readFileSync(path.join(root, 'src/DaguanyuanWebsiteBridge.js'), 'utf8')
         .replaceAll('/^www\\.408os\\.cn$/i', '/^127\\.0\\.0\\.1$/i')
         .replaceAll('/(^|\\.)cxyonly\\.fans$/i', '/^127\\.0\\.0\\.1$/i')
         .replace('"daguanyuanbridge://" + command', '"about:blank#" + command');

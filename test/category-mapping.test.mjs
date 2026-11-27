@@ -1,18 +1,19 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const catalogFixture = JSON.parse(readFileSync(new URL("./fixtures/math-category-catalog.json", import.meta.url), "utf8"));
-const catalogStoreSource = readFileSync(new URL("../src/DaguanyuanCategoryCatalogStore.js", import.meta.url), "utf8");
-const routesSource = readFileSync(new URL("../src/DaguanyuanCategoryRoutes.js", import.meta.url), "utf8");
-const os408RoutesSource = readFileSync(new URL("../src/Daguanyuan408Routes.js", import.meta.url), "utf8");
-const storeSource = readFileSync(new URL("../src/DaguanyuanCategoryMappingStore.js", import.meta.url), "utf8");
-const managerSource = readFileSync(new URL("../src/DaguanyuanCategoryManagerUI.js", import.meta.url), "utf8");
-const addonSource = readFileSync(new URL("../src/WebAddon.js", import.meta.url), "utf8");
-const panelSource = readFileSync(new URL("../src/WebPanelController.js", import.meta.url), "utf8");
-const videoSource = readFileSync(new URL("../src/DaguanyuanVideoBrowser.js", import.meta.url), "utf8");
-const mainSource = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
+const catalogFixture = JSON.parse(withMathSite(readFileSync(new URL("./fixtures/math-category-catalog.json", import.meta.url), "utf8")));
+const catalogStoreSource = withMathSite(readFileSync(new URL("../src/DaguanyuanCategoryCatalogStore.js", import.meta.url), "utf8"));
+const routesSource = withMathSite(readFileSync(new URL("../src/DaguanyuanCategoryRoutes.js", import.meta.url), "utf8"));
+const os408RoutesSource = withMathSite(readFileSync(new URL("../src/Daguanyuan408Routes.js", import.meta.url), "utf8"));
+const storeSource = withMathSite(readFileSync(new URL("../src/DaguanyuanCategoryMappingStore.js", import.meta.url), "utf8"));
+const managerSource = withMathSite(readFileSync(new URL("../src/DaguanyuanCategoryManagerUI.js", import.meta.url), "utf8"));
+const addonSource = withMathSite(readFileSync(new URL("../src/WebAddon.js", import.meta.url), "utf8"));
+const panelSource = withMathSite(readFileSync(new URL("../src/WebPanelController.js", import.meta.url), "utf8"));
+const videoSource = withMathSite(readFileSync(new URL("../src/DaguanyuanVideoBrowser.js", import.meta.url), "utf8"));
+const mainSource = withMathSite(readFileSync(new URL("../src/main.js", import.meta.url), "utf8"));
 
 function runtime() {
   const files = new Map();

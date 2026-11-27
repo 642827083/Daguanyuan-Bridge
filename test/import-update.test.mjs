@@ -1,3 +1,4 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -37,10 +38,10 @@ function runtime(provider = '408') {
       async questionPage() { return { total: 1, pageSize: 20, questions: [question] }; }, async questionDetail() { return { ...question }; } },
   };
   vm.createContext(context);
-  vm.runInContext(fs.readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8'), context);
-  vm.runInContext(fs.readFileSync(new URL('../src/DaguanyuanCardComments.js', import.meta.url), 'utf8'), context);
-  vm.runInContext(fs.readFileSync(new URL('../src/DaguanyuanMathImport.js', import.meta.url), 'utf8'), context);
-  vm.runInContext(fs.readFileSync(new URL('../src/DaguanyuanCardRepair.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(withMathSite(fs.readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8')), context);
+  vm.runInContext(withMathSite(fs.readFileSync(new URL('../src/DaguanyuanCardComments.js', import.meta.url), 'utf8')), context);
+  vm.runInContext(withMathSite(fs.readFileSync(new URL('../src/DaguanyuanMathImport.js', import.meta.url), 'utf8')), context);
+  vm.runInContext(withMathSite(fs.readFileSync(new URL('../src/DaguanyuanCardRepair.js', import.meta.url), 'utf8')), context);
   const writer = context.__DAGUANYUAN_MATH_IMPORT_GLOBAL__;
   const addon = { window: {} };
   const category = { title: '2026年真题', url: 'https://www.408os.cn/exercise?year=2026' };

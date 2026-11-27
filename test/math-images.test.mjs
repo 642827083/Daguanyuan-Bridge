@@ -1,3 +1,4 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -13,14 +14,14 @@ function pageRuntime(status = 200, type = 'image/png') {
     async fetch(url, options) { requests.push({ url, options }); return { status, ok: status === 200, async blob() { return new Blob([new Uint8Array(70000)], { type }); } }; } },
     AbortController, FileReader: Reader };
   vm.createContext(browser);
-  const context = { __DAGUANYUAN_MATH_IMAGE_PAGE_SCRIPT__: fs.readFileSync(new URL('../web/src/DaguanyuanMathImagePage.js', import.meta.url), 'utf8'),
+  const context = { __DAGUANYUAN_MATH_IMAGE_PAGE_SCRIPT__: withMathSite(fs.readFileSync(new URL('../web/src/DaguanyuanMathImagePage.js', import.meta.url), 'utf8')),
     __DAGUANYUAN_IMPORT_SELECTION_GLOBAL__: { async evaluate(controller, script) {
       evaluations.push(script); if (script.includes('.release(')) releases.push(script);
       return vm.runInContext(script, browser);
     } },
     NSTimer: { scheduledTimerWithTimeInterval(interval, repeats, fn) { const timer = setTimeout(fn, interval < 1 ? 0 : interval * 1000); return { invalidate() { clearTimeout(timer); } }; } },
   };
-  vm.createContext(context); vm.runInContext(fs.readFileSync(new URL('../src/DaguanyuanMathImages.js', import.meta.url), 'utf8'), context);
+  vm.createContext(context); vm.runInContext(withMathSite(fs.readFileSync(new URL('../src/DaguanyuanMathImages.js', import.meta.url), 'utf8')), context);
   return { context, browser, requests, releases, evaluations, read: context.__DAGUANYUAN_MATH_IMAGES_GLOBAL__.reader({ webView: {} }) };
 }
 
@@ -62,7 +63,7 @@ test('实际单题入口对1716使用网页登录读取题干及图片，原生�
     run.requests.push({ url, options });
     return { status: 200, ok: true, json: async () => ({ id: 1716, category_id: 1, stem: '![图](asset://sha256/' + 'a'.repeat(64) + ')' }) };
   };
-  context.__DAGUANYUAN_MATH_CATALOG_PAGE_SCRIPT__ = fs.readFileSync(new URL('../web/src/DaguanyuanMathCatalogPage.js', import.meta.url), 'utf8');
+  context.__DAGUANYUAN_MATH_CATALOG_PAGE_SCRIPT__ = withMathSite(fs.readFileSync(new URL('../web/src/DaguanyuanMathCatalogPage.js', import.meta.url), 'utf8'));
   Object.assign(context, {
     NSURL: { URLWithString(url) { return url; } },
     NSMutableURLRequest: { requestWithURL(url) { return { url, setHTTPMethod() {}, setTimeoutInterval() {}, setAllHTTPHeaderFields() {} }; } },
@@ -76,7 +77,7 @@ test('实际单题入口对1716使用网页登录读取题干及图片，原生�
     NSUserDefaults: { standardUserDefaults() { return { objectForKey() { return 'child'; } }; } },
     __DAGUANYUAN_MATH_IMPORT_GLOBAL__: { preparedSingleSession() { return { targetTitle: '学习集', hasQuestion() { return false; }, write(question) { written.push(question); return true; } }; }, selectQuestions() {} },
   });
-  for (const file of ['DaguanyuanMathApi', 'DaguanyuanSingleImport']) vm.runInContext(fs.readFileSync(new URL('../src/' + file + '.js', import.meta.url), 'utf8'), context);
+  for (const file of ['DaguanyuanMathApi', 'DaguanyuanSingleImport']) vm.runInContext(withMathSite(fs.readFileSync(new URL('../src/' + file + '.js', import.meta.url), 'utf8')), context);
   const result = await context.__DAGUANYUAN_SINGLE_IMPORT_GLOBAL__.importQuestion({ addon: {}, webView: {} }, { provider: 'math', id: 1716, url: 'https://www.cxyonly.fans/math/practice/1' });
   assert.equal(result.createdCount, 1); assert.equal(result.failed.length, 0); assert.equal(requests.length, 0);
   assert.equal(run.requests.length, 2);
@@ -96,7 +97,7 @@ test('1716 图片需要网页登录状态时使用页面读取器，原生未认
       else done({ statusCode: 200 }, { length: 100, question: { id: 1716, category_id: 1, stem: '![图](asset://sha256/' + hash + ')' } }, null);
     } },
   };
-  vm.createContext(context); vm.runInContext(fs.readFileSync(new URL('../src/DaguanyuanMathApi.js', import.meta.url), 'utf8'), context);
+  vm.createContext(context); vm.runInContext(withMathSite(fs.readFileSync(new URL('../src/DaguanyuanMathApi.js', import.meta.url), 'utf8')), context);
   const question = await context.__DAGUANYUAN_MATH_API_GLOBAL__.questionDetail(1716, 'question', async reference => {
     pageRequests.push(reference); return 'data:image/png;base64,AQIDBAUGBwg=';
   });

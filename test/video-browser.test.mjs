@@ -1,10 +1,11 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const source = readFileSync(new URL("../src/DaguanyuanVideoBrowser.js", import.meta.url), "utf8");
-const panelSource = readFileSync(new URL("../src/WebPanelController.js", import.meta.url), "utf8");
+const source = withMathSite(readFileSync(new URL("../src/DaguanyuanVideoBrowser.js", import.meta.url), "utf8"));
+const panelSource = withMathSite(readFileSync(new URL("../src/WebPanelController.js", import.meta.url), "utf8"));
 
 function nativeBrowser(mnUtil, globals = {}) {
   const context = { MNUtil: mnUtil,
@@ -251,6 +252,54 @@ test("数学视频链接保留分 P 和播放时间并发给 MN Browser", async 
   assert.equal(notifications[0].name, "openInBrowser");
   assert.equal(notifications[0].payload.url, "https://www.bilibili.com/video/BV164411o7Qo/?p=81&t=12");
   assert.equal(notifications[0].payload.desktop, true);
+});
+
+for (const enabled of [true, false]) {
+  test('iPad 视频标题与网页播放均遵循 MN Browser 开关，保留分 P 和起播时间：' + enabled, async () => {
+    const mobile = 'https://m.bilibili.com/video/BV164411o7Qo/?p=81&t=12&page=80&start_progress=12000';
+    const webURL = 'https://www.bilibili.com/video/BV164411o7Qo/?p=81&t=12';
+    for (const [href, target] of [[mobile, null], [mobile, '_self'], [webURL, '_blank']]) {
+      const run = panelRuntime('math', { mnBrowserEnabled: enabled, missingUtils: !enabled });
+      const page = webPage(run.browser);
+      const anchor = { tagName: 'A', href, getAttribute(name) { return name === 'target' ? target : null; } };
+      const event = { target: { tagName: 'STRONG', parentNode: anchor }, preventDefault() { this.prevented = true; }, stopImmediatePropagation() { this.stopped = true; } };
+      page.listeners.click(event);
+      assert.equal(event.prevented, true, href + ' / ' + target);
+      assert.equal(event.stopped, true);
+      assert.equal(page.frames.length, 1);
+      assert.equal(run.send(page.frames[0].src), false);
+      await new Promise(resolve => setImmediate(resolve));
+      assert.deepEqual(run.events, enabled ? [{ name: 'openInBrowser', payload: { url: webURL, desktop: true } }, 'hide']
+        : [{ external: 'bilibili://video/BV164411o7Qo?page=80&start_progress=12000' }, 'hide']);
+    }
+  });
+}
+
+test('视频拦截不会改变普通同窗口链接或反馈入口的行为', () => {
+  const page = webPage(nativeBrowser({ postNotification() {} }));
+  for (const href of ['https://math.cxyonly.fans/practice', 'https://www.bilibili.com/',
+    'https://www.bilibili.com.evil.test/video/BV164411o7Qo', 'javascript:void(0)']) {
+    const event = { target: { tagName: 'A', href, getAttribute() { return null; } }, preventDefault() { this.prevented = true; }, stopImmediatePropagation() { this.stopped = true; } };
+    page.listeners.click(event);
+    assert.equal(event.prevented, undefined); assert.equal(event.stopped, undefined);
+  }
+  assert.equal(page.frames.length, 0);
+});
+
+test('旧版视频脚本已注入时仍能升级，重复注入不重复监听或封装 window.open', () => {
+  const api = nativeBrowser({ postNotification() {} });
+  const frames = [], listeners = [];
+  const original = () => {};
+  const window = { __DAGUANYUAN_VIDEO_BROWSER_READY__: true, location: {}, setTimeout() {}, open: original };
+  const document = { body: { appendChild(frame) { frames.push(frame); } }, createElement() { return { style: {} }; }, addEventListener(name, callback) { listeners.push(callback); } };
+  const context = vm.createContext({ window, document });
+  vm.runInContext(api.pageScript(), context);
+  assert.equal(listeners.length, 1);
+  const wrapped = window.open; assert.notEqual(wrapped, original);
+  vm.runInContext(api.pageScript(), context);
+  assert.equal(listeners.length, 1); assert.equal(window.open, wrapped);
+  window.open('https://m.bilibili.com/video/BV164411o7Qo/?p=81&t=12');
+  assert.equal(frames.length, 1);
 });
 
 test("408 跳转播放在网页使用 window.open 时发给 MN Browser", async () => {

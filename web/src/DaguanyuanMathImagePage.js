@@ -1,8 +1,8 @@
 (function () {
-  if (window.__DAGUANYUAN_MATH_IMAGE_PAGE__) return;
+  if (window.__DAGUANYUAN_MATH_IMAGE_PAGE__ && window.__DAGUANYUAN_MATH_IMAGE_PAGE__.version === 1) return;
   const entries = new Map();
   function origin() {
-    if (!/^https:\/\/(?:www\.|math\.)?cxyonly\.fans$/.test(window.location.origin)) throw new Error('请先在数学题库网页打开并登录大观园');
+    if (!__DAGUANYUAN_MATH_SITE_GLOBAL__.page(window.location.origin)) throw new Error('请先在数学题库网页打开并登录大观园');
   }
   function authToken() {
     // 只沿用大观园网站已有的登录信息，不传入原生侧，也不另行保存。
@@ -59,5 +59,5 @@
     if (!item || item.status !== 'ready' || !Number.isSafeInteger(offset) || offset < 0) throw new Error('图片分块读取无效');
     return item.data.slice(offset, offset + 65536);
   }
-  window.__DAGUANYUAN_MATH_IMAGE_PAGE__ = { begin, read, chunk, release };
+  window.__DAGUANYUAN_MATH_IMAGE_PAGE__ = { version: 1, begin, read, chunk, release };
 })();

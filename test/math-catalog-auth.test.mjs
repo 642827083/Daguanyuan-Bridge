@@ -1,8 +1,9 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-const source = file => fs.readFileSync(new URL('../' + file, import.meta.url), 'utf8');
+const source = file => withMathSite(fs.readFileSync(new URL('../' + file, import.meta.url), 'utf8'));
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function browser(options = {}) {
   const requests = [], storage = new Map([['daguan_token', 'fixture-login-secret']]);

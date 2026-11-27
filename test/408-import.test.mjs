@@ -1,13 +1,14 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const mathSource = readFileSync(new URL("../src/DaguanyuanCardComments.js", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../src/DaguanyuanMathImport.js", import.meta.url), "utf8");
-const locatorSource = readFileSync(new URL("../src/DaguanyuanCardLocator.js", import.meta.url), "utf8");
-const source = readFileSync(new URL("../src/Daguanyuan408Import.js", import.meta.url), "utf8");
-const pageSource = readFileSync(new URL("../src/Daguanyuan408Page.js", import.meta.url), "utf8");
-const addonSource = readFileSync(new URL("../src/WebAddon.js", import.meta.url), "utf8");
+const mathSource = withMathSite(readFileSync(new URL("../src/DaguanyuanCardComments.js", import.meta.url), "utf8")) + "\n" + withMathSite(readFileSync(new URL("../src/DaguanyuanMathImport.js", import.meta.url), "utf8"));
+const locatorSource = withMathSite(readFileSync(new URL("../src/DaguanyuanCardLocator.js", import.meta.url), "utf8"));
+const source = withMathSite(readFileSync(new URL("../src/Daguanyuan408Import.js", import.meta.url), "utf8"));
+const pageSource = withMathSite(readFileSync(new URL("../src/Daguanyuan408Page.js", import.meta.url), "utf8"));
+const addonSource = withMathSite(readFileSync(new URL("../src/WebAddon.js", import.meta.url), "utf8"));
 const category = { title: "浮点数的表示与运算", path: ["计算机组成原理", "数据的机器表示", "浮点数的表示与运算"], url: "https://www.408os.cn/exercise?knowledgeId=52&knowledgeName=浮点数" };
 
 function runtime(questions, options = {}) {
@@ -93,7 +94,7 @@ function runtime(questions, options = {}) {
     } },
   };
   vm.createContext(context);
-  vm.runInContext(readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(withMathSite(readFileSync(new URL('../src/DaguanyuanSourceLink.js', import.meta.url), 'utf8')), context);
   vm.runInContext(mathSource, context);
   vm.runInContext(locatorSource, context);
   vm.runInContext(pageSource, context);

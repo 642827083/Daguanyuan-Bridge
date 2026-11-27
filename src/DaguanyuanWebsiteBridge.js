@@ -9,19 +9,19 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
 
   // 在网站内安装一次；题目工具与选题快照共用身份、可见性和来源位置的判断。
   function questionDOMPageScript() {
-    if (window.__DAGUANYUAN_QUESTION_DOM__ && window.__DAGUANYUAN_QUESTION_DOM__.version === 2) return window.__DAGUANYUAN_QUESTION_DOM__;
+    if (window.__DAGUANYUAN_QUESTION_DOM__ && window.__DAGUANYUAN_QUESTION_DOM__.version === 5) return window.__DAGUANYUAN_QUESTION_DOM__;
     function context() {
       var current = window.location || location;
       var address = current.hostname ? current : new URL(current.href);
       var host = address.hostname || '', path = address.pathname || '';
-      var provider = address.protocol && address.protocol !== 'https:' ? ''
-        : /^(?:www\.|math\.)?cxyonly\.fans$/i.test(host) ? 'math' : /^www\.408os\.cn$/i.test(host) ? '408' : '';
-      if (provider === 'math' && host === 'math.cxyonly.fans' && !/^\/math(?:\/|$)/.test(path)) path = '/math' + path;
+      var mathPage = __DAGUANYUAN_MATH_SITE_GLOBAL__.page(address);
+      var provider = mathPage ? 'math' : address.protocol && address.protocol !== 'https:' ? '' : /^www\.408os\.cn$/i.test(host) ? '408' : '';
+      if (mathPage) path = mathPage.path;
       var search = new URLSearchParams(address.search || '');
       var retest = provider === 'math' && /^\/math\/retest(?:\/|$)/.test(path);
       var collection = search.get('mode') === 'collection' && /^[1-9]\d*$/.test(search.get('collectionId') || '');
       var supported = provider === 'math'
-        ? /^\/math\/(?:practice(?:\/(?:(?:categories|concepts)\/)?[1-9]\d*|\/[^/\s?#]+\/(?:all|[1-9]\d*)\/[1-9]\d*)?|questions\/[1-9]\d*|paper|retest(?:\/[^?#]*)?)\/?$/.test(path)
+        ? __DAGUANYUAN_MATH_SITE_GLOBAL__.supports(address, 'tools')
         : provider === '408' && /^\/exercise\/?$/.test(path) && (collection || !search.has('mode') && !search.has('collectionId')
           && /[?&](?:year=\d{4}|knowledgeId=[1-9]\d*)(?:[&#]|$)/.test(address.search || ''));
       return { provider: provider, supported: supported, retest: retest, url: String(current.href || '') };
@@ -116,8 +116,7 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
         if (math) {
           if (preview) {
             id = preview.id;
-            var address = new URL(page.url);
-            target.url = address.origin + (address.hostname === 'math.cxyonly.fans' ? '/questions/' : '/math/questions/') + id;
+            target.url = __DAGUANYUAN_MATH_SITE_GLOBAL__.questionURL(id, page.url);
           }
           target.id = id;
           if (!page.retest && metadata && !anchor) for (var c = 0; c < metadata.children.length; c += 1) {
@@ -141,21 +140,60 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
       });
       return { page: page, questions: questions };
     }
-    window.__DAGUANYUAN_QUESTION_DOM__ = { version: 2, read: read, previewRow: previewRow };
+    // 只响应题目、弹窗和分类控件的变化；插件自己刷新文字不会反过来触发整页扫描。
+    function observeChanges(callback) {
+      var own = '#dgy-toolbar, #dgy-dialog, #dgy-style, [data-daguanyuan-question-target], iframe[src^="daguanyuanbridge:"]';
+      var relevant = '[data-learning-question-id], [data-learning-question-card], article.question-document, [data-question-preview-loaded], [data-retest-question-id], [data-retest-schedule-question-id], .question-card, [role="dialog"], .learning-shell__scope-toggle, [data-chapter-id], .exercise-outline, .exercise-context, .category-selector, nav';
+      var address = String((window.location || location).href || '');
+      function element(node) { return node && (node.nodeType === 1 ? node : node.parentElement); }
+      function owned(node) { var item = element(node); return Boolean(item && item.closest && item.closest(own)); }
+      function affects(record) {
+        if (!record || !record.target) return true;
+        if (owned(record.target)) return false;
+        // 网站重绘可能只移除插件按钮；此时仍须恢复，不能与插件内部文字更新一并忽略。
+        var removed = Array.prototype.slice.call(record.removedNodes || []);
+        if (removed.some(function (node) {
+          return node.nodeType === 1 && (node.matches && node.matches('[data-daguanyuan-question-target]')
+            || node.querySelector && node.querySelector('[data-daguanyuan-question-target]'));
+        })) return true;
+        var nodes = Array.prototype.slice.call(record.addedNodes || []).concat(Array.prototype.slice.call(record.removedNodes || []));
+        if (nodes.length && nodes.every(owned)) return false;
+        var target = element(record.target);
+        if (target && target.closest && target.closest(relevant)) return true;
+        if (record.type === 'attributes') nodes.push(record.target);
+        return nodes.some(function (node) {
+          return !owned(node) && node.nodeType === 1 && (node.matches && node.matches(relevant) || node.querySelector && node.querySelector(relevant));
+        });
+      }
+      var observer = new MutationObserver(function (records) {
+        var next = String((window.location || location).href || ''), moved = next !== address; address = next;
+        if (moved || !records || !records.length || Array.prototype.some.call(records, affects)) callback();
+      });
+      observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true,
+        attributeFilter: ['data-learning-question-id', 'data-learning-question-card', 'data-question-id', 'data-question-preview-loaded',
+          'data-question-source', 'data-question-category-paths', 'data-retest-question-id', 'data-retest-schedule-question-id',
+          'data-scope', 'data-chapter-id', 'aria-current', 'aria-pressed', 'aria-checked', 'aria-hidden', 'aria-labelledby',
+          'role', 'hidden', 'inert', 'class', 'style'] });
+      return observer;
+    }
+    window.__DAGUANYUAN_QUESTION_DOM__ = { version: 5, read: read, previewRow: previewRow, observeChanges: observeChanges };
     return window.__DAGUANYUAN_QUESTION_DOM__;
   }
 
   function mathContextScript() {
-    return typeof __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ === 'undefined' ? ''
-      : 'window.__DAGUANYUAN_MATH_IMPORT_ROUTE__=' + __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.importContextFromURL.toString() + ';';
+    return __DAGUANYUAN_MATH_SITE_GLOBAL__.pageScript()
+      + (typeof __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ === 'undefined' ? ''
+        : 'window.__DAGUANYUAN_MATH_IMPORT_ROUTE__=' + __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__.importContextFromURL.toString() + ';');
   }
   function questionDOMScript() { return mathContextScript() + '(' + questionDOMPageScript.toString() + ')();'; }
 
   // 此函数只在网站 WebView 内运行，三个工具共用排列逻辑，避免观察器相互移动按钮。
   function questionToolsPageScript(locateEnabled, noteEnabled, singleEnabled) {
     var state = window.__DAGUANYUAN_QUESTION_TOOLS__;
-    if (!state || state.version !== 8) {
+    if (!state || state.version !== 10) {
       if (state) {
+        if (state.observer && typeof state.observer.disconnect === 'function') state.observer.disconnect();
+        if (typeof window.removeEventListener === 'function') window.removeEventListener('popstate', state.schedule);
         if (state.timer !== null && typeof window.clearTimeout === 'function') window.clearTimeout(state.timer);
         state.timer = -1;
       }
@@ -166,7 +204,7 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
       }
       var legacy = document.querySelectorAll('[data-daguanyuan-locate-card], [data-daguanyuan-retest-add-note]');
       for (var l = 0; l < legacy.length; l += 1) if (legacy[l].parentNode) legacy[l].parentNode.removeChild(legacy[l]);
-      state = { version: 8, enabled: false, noteEnabled: false, singleEnabled: false, busy: false, noteBusy: false, locateBusy: false, timer: null };
+      state = { version: 10, enabled: false, noteEnabled: false, singleEnabled: false, busy: false, noteBusy: false, locateBusy: false, timer: null };
       window.__DAGUANYUAN_QUESTION_TOOLS__ = state;
       window.__DAGUANYUAN_PRACTICE_CARD_BUTTONS__ = state;
       window.__DAGUANYUAN_SINGLE_IMPORT_BUTTONS__ = state;
@@ -240,7 +278,7 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
       state.finishImport = function () { state.busy = false; state.schedule(); };
       state.finishNotePaste = function () { state.noteBusy = false; state.schedule(); };
       state.finishLocate = function () { state.locateBusy = false; state.schedule(); };
-      new MutationObserver(state.schedule).observe(document.documentElement, { childList: true, subtree: true });
+      state.observer = window.__DAGUANYUAN_QUESTION_DOM__.observeChanges(state.schedule);
       window.addEventListener('popstate', state.schedule);
     }
     if (locateEnabled !== null) state.enabled = locateEnabled;
@@ -254,7 +292,7 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
 
   function bindCategoryPageScript(bindEnabled, importEnabled, selectionEnabled) {
     var state = window.__DAGUANYUAN_BIND_CATEGORY_BUTTON__;
-    if (state && state.version === 8) {
+    if (state && state.version === 10) {
       state.bindEnabled = bindEnabled;
       state.importEnabled = importEnabled;
       state.selectionEnabled = selectionEnabled;
@@ -263,6 +301,8 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
     }
     var previous = state;
     if (previous) {
+      if (previous.observer && typeof previous.observer.disconnect === 'function') previous.observer.disconnect();
+      if (typeof window.removeEventListener === 'function') window.removeEventListener('popstate', previous.schedule);
       if (previous.timer !== null && typeof window.clearTimeout === 'function') window.clearTimeout(previous.timer);
       previous.timer = -1;
       var saved = previous.contextStyle;
@@ -272,7 +312,7 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
         saved.element.style.gap = saved.gap;
       }
     }
-    state = { version: 8, bindEnabled: bindEnabled, importEnabled: importEnabled, selectionEnabled: selectionEnabled,
+    state = { version: 10, bindEnabled: bindEnabled, importEnabled: importEnabled, selectionEnabled: selectionEnabled,
       importBusy: Boolean(previous && previous.importBusy), timer: null, schedule: null, finishImport: null };
     window.__DAGUANYUAN_BIND_CATEGORY_BUTTON__ = state;
     function sync() {
@@ -293,7 +333,7 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
       if (ui && typeof ui.finishDirectImport === 'function') ui.finishDirectImport();
       state.schedule();
     };
-    new MutationObserver(state.schedule).observe(document.documentElement, { childList: true, subtree: true });
+    state.observer = window.__DAGUANYUAN_QUESTION_DOM__.observeChanges(state.schedule);
     window.addEventListener('popstate', state.schedule);
     state.schedule();
     return true;
@@ -307,7 +347,7 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
   function singleImportScript(enabled) { return toolsScript(singleImportPageScript, enabled ? 'true' : 'false'); }
   function practiceScript(enabled, noteEnabled) { return toolsScript(practicePageScript, (enabled === false ? 'false' : 'true') + ',' + (noteEnabled ? 'true' : 'false')); }
   function bindCategoryScript(bindEnabled, importEnabled, selectionEnabled) {
-    return '(function () { var sendCommand = ' + sendCommand.toString() + '; return (' + bindCategoryPageScript.toString() + ')(' + (bindEnabled ? 'true' : 'false') + ',' + (importEnabled ? 'true' : 'false') + ',' + (selectionEnabled === false ? 'false' : 'true') + '); })();';
+    return questionDOMScript() + '(function () { var sendCommand = ' + sendCommand.toString() + '; return (' + bindCategoryPageScript.toString() + ')(' + (bindEnabled ? 'true' : 'false') + ',' + (importEnabled ? 'true' : 'false') + ',' + (selectionEnabled === false ? 'false' : 'true') + '); })();';
   }
 
   function readImportContext() {
@@ -363,6 +403,17 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
     // 分类页可能没有侧栏；返回题单链接同样明确指向当前练习的来源，不读取菜单中其他题单。
     if (!listId) readListLinks('a[aria-current="page"][href]');
     if (!listId && !ambiguousLinks) readListLinks('[data-learning-question-practice-toolbar] a[aria-label="返回题单"][href]');
+    // 首页桌面与窄屏可以同时渲染同一题单选择器，只读取已选名称。
+    var homeListName = '';
+    if (!listId && !ambiguousLinks && /^\/(?:math\/?)?$/.test(address.pathname)) {
+      var pickers = document.querySelectorAll('.learning-shell__chapter-header [role="combobox"]:not([data-placeholder])');
+      var names = [];
+      for (var pickerIndex = 0; pickerIndex < pickers.length; pickerIndex += 1) {
+        var name = String(pickers[pickerIndex].textContent || '').trim();
+        if (name && names.indexOf(name) < 0) names.push(name);
+      }
+      if (names.length === 1) homeListName = names[0];
+    }
     var user = {};
     try { user = JSON.parse(window.localStorage.getItem('daguan_user') || '{}') || {}; } catch (ignored) {}
     var suffix = listId.match(/-math[-_]([123])$/);
@@ -370,9 +421,10 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
       || user.math_exam_subject || 'all';
     var scope = query.get('scope') || linkedScope || 'complete';
     // 传统侧栏没有题单链接；网站按当前单选范围和备考科目确定官方题单。
-    if (!listId && !ambiguousLinks) {
+    if (!listId && !ambiguousLinks && !homeListName) {
       var controls = document.querySelectorAll('.learning-shell__scope-toggle'), scopes = [];
-      var labels = { '完整': 'complete', '严选': 'core', '真题': 'exam' };
+      // 网站将严选更名为臻选，题单范围仍为 core。
+      var labels = { '完整': 'complete', '严选': 'core', '臻选': 'core', '真题': 'exam' };
       for (var controlIndex = 0; controlIndex < controls.length; controlIndex += 1) {
         var control = controls[controlIndex], values = [];
         var active = control.querySelectorAll('[role="radio"][aria-checked="true"], button[aria-pressed="true"]');
@@ -380,8 +432,8 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
           var label = String(active[activeIndex].textContent || '').replace(/\s+/g, '');
           if (Object.prototype.hasOwnProperty.call(labels, label)) values.push(labels[label]);
         }
-        var description = String(control.getAttribute('aria-label') || '').match(/^题单[，,]\s*当前(完整|严选|真题)$/);
-        if (description) values.push(labels[description[1]]);
+        var description = String(control.getAttribute('aria-label') || '').match(/^题单[，,]\s*当前(\S+)$/);
+        if (description && Object.prototype.hasOwnProperty.call(labels, description[1])) values.push(labels[description[1]]);
         var dataScope = String(control.getAttribute('data-scope') || '');
         if (['complete', 'core', 'exam'].indexOf(dataScope) >= 0) values.push(dataScope);
         values.forEach(function (value) { if (scopes.indexOf(value) < 0) scopes.push(value); });
@@ -402,6 +454,7 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
     }
     return JSON.stringify({ url: address.href, ownerKey: String(user.id || ''),
       scope: scope, examSubject: subject,
+      homeListName: homeListName, homeListId: homeListName ? query.get('filterListId') || '' : '',
       selection: { listId: listId, listRevision: revision ? (/^[1-9]\d*$/.test(String(revision)) ? Number(revision) : -1) : 0 } });
   }
 
@@ -412,8 +465,7 @@ var __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ = (function () {
   function readBindingContext() {
     var current = JSON.parse(readNavigationContext());
     var address = new URL(current.url);
-    if (!/^https:\/\/(?:www\.|math\.)?cxyonly\.fans\//i.test(current.url)
-      || !/^\/(?:math\/)?practice(?:\/(?:categories\/)?[1-9]\d*|\/[^/\s?#]+\/(?:all|[1-9]\d*)\/[1-9]\d*)?\/?$/.test(address.pathname)) {
+    if (!__DAGUANYUAN_MATH_SITE_GLOBAL__.supports(current.url, 'binding')) {
       throw new Error('请先打开数学题型练习页面');
     }
     var route = window.__DAGUANYUAN_MATH_IMPORT_ROUTE__(current.url);

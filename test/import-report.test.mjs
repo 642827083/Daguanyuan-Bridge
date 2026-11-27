@@ -1,9 +1,10 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const source = readFileSync(new URL("../src/DaguanyuanImportReport.js", import.meta.url), "utf8");
+const source = withMathSite(readFileSync(new URL("../src/DaguanyuanImportReport.js", import.meta.url), "utf8"));
 
 test('折叠警告与导入失败分开显示，不把已保存题卡记为失败', () => {
   const context = {}; vm.createContext(context); vm.runInContext(source, context);
@@ -90,7 +91,7 @@ test("宿主文本视图不可用时使用滚动标签显示详情并支持复�
 });
 
 test("网页导入命令的失败结果和中断信息会显示原生详情，不仅显示计数提示", async () => {
-  const panelSource = readFileSync(new URL("../src/WebPanelController.js", import.meta.url), "utf8");
+  const panelSource = withMathSite(readFileSync(new URL("../src/WebPanelController.js", import.meta.url), "utf8"));
   for (const interrupted of [false, true]) {
     const { context, controller, report } = runtime();
     let methods;
@@ -150,7 +151,7 @@ test("失败详情控件抛错时仍结束导入、恢复网页按钮，并保�
   context.self = controller;
   // 捕获真实异步链的结束结果，避免旧代码未处理的异常影响其他测试。
   vm.runInContext("const originalThen = Promise.prototype.then; Promise.prototype.then = function (...args) { const result = originalThen.apply(this, args); originalThen.call(result, undefined, function () {}); globalThis.lastChain = result; return result; };", context);
-  vm.runInContext(readFileSync(new URL("../src/WebPanelController.js", import.meta.url), "utf8"), context);
+  vm.runInContext(withMathSite(readFileSync(new URL("../src/WebPanelController.js", import.meta.url), "utf8")), context);
   methods.webViewShouldStartLoadWithRequestNavigationType(controller.webView, { URL: { absoluteString: "daguanyuanbridge://import-category" } });
   await context.lastChain.catch(() => {});
   assert.equal(controller.categoryImportBusy, false);
@@ -189,8 +190,8 @@ test('数学和408整类导入直接执行，只有选题导入打开网页确�
     controller.addon = { window: {} }; controller.currentContentPage = provider;
     controller.importTask = { dismissed: true };
     context.self = controller;
-    vm.runInContext(readFileSync(new URL('../src/WebBridgeCommands.js', import.meta.url), 'utf8'), context);
-    vm.runInContext(readFileSync(new URL('../src/WebPanelController.js', import.meta.url), 'utf8'), context);
+    vm.runInContext(withMathSite(readFileSync(new URL('../src/WebBridgeCommands.js', import.meta.url), 'utf8')), context);
+    vm.runInContext(withMathSite(readFileSync(new URL('../src/WebPanelController.js', import.meta.url), 'utf8')), context);
     const address = 'daguanyuanbridge://ui?payload=' + encodeURIComponent(JSON.stringify({ requestId: 'test', command: selected ? 'openQuestionImport' : 'importCurrentQuestions', payload: selected ? { scope: 'selected' } : null }));
     methods.webViewShouldStartLoadWithRequestNavigationType(controller.webView, { URL: { absoluteString: address } });
     await new Promise(resolve => setImmediate(resolve));

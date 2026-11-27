@@ -1,3 +1,4 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -68,7 +69,7 @@ function runtime(options = {}) {
     NSTimer: { scheduledTimerWithTimeInterval(seconds, repeat, fn) { const timer = { seconds, active: true, invalidate() { this.active = false; }, fire() { if (this.active) fn(); } }; timers.push(timer); return timer; } },
     Application: { sharedInstance() { return { showHUD() {} }; } } };
   vm.createContext(context);
-  for (const file of ['DaguanyuanNotePaste', 'Daguanyuan408NotePaste']) vm.runInContext(fs.readFileSync(new URL(`../src/${file}.js`, import.meta.url), 'utf8'), context);
+  for (const file of ['DaguanyuanNotePaste', 'Daguanyuan408NotePaste']) vm.runInContext(withMathSite(fs.readFileSync(new URL(`../src/${file}.js`, import.meta.url), 'utf8')), context);
   const controller = { addon: { window: {} }, webView: { evaluateJavaScript(script, callback) {
     scripts.push(script);
     if (options.stall && script.includes('.prepare(')) { late.push(() => callback('true')); return; }

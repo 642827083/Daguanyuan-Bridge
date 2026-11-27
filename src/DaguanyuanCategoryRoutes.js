@@ -1,5 +1,5 @@
 var __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = (function createRoutes(initialCatalog) {
-  const SITE_BASE_URL = "https://math.cxyonly.fans";
+  const SITE_BASE_URL = __DAGUANYUAN_MATH_SITE_GLOBAL__.origin;
   const QUESTIONS_PER_PAGE = 20;
   let activeCatalog = { records: [], updatedAt: "" };
   let records = [];
@@ -146,16 +146,14 @@ var __DAGUANYUAN_CATEGORY_ROUTES_GLOBAL__ = (function createRoutes(initialCatalo
   // 纯函数同时交给网页执行，两个入口共用网址与范围解析。
   function importContextFromURL(urlString) {
     const value = String(urlString || '');
-    const match = value.match(/^https:\/\/(?:www\.|math\.)?cxyonly\.fans(\/[^?#]*)(?:\?([^#]*))?(?:#.*)?$/i);
-    if (!match) return { categoryId: 0, scope: '', examSubject: 'all' };
+    const address = __DAGUANYUAN_MATH_SITE_GLOBAL__.page(value);
+    if (!address) return { categoryId: 0, scope: '', examSubject: 'all' };
     const query = {};
-    (match[2] || '').split('&').forEach(function (part) {
+    address.query.split('&').forEach(function (part) {
       const pair = part.split('=');
       try { query[decodeURIComponent(pair[0])] = decodeURIComponent((pair[1] || '').replace(/\+/g, ' ')); } catch (ignored) {}
     });
-    // 新数学站去掉了 /math 前缀；旧题卡仍按原路径解析到相同分类。
-    const path = /^https:\/\/math\.cxyonly\.fans\//i.test(value) && !/^\/math(?:\/|$)/.test(match[1])
-      ? '/math' + match[1] : match[1];
+    const path = address.path;
     const simple = path.match(/^\/math\/practice\/(?:categories\/)?([1-9]\d*)\/?$/);
     const concept = path.match(/^\/math\/practice\/concepts\/([1-9]\d*)\/?$/);
     const grouped = path.match(/^\/math\/practice\/([^/]+)\/(?:all|[1-9]\d*)\/([1-9]\d*)\/?$/);

@@ -1,9 +1,9 @@
 (function () {
-  if (window.__DAGUANYUAN_MATH_CATALOG_PAGE__ && window.__DAGUANYUAN_MATH_CATALOG_PAGE__.version === 6) return;
+  if (window.__DAGUANYUAN_MATH_CATALOG_PAGE__ && window.__DAGUANYUAN_MATH_CATALOG_PAGE__.version === 8) return;
   const entries = new Map();
   const login = '请先打开插件“数学”页并登录大观园，再返回导入页重试';
   function identity() {
-    if (!/^https:\/\/(?:www\.|math\.)?cxyonly\.fans$/.test(window.location.origin)) throw Error('当前网页不是大观园数学站，请先打开插件“数学”页后重试');
+    if (!__DAGUANYUAN_MATH_SITE_GLOBAL__.page(window.location.origin)) throw Error('当前网页不是大观园数学站，请先打开插件“数学”页后重试');
     return String(window.localStorage.getItem('daguan_token') || window.localStorage.getItem('token') || '');
   }
   function release(token) {
@@ -34,6 +34,7 @@
   function beginRead(token, path) {
     if (!/^[a-z0-9-]{1,100}$/i.test(token) || !(/^\/api\/categories\?scope=(complete|core|exam)&exam_subject=(all|math_1|math_2|math_3)$/.test(path)
       || /^\/api\/questions(?:\/[1-9]\d*|\?category_id=[1-9]\d*&include_children=false&page=[1-9]\d*&per_page=20&scope=(?:complete|core|exam)(?:&exam_subject=(?:all|math_1|math_2|math_3))?)$/.test(path)
+      || path === '/api/question-lists'
       || /^\/api\/question-lists\/[a-zA-Z0-9_-]{1,100}\/directory\?exam_subject=(all|math_[123])&scope=(complete|core|exam)(?:&revision=[1-9]\d*)?$/.test(path)
       || /^\/api\/question-lists\/[a-zA-Z0-9_-]{1,100}(?:\?revision=[1-9]\d*)?$/.test(path)
       || /^\/api\/question-lists\/[a-zA-Z0-9_-]{1,100}\/position\?question_id=[1-9]\d*&per_page=30&revision=[1-9]\d*&category_id=[1-9]\d*&include_children=true&exam_subject=(all|math_[123])&scope=(complete|core|exam)&external_categories=all$/.test(path)
@@ -66,7 +67,14 @@
         const tree = await response.json();
         item.check();
         if (category && !Array.isArray(tree) || !tree || typeof tree !== 'object') throw Error('数学数据格式无效，请刷新数学网页后重试');
-        const data = JSON.stringify(tree);
+        // 首页定位只需题单身份、名称与版本，避免传输整份清单的学习记录。
+        let result = tree;
+        if (path === '/api/question-lists') {
+          const lists = tree.lists || tree.data && tree.data.lists;
+          if (!Array.isArray(lists)) throw Error('题单清单格式无效，请刷新数学网页');
+          result = { lists: lists.map(({ id, slug, name, revision, is_official }) => ({ id, slug, name, revision, is_official })) };
+        }
+        const data = JSON.stringify(result);
         if (data.length > 4 * 1024 * 1024) throw Error('数学数据超过传输上限');
         if (entries.get(token) !== item) return;
         item.data = data; item.status = 'ready';
@@ -89,5 +97,5 @@
     if (!item || item.status !== 'ready' || !Number.isSafeInteger(offset) || offset < 0) throw Error('分类传输已失效');
     item.check(); return item.data.slice(offset, offset + 65536);
   }
-  window.__DAGUANYUAN_MATH_CATALOG_PAGE__ = { version: 6, begin, beginRead, read, chunk, release };
+  window.__DAGUANYUAN_MATH_CATALOG_PAGE__ = { version: 8, begin, beginRead, read, chunk, release };
 })();

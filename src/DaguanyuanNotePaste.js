@@ -28,16 +28,15 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
   }
 
   function pageReceiver() {
-    if (window.__DAGUANYUAN_NOTE_PASTE__ && window.__DAGUANYUAN_NOTE_PASTE__.version === 8) return true;
+    if (window.__DAGUANYUAN_NOTE_PASTE__ && window.__DAGUANYUAN_NOTE_PASTE__.version === 9) return true;
     var current = null;
     function previewRow(id, expectedRow) {
       var helper = window.__DAGUANYUAN_QUESTION_DOM__;
       return helper && typeof helper.previewRow === 'function' ? helper.previewRow(Number(id), expectedRow) : null;
     }
     function validPage(id) {
-      return /^(?:www\.|math\.)?cxyonly\.fans$/i.test(window.location.hostname || "")
-        && (/^\/(?:math\/)?(?:practice(?:\/(?:(?:categories|concepts)\/)?[1-9]\d*|\/[^/\s?#]+\/(?:all|[1-9]\d*)\/[1-9]\d*)?|questions\/[1-9]\d*|paper)\/?$/.test(window.location.pathname || "")
-          || /^\/(?:math\/)?retest(?:\/|$)/.test(window.location.pathname || "")
+      return !!__DAGUANYUAN_MATH_SITE_GLOBAL__.page(window.location)
+        && (__DAGUANYUAN_MATH_SITE_GLOBAL__.supports(window.location, 'note')
           || !!previewRow(id || current && current.id, current && current.preview ? current.row : undefined));
     }
     function questionRow(id) {
@@ -243,7 +242,7 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
       current = null;
       return true;
     }
-    window.__DAGUANYUAN_NOTE_PASTE__ = { version: 8, prepare: prepare, append: append, commit: commit, cancel: cancel };
+    window.__DAGUANYUAN_NOTE_PASTE__ = { version: 9, prepare: prepare, append: append, commit: commit, cancel: cancel };
     return true;
   }
 
@@ -273,9 +272,9 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
     const prefix = "window.__DAGUANYUAN_NOTE_PASTE__";
     controller.notePasteOperation = { id, token };
     return evaluate(controller, "String(window.location.href || '')").then(function (url) {
-      if (!/^https:\/\/(?:www\.|math\.)?cxyonly\.fans\/(?:math\/)?(?:practice(?:\/(?:(?:categories|concepts)\/)?[1-9]\d*|\/[^/\s<>?#]+\/(?:all|[1-9]\d*)\/[1-9]\d*)?|questions\/[1-9]\d*|retest(?:\/(?:practice|plans))?|paper)\/?(?:[?#][^\s<>]*)?$/.test(String(url || ""))) {
+      if (!__DAGUANYUAN_MATH_SITE_GLOBAL__.supports(url, 'note')) {
         // 首页搜索不改变网址，额外核对已加载预览中的题号后才读取剪贴板。
-        if (!/^https:\/\/(?:www\.|math\.)?cxyonly\.fans\/[^\s<>]*$/.test(String(url || ""))
+        if (!__DAGUANYUAN_MATH_SITE_GLOBAL__.page(url)
           || typeof __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__ === 'undefined') throw new Error("请先打开大观园数学题目页或错题复测页");
         return evaluate(controller, __DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__.questionDOMScript()
           + ";String(!!window.__DAGUANYUAN_QUESTION_DOM__.previewRow(" + id + "))").then(function (ready) {
@@ -284,9 +283,9 @@ var __DAGUANYUAN_NOTE_PASTE_GLOBAL__ = (function () {
       }
     }).then(function () {
       image = clipboardImage();
-      return evaluate(controller, "(" + pageReceiver.toString() + ")();");
+      return evaluate(controller, __DAGUANYUAN_MATH_SITE_GLOBAL__.pageScript() + "(" + pageReceiver.toString() + ")();");
     }).then(function () {
-      return evaluate(controller, "String(!!(" + prefix + " && " + prefix + ".version === 8))");
+      return evaluate(controller, "String(!!(" + prefix + " && " + prefix + ".version === 9))");
     }).then(function (ready) {
       if (!accepted(ready)) throw new Error("无法连接题目笔记编辑器");
       return evaluate(controller, "String(" + prefix + ".prepare(" + [id, token, image.mimeType, image.fileName].map(JSON.stringify).join(",") + "))");

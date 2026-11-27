@@ -1,3 +1,4 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -12,7 +13,7 @@ function page() {
     setTimeout(fn, delay) { timers.push({ fn, delay }); return timers.length; }, clearTimeout() {} };
   const context = { window, document, URLSearchParams, MutationObserver: class { constructor(fn) { observers.push(fn); } observe() {} } };
   vm.createContext(context);
-  for (const name of ['DaguanyuanWebsiteBridge', 'DaguanyuanRetestBridge']) vm.runInContext(readFileSync(new URL('../src/' + name + '.js', import.meta.url), 'utf8'), context);
+  for (const name of ['DaguanyuanWebsiteBridge', 'DaguanyuanRetestBridge']) vm.runInContext(withMathSite(readFileSync(new URL('../src/' + name + '.js', import.meta.url), 'utf8')), context);
   function flush() { for (let n = 0; n < 20 && timers.some(t => t.delay === 80); n++) timers.splice(timers.findIndex(t => t.delay === 80), 1)[0].fn(); }
   function update(locate = true, note = false, single = true) {
     vm.runInContext(context.__DAGUANYUAN_WEBSITE_BRIDGE_GLOBAL__.practiceScript(locate, note), context);

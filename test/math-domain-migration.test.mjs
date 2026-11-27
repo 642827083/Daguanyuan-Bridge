@@ -1,3 +1,4 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -5,7 +6,7 @@ import vm from 'node:vm';
 import { parseHTML } from 'linkedom';
 import build from '../scripts/build-web.js';
 
-const read = path => fs.readFileSync(new URL('../' + path, import.meta.url), 'utf8');
+const read = path => withMathSite(fs.readFileSync(new URL('../' + path, import.meta.url), 'utf8'));
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
 function browser(address, fetcher) {

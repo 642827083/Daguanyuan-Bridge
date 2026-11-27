@@ -1,4 +1,5 @@
 JSB.require("DaguanyuanDiagnostics");
+JSB.require("DaguanyuanMathSite");
 JSB.require("DaguanyuanFocusNextCore");
 JSB.require("DaguanyuanCategoryCatalogStore");
 JSB.require("DaguanyuanCategoryRoutes");

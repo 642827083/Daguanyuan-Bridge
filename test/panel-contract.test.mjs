@@ -1,12 +1,13 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import vm from 'node:vm';
 
-const addonSource = readFileSync(new URL("../src/WebAddon.js", import.meta.url), "utf8");
-const panelSource = readFileSync(new URL("../src/WebPanelController.js", import.meta.url), "utf8");
-const mainSource = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
-const videoSource = readFileSync(new URL("../src/DaguanyuanVideoBrowser.js", import.meta.url), "utf8");
+const addonSource = withMathSite(readFileSync(new URL("../src/WebAddon.js", import.meta.url), "utf8"));
+const panelSource = withMathSite(readFileSync(new URL("../src/WebPanelController.js", import.meta.url), "utf8"));
+const mainSource = withMathSite(readFileSync(new URL("../src/main.js", import.meta.url), "utf8"));
+const videoSource = withMathSite(readFileSync(new URL("../src/DaguanyuanVideoBrowser.js", import.meta.url), "utf8"));
 
 test("面板提供独立导入页并保留题目工具中的分类导入开关", () => {
   assert.match(panelSource, /button\("数学", controller, "openDaguanyuan:"\)/);

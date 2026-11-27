@@ -1,3 +1,4 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -6,6 +7,22 @@ import { parseHTML } from 'linkedom';
 import build from '../scripts/build-web.js';
 
 const tick = () => new Promise(resolve => setImmediate(resolve));
+
+test('原生进度合并后仍更新真实页面，运行中不重复遍历选题控件，完成结果准确', async () => {
+  const run = runtime(); const { pending } = await run.open('selected', 200);
+  run.click('[data-action="commit"]'); await pending;
+  const dialog = run.document.getElementById('dgy-dialog'), query = dialog.querySelectorAll;
+  let scans = 0;
+  dialog.querySelectorAll = function (selector) { if (selector === 'input[data-id]') scans++; return query.call(this, selector); };
+  for (let i = 1; i <= 200; i++) run.ui.progress(run.controller, { processed: i, total: 200 });
+  await tick();
+  for (const timer of run.timers.filter(t => t.seconds === 0.2)) timer.callback();
+  await tick();
+  assert.match(run.document.getElementById('dgy-status').textContent, /200\/200/);
+  assert.equal(scans, 0);
+  await run.ui.show(run.controller, { createdCount: 200, failed: [] });
+  assert.match(run.document.getElementById('dgy-result').textContent, /新建 200/);
+});
 function runtime(url = 'https://www.cxyonly.fans/math/practice/1') {
   const { document, Event, HTMLElement } = parseHTML('<html><head></head><body></body></html>');
   HTMLElement.prototype.scrollIntoView = function () {};
@@ -18,10 +35,10 @@ function runtime(url = 'https://www.cxyonly.fans/math/practice/1') {
   class NSNull {}
   const native = { console, NSNull, __DAGUANYUAN_IMPORT_PAGE_SCRIPT__: build.pageScript(),
     UIPasteboard: { generalPasteboard() { return copied; } },
-    NSTimer: { scheduledTimerWithTimeInterval(time, repeats, callback) { const timer = { callback, invalidate() {} }; timers.push(timer); return timer; } } };
+    NSTimer: { scheduledTimerWithTimeInterval(time, repeats, callback) { const timer = { seconds: time, callback, invalidate() {} }; timers.push(timer); return timer; } } };
   vm.createContext(native);
   for (const name of ['DaguanyuanSourceLink', 'DaguanyuanCardComments', 'DaguanyuanMathImport', 'DaguanyuanImportReport', 'DaguanyuanImportSelection', 'WebBridgeCommands']) {
-    vm.runInContext(readFileSync(new URL('../src/' + name + '.js', import.meta.url), 'utf8'), native);
+    vm.runInContext(withMathSite(readFileSync(new URL('../src/' + name + '.js', import.meta.url), 'utf8')), native);
   }
   const controller = { webView: { evaluateJavaScript(script, callback) {
     try { callback(vm.runInContext(script, browser), new NSNull()); } catch (error) { callback(null, error); }

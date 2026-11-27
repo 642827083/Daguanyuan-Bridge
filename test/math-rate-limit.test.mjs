@@ -1,3 +1,4 @@
+import { withMathSite } from './helpers/math-site.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -30,7 +31,7 @@ function runtime(response) {
     } },
   };
   vm.createContext(context);
-  vm.runInContext(fs.readFileSync(new URL('../src/DaguanyuanMathApi.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(withMathSite(fs.readFileSync(new URL('../src/DaguanyuanMathApi.js', import.meta.url), 'utf8')), context);
   return { api: context.__DAGUANYUAN_MATH_API_GLOBAL__, requests, waits, get maxActive() { return maxActive; } };
 }
 
